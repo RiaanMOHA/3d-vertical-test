@@ -21,17 +21,20 @@
   .chip { pointer-events: auto; padding: 8px 16px; border-radius: 999px; background: rgba(0,0,0,0.55); color: #fff; font-size: 13px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; }
   .chip:hover { background: rgba(0,0,0,0.75); }
   .chip.active { background: #fff; color: #111; border-color: #fff; }
+  .chip.disabled { opacity: 0.4; cursor: default; pointer-events: none; }
   kbd { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.15); border-radius: 3px; font-family: inherit; font-size: 12px; }
 </style>
 </head>
 <body>
 <div id="app"></div>
-<a id="back-link" href="index.html">← projects</a>
+<a id="back-link" href="http://localhost:8080/index.html">← projects</a>
 <div id="project-badge">ozu-test</div>
 <div id="chips">
   <div class="chip active" data-scene="exterior">exterior</div>
-  <a class="chip" href="http://localhost:5174/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">room-1 v2 →</a>
-  <a class="chip" href="http://localhost:5175/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">room-1 v3 →</a>
+  <a class="chip" href="http://localhost:5174/?v=v1" style="text-decoration:none;color:inherit;">room-1-v1 →</a>
+  <a class="chip" href="http://localhost:5174/?v=v2" style="text-decoration:none;color:inherit;">room-1-v2 →</a>
+  <a class="chip" href="http://localhost:5174/?v=v3" style="text-decoration:none;color:inherit;">room-1-v3 →</a>
+  <a class="chip" href="http://localhost:5174/?v=v4" style="text-decoration:none;color:inherit;">room-1-v4 →</a>
 </div>
 <div id="mode-label" class="ui">mode: <span id="mode-val">orbit</span></div>
 <div id="room-label" class="ui">—</div>

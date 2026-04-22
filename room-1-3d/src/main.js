@@ -1,28 +1,25 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-import * as v2       from './variants/v2/index.js';
-import * as v3rect   from './variants/v3-rect/index.js';
-import * as v3walls  from './variants/v3-walls/index.js';
+import * as v1 from './variants/v1/index.js';
+import * as v2 from './variants/v2/index.js';
+import * as v3 from './variants/v3/index.js';
+import * as v4 from './variants/v4/index.js';
 
 const VARIANTS = {
-  'v2':       v2,
-  'v3-rect':  v3rect,
-  'v3-walls': v3walls,
+  'v1': v1,
+  'v2': v2,
+  'v3': v3,
+  'v4': v4,
 };
-const DEFAULT_VARIANT = 'v3-walls';
+const DEFAULT_VARIANT = 'v4';
 
 const urlVar = new URLSearchParams(location.search).get('v');
 const activeName = VARIANTS[urlVar] ? urlVar : DEFAULT_VARIANT;
 const variant = VARIANTS[activeName];
+document.title = `room-1-${activeName}`;
 const ROOM   = variant.ROOM;
 const CAMERA = variant.CAMERA;
-
-// Mark active chip + label in HUD
-const chip = document.querySelector(`.variant-chip[data-variant="${activeName}"]`);
-if (chip) chip.classList.add('active');
-const variantLabel = document.getElementById('variant-label');
-if (variantLabel) variantLabel.textContent = variant.LABEL;
 
 // ---------- renderer / scene / camera ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -35,7 +32,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1b1f);
 
 const camera = new THREE.PerspectiveCamera(
-  60, window.innerWidth / window.innerHeight, 0.02, 100);
+  CAMERA.walkFov ?? 70, window.innerWidth / window.innerHeight, 0.02, 100);
 camera.position.set(...CAMERA.orbitInitial);
 
 // ---------- lighting ----------

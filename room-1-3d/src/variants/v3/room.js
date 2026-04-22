@@ -117,7 +117,7 @@ export function buildRoom(scene) {
     g.add(handle);
   }
 
-  // --- cabinet-wall (x=0): hook bar + closet + frosted window ---
+  // --- cabinet-wall (x=0): hook bar + closet ---
   {
     // hook bar (wood plank protruding into room, square cross-section)
     const hb = HOOK_BAR;
@@ -148,15 +148,9 @@ export function buildRoom(scene) {
       g.add(h);
     }
 
-    // frosted window with frame
-    const fw = FROSTED_WINDOW;
-    const a1 = fw.z1, a2 = fw.z2;
-    const b1 = fw.sillY, b2 = fw.sillY + fw.h;
-    wallFeature(g, 'x', 0, +1, { a1, a2, b1, b2 }, frostedMat);
-    windowFrame(g, 'x', 0, +1, a1, a2, b1, b2, frameMat);
   }
 
-  // --- ac-wall (z=D): ac unit only (white box protruding into room) ---
+  // --- ac-wall (z=D): ac unit + frosted window ---
   {
     const ac = AC_UNIT;
     g.add(boxMesh(
@@ -164,6 +158,12 @@ export function buildRoom(scene) {
       (ac.x1 + ac.x2) / 2, ac.y + ac.h / 2, D - BIAS - ac.d / 2,
       COLOR.white
     ));
+
+    const fw = FROSTED_WINDOW;
+    const a1 = fw.x1, a2 = fw.x2;
+    const b1 = fw.sillY, b2 = fw.sillY + fw.h;
+    wallFeature(g, 'z', D, -1, { a1, a2, b1, b2 }, frostedMat);
+    windowFrame(g, 'z', D, -1, a1, a2, b1, b2, frameMat);
   }
 
   return g;

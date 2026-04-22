@@ -73,9 +73,9 @@ export function buildFurniture(scene) {
   // ---- BED: mattress + metal-frame headboard + metal-frame footboard ----
   g.add(aabb(BED.mattress, COLOR.mattress));
   metalFrame(g, BED.headboard,
-    { y1: 0.98, y2: 1.00 }, { y1: 0.53, y2: 0.55 }, 5);
+    { y1: 0.98, y2: 1.00 }, { y1: 0.00, y2: 0.02 }, 5);
   metalFrame(g, BED.footboard,
-    { y1: 0.68, y2: 0.70 }, { y1: 0.53, y2: 0.55 }, 3);
+    { y1: 0.68, y2: 0.70 }, { y1: 0.00, y2: 0.02 }, 3);
 
   // ---- DESK ----
   {

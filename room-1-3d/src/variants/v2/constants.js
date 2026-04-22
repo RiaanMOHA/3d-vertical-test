@@ -1,4 +1,4 @@
-// room-1 v2 — every numeric value lives here.
+// room-1 v3 — photo-driven layout (rectangular room, bed along window-wall).
 //
 // Coord system (locked per spec):
 //   origin (0,0,0) at corner-cabinet-entrance, on the floor
@@ -12,7 +12,7 @@
 //   corner-ac-entrance      : (0,   0, D)
 //   corner-ac-window        : (W,   0, D)
 
-export const ROOM = { W: 2.7, D: 2.7, H: 2.4 };
+export const ROOM = { W: 2.7, D: 3.6, H: 2.4 };
 
 export const COLOR = {
   floor:     0xd4b896,   // light oak, flat tan
@@ -78,22 +78,24 @@ export const FROSTED_WINDOW = {
 
 // ----- furniture -----
 export const BED = {
-  // mattress: 1.0 wide × 2.0 long × 0.4 tall, top at y=0.5
-  mattress:  { x1: 0.7,  x2: 2.7,  z1: 1.7, z2: 2.7, y1: 0.1, y2: 0.5 },
-  headboard: { x1: 2.65, x2: 2.7,  z1: 1.7, z2: 2.7, y1: 0,   y2: 1.0 },
-  footboard: { x1: 0.7,  x2: 0.75, z1: 1.7, z2: 2.7, y1: 0,   y2: 0.7 },
+  // long side along window-wall (x=W). Head at corner-cabinet-window (z=0),
+  // foot extending toward corner-ac-window. Mattress 1.0 wide × 1.95 long.
+  mattress:  { x1: 1.7, x2: 2.7, z1: 0,   z2: 1.95, y1: 0.1, y2: 0.5 },
+  headboard: { x1: 1.7, x2: 2.7, z1: 0,   z2: 0.05, y1: 0,   y2: 1.0 },
+  footboard: { x1: 1.7, x2: 2.7, z1: 1.9, z2: 1.95, y1: 0,   y2: 0.7 },
 };
 
 export const DESK = {
-  // top 1.2 × 0.6 × 0.05, top surface at y=0.75
-  footprint: { x1: 2.1, x2: 2.7, z1: 0.4, z2: 1.6 },
+  // along window-wall, between bed foot and shelf
+  footprint: { x1: 2.1, x2: 2.7, z1: 1.95, z2: 3.15 },
   topY: 0.75,
   topThick: 0.05,
   legThick: 0.04,
 };
 
 export const SHELF = {
-  footprint: { x1: 2.3, x2: 2.7, z1: 0, z2: 0.4 },
+  // at corner-ac-window end of window-wall
+  footprint: { x1: 2.3, x2: 2.7, z1: 3.15, z2: 3.55 },
   h: 1.3,
   postThick: 0.03,
   tierThick: 0.025,
@@ -101,7 +103,8 @@ export const SHELF = {
 };
 
 export const CHAIR = {
-  footprint: { x1: 1.6, x2: 2.1, z1: 0.7, z2: 1.2 },
+  // tucked in front of desk, facing window-wall
+  footprint: { x1: 1.6, x2: 2.1, z1: 2.3, z2: 2.8 },
   h: 0.9,
   // breakdown:
   seatY: 0.5,        // top of seat
@@ -114,7 +117,7 @@ export const CHAIR = {
 };
 
 export const PENDANT = {
-  cx: 1.35, cz: 1.35,
+  cx: 1.35, cz: 1.8,
   frameY: 2.4,         // frame pressed against ceiling
   frameBarL: 0.3,
   frameBarThick: 0.03,
@@ -125,9 +128,9 @@ export const PENDANT = {
 };
 
 export const CAMERA = {
-  orbitTarget:  [1.35, 1.0, 1.35],
-  orbitInitial: [4.5,  3.5, 4.5 ],
+  orbitTarget:  [1.35, 1.0, 1.8],
+  orbitInitial: [4.5,  3.5, 5.5 ],
   walkEyeY:     1.6,
   walkStart:    [0.5,  1.6, 0.5],     // just inside corner-cabinet-entrance
-  walkLookAt:   [2.5,  1.1, 2.5],     // aim diagonally toward corner-ac-window
+  walkLookAt:   [2.5,  1.1, 3.4],     // aim diagonally toward corner-ac-window
 };

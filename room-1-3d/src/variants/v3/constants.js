@@ -51,10 +51,11 @@ export const CLOSET = {
   z1: 1.0, z2: 2.0,
   y1: 0,
 };
+// ac-wall (z=D): frosted window, roughly center-left, waist-height
 export const FROSTED_WINDOW = {
   w: 0.26, h: 1.0,
-  z1: 2.25, z2: 2.51,
-  sillY: 1.1,
+  x1: 0.82, x2: 1.08,
+  sillY: 0.9,
 };
 
 // ac-wall (z=D): only the ac unit, near corner-ac-window, high up
