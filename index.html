@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D Projects</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #1a1d24;
+    --card-hover: #22262f;
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(255,255,255,0.25);
+    --text: #f5f5f7;
+    --muted: rgba(245,245,247,0.55);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; color: var(--text); }
+  body { display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .wrap { width: 100%; max-width: 640px; }
+  h1 { font-size: 14px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 0 0 24px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  .card {
+    display: flex; flex-direction: column; justify-content: space-between;
+    min-height: 200px;
+    padding: 22px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  }
+  .card:hover { background: var(--card-hover); border-color: var(--border-hover); transform: translateY(-2px); }
+  .card-name { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .card-meta { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card-arrow { font-size: 18px; color: var(--muted); }
+  .card:hover .card-arrow { color: var(--text); }
+  .card-row { display: flex; justify-content: space-between; align-items: center; }
+  .footnote { margin-top: 28px; font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>3D projects</h1>
+    <div class="grid">
+      <a class="card" href="test.html">
+        <div class="card-row"><div class="card-meta">project 01</div><div class="card-arrow">&rarr;</div></div>
+        <div><div class="card-name">test</div></div>
+      </a>
+      <a class="card" href="ozu-test.html">
+        <div class="card-row"><div class="card-meta">project 02</div><div class="card-arrow">&rarr;</div></div>
+        <div><div class="card-name">ozu-test</div></div>
+      </a>
+    </div>
+    <div class="footnote">click a project to open its 3D environment</div>
+  </div>
+</body>
+</html>
