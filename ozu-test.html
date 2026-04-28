@@ -11,7 +11,7 @@
   .ui { position: absolute; pointer-events: none; user-select: none; font-size: 13px; letter-spacing: 0.02em; }
   #back-link { position: absolute; top: 14px; left: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); color: #fff; text-decoration: none; font-size: 13px; letter-spacing: 0.02em; pointer-events: auto; }
   #back-link:hover { background: rgba(0,0,0,0.8); }
-  #project-badge { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.7); pointer-events: none; }
+  #project-badge { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 5px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); font-size: 12px; letter-spacing: 0.02em; color: #fff; pointer-events: none; }
   #mode-label { top: 54px; left: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); }
   #room-label { top: 14px; right: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); font-weight: 500; }
   #hints { bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); text-align: center; line-height: 1.5; }
@@ -31,10 +31,8 @@
 <div id="project-badge">ozu-test</div>
 <div id="chips">
   <div class="chip active" data-scene="exterior">exterior</div>
-  <a class="chip" href="http://localhost:5174/?v=v1" style="text-decoration:none;color:inherit;">room-1-v1 →</a>
-  <a class="chip" href="http://localhost:5174/?v=v2" style="text-decoration:none;color:inherit;">room-1-v2 →</a>
-  <a class="chip" href="http://localhost:5174/?v=v3" style="text-decoration:none;color:inherit;">room-1-v3 →</a>
-  <a class="chip" href="http://localhost:5174/?v=v4" style="text-decoration:none;color:inherit;">room-1-v4 →</a>
+  <div class="chip" data-scene="room-1">room-1</div>
+  <div class="chip" data-scene="interior">interior</div>
 </div>
 <div id="mode-label" class="ui">mode: <span id="mode-val">orbit</span></div>
 <div id="room-label" class="ui">—</div>
@@ -512,6 +510,545 @@
 
       const fill = new THREE.AmbientLight(0xffffff, 0.15);
       S.group.add(fill);
+    }
+  });
+
+  // ---------- OZU-TEST INTERIOR SCENE ----------
+  // Floor plan per ozu-1-blueprint.pdf, X-MIRROR convention (page-LEFT → code RIGHT).
+  // 1F: ldk + corridor + bath + washroom + toilet + genkan + storage + stair shaft.
+  // 2F: room1/2/3 + bedroom + closets + corridor + toilet + L-shape stair shaft hole.
+  // L-shape stair: lower flight (5 steps, 1F shaft), upper flight (6 steps, 2F mid band),
+  // 90° turn at landing. Steps 6-7 are the corner (skipped on blueprint).
+  registerScene('interior', {
+    orbitPos: new THREE.Vector3(11, 9, 12),
+    orbitTarget: new THREE.Vector3(3.15, 2.5, 3.6),
+    fpStart: new THREE.Vector3(3.15, 1.6, 6.5),
+    fpYaw: 0,
+    bg: 0xbbccd8,
+    noFirstPerson: true,
+    rooms: [],
+    build: function(S) {
+      const W = 6.30, D = 7.20;
+      const F1H = 2.50, F2H = 2.50;       // match exterior floor heights
+      const WT = 0.10, FLOOR_T = 0.05;
+
+      // Floor colours
+      const CLR = {
+        wall: 0xeeeae3,
+        floor_ldk: 0xc9b89a,
+        floor_genkan: 0x8a7a66,
+        floor_corridor: 0xd6c9b6,
+        floor_stairs: 0xa68a64,
+        floor_bath: 0x9bb5c2,
+        floor_washroom: 0xc7d6df,
+        floor_toilet: 0xd6cbe0,
+        floor_storage: 0xb8b8b0,
+        floor_bedroom: 0xc4b29c,
+        floor_room: 0xd0bfa6,
+        floor_closet: 0xa89e90,
+      };
+      const wallMat = new THREE.MeshStandardMaterial({ color: CLR.wall, roughness: 0.95 });
+
+      // Wall builders, parameterised by yBase (1F at y=0, 2F at y=F1H).
+      function makeFloor(x0, z0, x1, z1, color, yBase) {
+        const dx = x1 - x0, dz = z1 - z0;
+        if (dx <= 0 || dz <= 0) return;
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(dx, FLOOR_T, dz),
+          new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
+        );
+        m.position.set((x0 + x1) / 2, yBase - FLOOR_T / 2, (z0 + z1) / 2);
+        S.group.add(m);
+      }
+      function makeWall(x0, z0, x1, z1, height, yBase) {
+        const dx = x1 - x0, dz = z1 - z0;
+        const len = Math.hypot(dx, dz);
+        if (len < 0.001) return;
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(len, height, WT),
+          wallMat
+        );
+        m.position.set((x0 + x1) / 2, yBase + height / 2, (z0 + z1) / 2);
+        m.rotation.y = -Math.atan2(dz, dx);
+        S.group.add(m);
+      }
+      function wallX(z, a, b, gaps, height, yBase) {
+        let cur = a;
+        const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
+        for (const [g0, g1] of sorted) {
+          if (g0 > cur) makeWall(cur, z, g0, z, height, yBase);
+          cur = Math.max(cur, g1);
+        }
+        if (cur < b) makeWall(cur, z, b, z, height, yBase);
+      }
+      function wallZ(x, a, b, gaps, height, yBase) {
+        let cur = a;
+        const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
+        for (const [g0, g1] of sorted) {
+          if (g0 > cur) makeWall(x, cur, x, g0, height, yBase);
+          cur = Math.max(cur, g1);
+        }
+        if (cur < b) makeWall(x, cur, x, b, height, yBase);
+      }
+
+      // ───────────────── 1F ─────────────────
+      // LDK base layer + room paint-overs (yOffset 0.001 to avoid z-fighting)
+      const F1_ROOMS = [
+        { id: 'ldk',      color: CLR.floor_ldk,      x0: 0,    z0: 0,    x1: W,    z1: D    },
+        { id: 'washroom', color: CLR.floor_washroom, x0: 0,    z0: 4.50, x1: 1.80, z1: D    },
+        { id: 'bath',     color: CLR.floor_bath,     x0: 1.80, z0: 4.80, x1: 3.60, z1: D    },
+        { id: 'toilet',   color: CLR.floor_toilet,   x0: 3.60, z0: 5.40, x1: 4.50, z1: D    },
+        { id: 'genkan',   color: CLR.floor_genkan,   x0: 4.50, z0: 6.30, x1: W,    z1: D    },
+        { id: 'corridor', color: CLR.floor_corridor, x0: 4.50, z0: 4.50, x1: W,    z1: 6.30 },
+        { id: 'storage',  color: CLR.floor_storage,  x0: 3.60, z0: 3.60, x1: 4.50, z1: 4.50 },
+        { id: 'stairs',   color: CLR.floor_stairs,   x0: 5.40, z0: 2.90, x1: W,    z1: 4.50 },
+      ];
+      for (const r of F1_ROOMS) {
+        const y = (r.id === 'ldk') ? 0 : 0.001;
+        makeFloor(r.x0, r.z0, r.x1, r.z1, r.color, y);
+      }
+
+      // ── WINDOWS — shared helper + glass material (used by 1F and 2F) ──
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x6a8898, transparent: true, opacity: 0.55, roughness: 0.18, metalness: 0.1 });
+      // axis 'X' → window's span runs along x (used for z=const walls); 'Z' → span runs along z (x=const walls).
+      function addWinFlex(axis, axisCoord, w, yBase, totalH) {
+        const span = w.b - w.a, mid = (w.a + w.b) / 2;
+        const sillH = w.y0, lintelH = totalH - w.y1, glassH = w.y1 - w.y0;
+        const xy = (axis === 'X');
+        const dimX = xy ? span : WT;
+        const dimZ = xy ? WT   : span;
+        const px = xy ? mid : axisCoord;
+        const pz = xy ? axisCoord : mid;
+        if (sillH > 0) {
+          const sill = new THREE.Mesh(new THREE.BoxGeometry(dimX, sillH, dimZ), wallMat);
+          sill.position.set(px, yBase + sillH / 2, pz);
+          S.group.add(sill);
+        }
+        if (lintelH > 0) {
+          const lintel = new THREE.Mesh(new THREE.BoxGeometry(dimX, lintelH, dimZ), wallMat);
+          lintel.position.set(px, yBase + w.y1 + lintelH / 2, pz);
+          S.group.add(lintel);
+        }
+        const gx = xy ? span : 0.04;
+        const gz = xy ? 0.04 : span;
+        const glass = new THREE.Mesh(new THREE.BoxGeometry(gx, glassH, gz), glassMat);
+        glass.position.set(px, yBase + (w.y0 + w.y1) / 2, pz);
+        S.group.add(glass);
+      }
+
+      // ── 1F WINDOWS ── (per ozu-1-blueprint.pdf 1F panel; X-mirrored)
+      const F1_WIN_FRONT = [   // z=D wall (page-top in blueprint = front face)
+        { a: 0.60, b: 1.20, y0: 1.50, y1: 1.80 },  // washroom 横すべり 06003 (FL+1800, 0.30 tall)
+        { a: 2.57, b: 2.83, y0: 1.10, y1: 1.80 },  // bath 縦すべり 02607 (FL+1800, 0.70 tall)
+        { a: 3.87, b: 4.23, y0: 1.50, y1: 1.80 },  // toilet 横すべり 03603 (FL+1800, 0.30 tall)
+      ];
+      const F1_WIN_BACK = [    // z=0 wall (page-bottom = back face) — LDK
+        { a: 0.20, b: 1.80, y0: 0.00, y1: 2.00 },  // LDK 引違 16020 (FL+2000, full-height garden door)
+        { a: 3.20, b: 4.80, y0: 1.00, y1: 1.90 },  // LDK 引違 16009 (FL+1900, 0.90 tall)
+      ];
+      const F1_WIN_LEFT = [    // x=0 wall (page-right after mirror = code-LEFT) — LDK casements
+        { a: 1.20, b: 1.46, y0: 1.00, y1: 1.90 },  // LDK 縦すべり 02609 lower (FL+1900)
+        { a: 3.30, b: 3.56, y0: 1.00, y1: 1.90 },  // LDK 縦すべり 02609 upper (FL+1900)
+      ];
+
+      // 1F outer walls (door + window x-gaps merged)
+      wallX(0, 0, W, F1_WIN_BACK.map(w => [w.a, w.b]),  F1H, 0);
+      wallX(D, 0, W, [[4.80, 5.85], ...F1_WIN_FRONT.map(w => [w.a, w.b])], F1H, 0);
+      wallZ(0, 0, D, F1_WIN_LEFT.map(w => [w.a, w.b]),  F1H, 0);
+      wallZ(W, 0, D, [], F1H, 0);
+      for (const w of F1_WIN_FRONT) addWinFlex('X', D, w, 0, F1H);
+      for (const w of F1_WIN_BACK)  addWinFlex('X', 0, w, 0, F1H);
+      for (const w of F1_WIN_LEFT)  addWinFlex('Z', 0, w, 0, F1H);
+      wallZ(1.80, 4.50, 4.80, [], F1H, 0);
+      wallZ(1.80, 4.80, D,    [[5.10, 5.70]], F1H, 0);
+      wallZ(3.60, 3.60, 4.50, [], F1H, 0);
+      wallZ(3.60, 4.80, 5.40, [], F1H, 0);
+      wallZ(3.60, 5.40, D,    [], F1H, 0);
+      wallZ(4.50, 3.60, 4.50, [], F1H, 0);
+      wallZ(4.50, 5.40, 6.30, [[5.65, 6.30]], F1H, 0);
+      wallZ(4.50, 6.30, D,    [], F1H, 0);
+      wallZ(5.40, 2.90, 4.50, [], F1H, 0);
+      wallX(2.90, 5.40, W,    [], F1H, 0);
+      wallX(3.60, 3.60, 4.50, [], F1H, 0);
+      wallX(4.50, 0,    1.80, [[0.75, 1.35]], F1H, 0);
+      wallX(4.50, 3.60, 4.50, [[3.80, 4.50]], F1H, 0);
+      wallX(4.50, 5.40, W,    [[5.40, 6.10]], F1H, 0);
+      wallX(4.80, 1.80, 3.60, [], F1H, 0);
+      wallX(5.40, 3.60, 4.50, [], F1H, 0);
+      wallX(6.30, 4.50, W,    [[5.10, 5.80]], F1H, 0);
+
+      // ───────────────── 2F ─────────────────
+      // Stair shaft hole on 2F: x=4.725..W, z=3.60..4.50 (upper flight rises through).
+      const SX0 = 4.725, SX1 = W, SZ0 = 3.60, SZ1 = 4.50;
+      const F2_ROOMS = [
+        { color: CLR.floor_room,     x0: 3.60, z0: 4.50, x1: W,    z1: D    }, // room2
+        { color: CLR.floor_toilet,   x0: 2.70, z0: 5.85, x1: 3.60, z1: D    }, // toilet
+        { color: CLR.floor_room,     x0: 0,    z0: 4.50, x1: 2.70, z1: D    }, // room3
+        { color: CLR.floor_corridor, x0: 2.70, z0: 4.50, x1: 3.60, z1: 5.85 }, // corridor_n stub
+        { color: CLR.floor_corridor, x0: 2.70, z0: 3.60, x1: SX0,  z1: 4.50 }, // mid corridor (x=2.70..stair, after closets carved out)
+        { color: CLR.floor_closet,   x0: 0,    z0: 3.60, x1: 1.35, z1: 4.50 }, // mid-band closet (west) — room1's
+        { color: CLR.floor_closet,   x0: 1.35, z0: 3.60, x1: 2.70, z1: 4.50 }, // mid-band closet (east) — room1's
+        { color: CLR.floor_bedroom,  x0: 3.60, z0: 0,    x1: W,    z1: 3.60 }, // bedroom (single rect, 9.72 m²)
+        { color: CLR.floor_closet,   x0: 2.70, z0: 1.80, x1: 3.60, z1: 3.60 }, // closet_b
+        { color: CLR.floor_closet,   x0: 2.70, z0: 0,    x1: 3.60, z1: 1.80 }, // closet_a
+        { color: CLR.floor_room,     x0: 0,    z0: 0,    x1: 2.70, z1: 3.60 }, // room1
+      ];
+      for (const r of F2_ROOMS) makeFloor(r.x0, r.z0, r.x1, r.z1, r.color, F1H);
+
+      // ── 2F WINDOWS ── 7 windows; all FL+2000 at top (= y=4.50 abs), 0.90 m tall (y=3.60..4.50).
+      // y0/y1 below are RELATIVE to F1H (the 2F floor level).
+      const F2_WIN_FRONT = [   // z=D wall (front face)
+        { a: 0.505, b: 2.195, y0: 1.10, y1: 2.00 },  // room3 引違 11909
+        { a: 3.020, b: 3.280, y0: 1.10, y1: 2.00 },  // toilet 縦すべり 02609
+        { a: 4.105, b: 5.795, y0: 1.10, y1: 2.00 },  // room2 引違 11909
+      ];
+      const F2_WIN_BACK = [    // z=0 wall (back face)
+        { a: 0.600, b: 2.100, y0: 1.10, y1: 2.00 },  // room1 引違 15009
+        { a: 4.200, b: 5.700, y0: 1.10, y1: 2.00 },  // bedroom 引違 15009
+      ];
+      const F2_WIN_LEFT = [    // x=0 wall (left face) — z range
+        { a: 1.670, b: 1.930, y0: 1.10, y1: 2.00 },  // room1 縦すべり 02609
+        { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room3 縦すべり 02609
+      ];
+
+      // 2F outer walls (door + window x-gaps merged)
+      wallX(0, 0, W, F2_WIN_BACK.map(w => [w.a, w.b]),  F2H, F1H);
+      wallX(D, 0, W, F2_WIN_FRONT.map(w => [w.a, w.b]), F2H, F1H);
+      wallZ(0, 0, D, F2_WIN_LEFT.map(w => [w.a, w.b]),  F2H, F1H);
+      wallZ(W, 0, D, [], F2H, F1H);
+      for (const w of F2_WIN_FRONT) addWinFlex('X', D, w, F1H, F2H);
+      for (const w of F2_WIN_BACK)  addWinFlex('X', 0, w, F1H, F2H);
+      for (const w of F2_WIN_LEFT)  addWinFlex('Z', 0, w, F1H, F2H);
+
+      // ── 2F interior walls ──
+      wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room1 ↔ closet_a (door)
+      wallZ(2.70, 3.60, 4.50, [[3.65, 4.45]], F2H, F1H);  // east mid-closet ↔ corridor (door — room1 reaches corridor through east closet)
+      wallZ(2.70, 4.50, D,    [[5.10, 5.70]], F2H, F1H);  // room3 ↔ corridor_n (door)
+      wallZ(3.60, 0,    3.60, [[2.10, 2.70]], F2H, F1H);  // bedroom ↔ closet_b (door)
+      wallZ(3.60, 4.50, D,    [[4.65, 5.25]], F2H, F1H);  // room2 ↔ corridor_n (door)
+      wallZ(1.35, 3.60, 4.50, [], F2H, F1H);              // wall between west and east mid-band closets
+      wallX(3.60, 0,    2.70, [[0.30, 0.95], [1.55, 2.20]], F2H, F1H);  // room1 ↔ 2 mid-band closets (2 doors)
+      wallX(3.60, 2.70, 3.60, [], F2H, F1H);
+      wallX(3.60, 3.60, W,    [[4.50, 5.20]], F2H, F1H);
+      wallX(4.50, 0,    2.70, [], F2H, F1H);              // closets ↔ room3 (solid)
+      wallX(4.50, 3.60, 4.50, [[3.80, 4.40]], F2H, F1H);
+      wallX(4.50, 4.50, W,    [], F2H, F1H);
+      wallX(5.85, 2.70, 3.60, [[2.85, 3.45]], F2H, F1H);
+
+      // ───────────────── L-SHAPE STAIR ─────────────────
+      const TOTAL_RISERS = 11;
+      const RISE = F1H / TOTAL_RISERS;          // 0.227 m
+      const TREAD_T = 0.04;
+      const treadMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4d, roughness: 0.85 });
+      const riserMat = new THREE.MeshStandardMaterial({ color: CLR.floor_stairs, roughness: 0.9 });
+      // boxed-stair carriage: solid block under each tread closes the underside
+      // so the stair reads as one staircase, not floating slabs.
+      const carriageMat = new THREE.MeshStandardMaterial({ color: 0x7a5e3d, roughness: 0.95 });
+
+      // Lower flight: 5 steps in 1F shaft (x=5.40..W, z=2.90..4.50), climbing +z.
+      const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;
+      const LOWER_RUN = 4.50 - 2.90;
+      const TREAD_LO = LOWER_RUN / 5;
+      for (let i = 0; i < 5; i++) {
+        const yTop = (i + 1) * RISE;
+        const z0 = 2.90 + i * TREAD_LO;
+        const z1 = z0 + TREAD_LO;
+        const tread = new THREE.Mesh(new THREE.BoxGeometry(LW, TREAD_T, TREAD_LO), treadMat);
+        tread.position.set(LXc, yTop - TREAD_T / 2, (z0 + z1) / 2);
+        S.group.add(tread);
+        const riser = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
+        riser.position.set(LXc, yTop - RISE / 2, z0);
+        S.group.add(riser);
+        const bodyH = yTop - TREAD_T;
+        if (bodyH > 0.001) {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(LW, bodyH, TREAD_LO), carriageMat);
+          body.position.set(LXc, bodyH / 2, (z0 + z1) / 2);
+          S.group.add(body);
+        }
+      }
+
+      // Upper flight: 6 steps in 2F mid band (x=4.725..W, z=3.60..4.50), climbing -x.
+      const UX1 = W;
+      const UPPER_RUN = 1.575;
+      const UX0 = UX1 - UPPER_RUN;       // 4.725
+      const TREAD_UP = UPPER_RUN / 6;
+      const UZ0 = 3.60, UZ1 = 4.50, UZc = (UZ0 + UZ1) / 2, UD = UZ1 - UZ0;
+      for (let i = 0; i < 6; i++) {
+        const yTop = 5 * RISE + (i + 1) * RISE;
+        const x1 = UX1 - i * TREAD_UP;
+        const x0 = x1 - TREAD_UP;
+        const tread = new THREE.Mesh(new THREE.BoxGeometry(TREAD_UP, TREAD_T, UD), treadMat);
+        tread.position.set((x0 + x1) / 2, yTop - TREAD_T / 2, UZc);
+        S.group.add(tread);
+        const riser = new THREE.Mesh(new THREE.BoxGeometry(0.02, RISE, UD), riserMat);
+        riser.position.set(x1, yTop - RISE / 2, UZc);
+        S.group.add(riser);
+        const bodyH = yTop - TREAD_T;
+        if (bodyH > 0.001) {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(TREAD_UP, bodyH, UD), carriageMat);
+          body.position.set((x0 + x1) / 2, bodyH / 2, UZc);
+          S.group.add(body);
+        }
+      }
+
+      // ───────────────── lighting ─────────────────
+      S.group.add(new THREE.AmbientLight(0xffffff, 0.65));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+      dir.position.set(8, 14, 6);
+      S.group.add(dir);
+      // ground plane (so orbit-from-below has a backdrop)
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(40, 40),
+        new THREE.MeshStandardMaterial({ color: 0x7a7a6a, roughness: 1 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -FLOOR_T - 0.001;
+      S.group.add(ground);
+    }
+  });
+
+  // ---------- OZU-TEST ROOM-1 SCENE (migrated from room-1-3d v4) ----------
+  // 2.7 × 2.7 × 2.5 room with sliding window, closet, doorway, AC, frosted window,
+  // bed, desk, shelf with X-bracing, chair, 4 pendant lights, openable door.
+  registerScene('room-1', {
+    orbitPos: new THREE.Vector3(4.5, 3.5, 4.5),
+    orbitTarget: new THREE.Vector3(1.35, 1.0, 1.35),
+    fpStart: new THREE.Vector3(0.5, 1.6, 0.5),
+    fpYaw: -Math.PI / 4,
+    bg: 0x1a1b1f,
+    noFirstPerson: true,
+    rooms: [],
+    build: function(S) {
+      const RW = 2.70, RD = 2.70, RH = 2.50;
+      const WT_R = 0.02, FEAT = 0.02, BIAS = 0.003, FRAME_T = 0.04;
+      const COL = {
+        floor: 0xd4b896, ceiling: 0xf5f0e8, wall: 0xc8c2b8,
+        ironDark: 0x1a1715, mattress: 0xf5eedd, deskWood: 0x8b4513,
+        chairSeat: 0x3a2513, blackMet: 0x1a1a1a,
+        pendantWood: 0x8b6a4a, pendantShade: 0xf0dfb8, doorway: 0x2a2a2a,
+      };
+      function box(w, h, d, cx, cy, cz, color, extra = {}) {
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, d),
+          new THREE.MeshStandardMaterial({
+            color, roughness: extra.roughness ?? 0.9, metalness: extra.metalness ?? 0,
+            emissive: extra.emissive ?? 0x000000, emissiveIntensity: extra.emissiveIntensity ?? 0,
+          })
+        );
+        m.position.set(cx, cy, cz);
+        S.group.add(m);
+        return m;
+      }
+      function aabb(r, color, extra) {
+        return box(r.x2-r.x1, r.y2-r.y1, r.z2-r.z1,
+                   (r.x1+r.x2)/2, (r.y1+r.y2)/2, (r.z1+r.z2)/2, color, extra);
+      }
+      function feat(axis, innerCoord, inward, dims, mat) {
+        const aLen = dims.a2 - dims.a1, bLen = dims.b2 - dims.b1;
+        const aC = (dims.a1+dims.a2)/2, bC = (dims.b1+dims.b2)/2;
+        const c = innerCoord + inward * BIAS;
+        const m = (mat instanceof THREE.Material)
+          ? mat : new THREE.MeshStandardMaterial({ color: mat, roughness: 0.9 });
+        let mesh;
+        if (axis === 'x') {
+          mesh = new THREE.Mesh(new THREE.BoxGeometry(FEAT, bLen, aLen), m);
+          mesh.position.set(c, bC, aC);
+        } else {
+          mesh = new THREE.Mesh(new THREE.BoxGeometry(aLen, bLen, FEAT), m);
+          mesh.position.set(aC, bC, c);
+        }
+        S.group.add(mesh);
+      }
+      function winFrame(axis, innerCoord, inward, a1, a2, b1, b2, mat) {
+        const t = FRAME_T;
+        feat(axis, innerCoord, inward, { a1: a1-t, a2: a2+t, b1: b2,   b2: b2+t }, mat);
+        feat(axis, innerCoord, inward, { a1: a1-t, a2: a2+t, b1: b1-t, b2: b1   }, mat);
+        feat(axis, innerCoord, inward, { a1: a1-t, a2: a1,   b1: b1,   b2: b2   }, mat);
+        feat(axis, innerCoord, inward, { a1: a2,   a2: a2+t, b1: b1,   b2: b2   }, mat);
+      }
+
+      const matFloorR1 = new THREE.MeshStandardMaterial({ color: COL.floor,   roughness: 0.85 });
+      const matCeilR1  = new THREE.MeshStandardMaterial({ color: COL.ceiling, roughness: 0.9 });
+      const matWallR1  = new THREE.MeshStandardMaterial({ color: COL.wall,    roughness: 0.9 });
+      const matGlassR1 = new THREE.MeshStandardMaterial({ color: 0xb8d4e0, transparent: true, opacity: 0.35, roughness: 0.1 });
+      const matFrosted = new THREE.MeshStandardMaterial({ color: 0xe8e8e0, transparent: true, opacity: 0.75, roughness: 0.95 });
+      const matCloset  = new THREE.MeshStandardMaterial({ color: 0xf2ece4, roughness: 0.7 });
+      const matFrameR1 = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+      const matHandle  = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3 });
+      const matSeam    = new THREE.MeshStandardMaterial({ color: 0xbababa });
+
+      // floor + ceiling
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.02, RD), matFloorR1);
+      floor.position.set(RW/2, -0.01, RD/2); S.group.add(floor);
+      const ceil = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.02, RD), matCeilR1);
+      ceil.position.set(RW/2, RH + 0.01, RD/2); S.group.add(ceil);
+
+      // 4 walls
+      const wA = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWallR1);
+      wA.position.set(-WT_R/2, RH/2, RD/2); S.group.add(wA);
+      const wB = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWallR1);
+      wB.position.set(RW + WT_R/2, RH/2, RD/2); S.group.add(wB);
+      const wC = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWallR1);
+      wC.position.set(RW/2, RH/2, -WT_R/2); S.group.add(wC);
+      const wD = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWallR1);
+      wD.position.set(RW/2, RH/2, RD + WT_R/2); S.group.add(wD);
+
+      // baseboards
+      const bbH = 0.05, bbD = 0.01, bbColor = 0xf2f0eb, bbX = { roughness: 0.7 };
+      box(bbD, bbH, RD, bbD/2,        bbH/2, RD/2, bbColor, bbX);
+      box(bbD, bbH, RD, RW - bbD/2,   bbH/2, RD/2, bbColor, bbX);
+      box(RW,  bbH, bbD, RW/2, bbH/2, bbD/2,      bbColor, bbX);
+      box(RW,  bbH, bbD, RW/2, bbH/2, RD - bbD/2, bbColor, bbX);
+
+      // sliding window on x=W
+      feat('x', RW, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
+      winFrame('x', RW, -1, 0.405, 1.595, 0.85, 1.75, matFrameR1);
+
+      // doorway + casing on z=0
+      feat('z', 0, +1, { a1: 0, a2: 0.8, b1: 0, b2: 2.0 }, COL.doorway);
+      const cD2 = 0.015, cW2 = 0.06, cZ2 = cD2/2 + BIAS;
+      box(0.8 + cW2, cW2, cD2, (0.8 + cW2)/2, 2.0 + cW2/2,  cZ2, 0xfafafa, { roughness: 0.6 });
+      box(cW2, 2.0 + cW2, cD2, cW2/2,         (2.0 + cW2)/2, cZ2, 0xfafafa, { roughness: 0.6 });
+      box(cW2, 2.0 + cW2, cD2, 0.8 + cW2/2,   (2.0 + cW2)/2, cZ2, 0xfafafa, { roughness: 0.6 });
+
+      // closet on x=0
+      feat('x', 0, +1, { a1: 0.75, a2: 1.95, b1: 0, b2: 2.2 }, matCloset);
+      const seamZ = (0.75 + 1.95) / 2;
+      feat('x', 0, +1, { a1: seamZ - 0.0025, a2: seamZ + 0.0025, b1: 0, b2: 2.2 }, matSeam);
+      for (const z of [seamZ - 0.06, seamZ + 0.06]) {
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.10, 0.04), matHandle);
+        h.position.set(BIAS + 0.0125, 1.0, z);
+        S.group.add(h);
+      }
+
+      // AC unit + frosted window on z=D
+      box(0.8, 0.25, 0.2, 2.1, 2.275, RD - BIAS - 0.1, 0xffffff);
+      feat('z', RD, -1, { a1: 0.82, a2: 1.08, b1: 0.9, b2: 1.9 }, matFrosted);
+      winFrame('z', RD, -1, 0.82, 1.08, 0.9, 1.9, matFrameR1);
+
+      // openable door — hinge at corner-cabinet-entrance, swung open into room
+      {
+        const dGroup = new THREE.Group();
+        dGroup.rotation.y = -Math.PI / 2;
+        const matDoor = new THREE.MeshStandardMaterial({ color: 0xf2ece4, roughness: 0.6 });
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.0, 0.04), matDoor);
+        panel.position.set(0.4, 1.0, -0.02);
+        dGroup.add(panel);
+        const hndl = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.02, 0.03), matHandle);
+        hndl.position.set(0.7, 1.0, -0.04 - 0.015);
+        dGroup.add(hndl);
+        S.group.add(dGroup);
+      }
+
+      // bed
+      aabb({ x1: 0.7, x2: 2.7, z1: 1.7, z2: 2.7, y1: 0.1, y2: 0.5 }, COL.mattress);
+      const IRON = { roughness: 0.45, metalness: 0.6 };
+      function metalFrame(panel, topRail, botRail, nBars) {
+        const w = panel.x2 - panel.x1, d = panel.z2 - panel.z1;
+        const cx = (panel.x1+panel.x2)/2, cz = (panel.z1+panel.z2)/2;
+        box(w, topRail.y2-topRail.y1, d, cx, (topRail.y1+topRail.y2)/2, cz, COL.ironDark, IRON);
+        box(w, botRail.y2-botRail.y1, d, cx, (botRail.y1+botRail.y2)/2, cz, COL.ironDark, IRON);
+        const barT = 0.03;
+        const barH = topRail.y1 - botRail.y2;
+        const barCy = (topRail.y1 + botRail.y2)/2;
+        for (let i = 0; i < nBars; i++) {
+          const t = nBars === 1 ? 0.5 : i / (nBars - 1);
+          const z = panel.z1 + (panel.z2 - panel.z1) * t;
+          box(barT, barH, barT, cx, barCy, z, COL.ironDark, IRON);
+        }
+      }
+      metalFrame({ x1: 2.65, x2: 2.7, z1: 1.7, z2: 2.7 }, { y1: 0.98, y2: 1.0 }, { y1: 0, y2: 0.02 }, 5);
+      metalFrame({ x1: 0.7,  x2: 0.75, z1: 1.7, z2: 2.7 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
+
+      // desk
+      {
+        const f = { x1: 2.1, x2: 2.7, z1: 0.4, z2: 1.6 };
+        const w = f.x2 - f.x1, d = f.z2 - f.z1;
+        const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
+        const topY = 0.75, topT = 0.05, legT = 0.04;
+        const matDesk = new THREE.MeshStandardMaterial({ color: COL.deskWood, roughness: 0.7 });
+        const top = new THREE.Mesh(new THREE.BoxGeometry(w, topT, d), matDesk);
+        top.position.set(cx, topY - topT/2, cz); S.group.add(top);
+        const legH = topY - topT;
+        const BMET = { roughness: 0.5, metalness: 0.6 };
+        for (const lx of [f.x1 + legT/2, f.x2 - legT/2])
+          for (const lz of [f.z1 + legT/2, f.z2 - legT/2])
+            box(legT, legH, legT, lx, legH/2, lz, COL.blackMet, BMET);
+      }
+
+      // shelf with x-bracing
+      {
+        const f = { x1: 2.1, x2: 2.7, z1: 0, z2: 0.4 };
+        const w = f.x2 - f.x1, d = f.z2 - f.z1;
+        const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
+        const sH = 1.3, postT = 0.03, tierT = 0.025;
+        const tierYs = [0.05, 0.47, 0.89, 1.27];
+        const BMET = { roughness: 0.5, metalness: 0.6 };
+        for (const px of [f.x1 + postT/2, f.x2 - postT/2])
+          for (const pz of [f.z1 + postT/2, f.z2 - postT/2])
+            box(postT, sH, postT, px, sH/2, pz, COL.blackMet, BMET);
+        const matTier = new THREE.MeshStandardMaterial({ color: COL.deskWood, roughness: 0.7 });
+        for (const y of tierYs) {
+          const tier = new THREE.Mesh(new THREE.BoxGeometry(w, tierT, d), matTier);
+          tier.position.set(cx, y, cz); S.group.add(tier);
+        }
+        function rod(start, end) {
+          const dir = new THREE.Vector3().subVectors(end, start);
+          const len = dir.length();
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.005, 0.005, len, 8),
+            new THREE.MeshStandardMaterial({ color: COL.blackMet, metalness: 0.6, roughness: 0.5 })
+          );
+          m.position.copy(start).add(dir.clone().multiplyScalar(0.5));
+          m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+          S.group.add(m);
+        }
+        const yLo = tierYs[0], yHi = tierYs[3];
+        const xLo = f.x1 + postT/2, xHi = f.x2 - postT/2;
+        for (const fz of [f.z1, f.z2]) {
+          rod(new THREE.Vector3(xLo, yLo, fz), new THREE.Vector3(xHi, yHi, fz));
+          rod(new THREE.Vector3(xLo, yHi, fz), new THREE.Vector3(xHi, yLo, fz));
+        }
+      }
+
+      // chair
+      {
+        const f = { x1: 1.6, x2: 2.1, z1: 1.1, z2: 1.6 };
+        const w = f.x2 - f.x1, d = f.z2 - f.z1;
+        const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
+        const seatY = 0.5, seatT = 0.05, backT = 0.05, backH = 0.4;
+        const pedT = 0.08, baseT = 0.02;
+        const BMET = { roughness: 0.5, metalness: 0.6 };
+        box(w, seatT, d, cx, seatY - seatT/2, cz, COL.chairSeat);
+        box(backT, backH, d, f.x1 + backT/2, seatY + backH/2, cz, COL.chairSeat);
+        const pHa = seatY - seatT - baseT;
+        box(pedT, pHa, pedT, cx, baseT + pHa/2, cz, COL.blackMet, BMET);
+        box(w * 0.9, baseT, d * 0.9, cx, baseT/2, cz, COL.blackMet, BMET);
+      }
+
+      // pendant lights (4 emissive cylinder shades hanging from a wood cross)
+      {
+        const cx = 1.35, cz = 1.35, fY = 2.5, barL = 0.3, barT = 0.03;
+        const sBotY = 2.1, sDia = 0.15, sH = 0.3, sOff = 0.1;
+        box(barL, barT, barT, cx, fY - barT/2, cz, COL.pendantWood);
+        box(barT, barT, barL, cx, fY - barT/2, cz, COL.pendantWood);
+        const matShade = new THREE.MeshStandardMaterial({
+          color: COL.pendantShade, emissive: COL.pendantShade, emissiveIntensity: 0.7, roughness: 0.7,
+        });
+        const shadeGeom = new THREE.CylinderGeometry(sDia/2, sDia/2, sH, 20);
+        for (const dx of [-sOff, sOff])
+          for (const dz of [-sOff, sOff]) {
+            const sh = new THREE.Mesh(shadeGeom, matShade);
+            sh.position.set(cx + dx, sBotY + sH/2, cz + dz);
+            S.group.add(sh);
+          }
+      }
+
+      // lighting
+      S.group.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dir1 = new THREE.DirectionalLight(0xffffff, 0.4);
+      dir1.position.set(5, 8, 3);
+      S.group.add(dir1);
     }
   });
 
