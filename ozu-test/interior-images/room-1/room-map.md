@@ -2,7 +2,7 @@
 
 ## overview
 
-room-1 is a simple rectangular bedroom with four walls. this document defines the wall names, adjacencies, furniture anchors, folder structure, and panorama image catalog for 3d reconstruction. the room is one of the 4.5 帖 (tatami) bedrooms on 2f of the sugimito house renovation blueprint, likely 洋室2 or 洋室3 (not yet verified). assumed dimensions: 2.7m × 2.7m. ceiling has a whitewashed wood-plank finish. walls are warm neutral grey. floor is light oak plank.
+room-1 is a simple rectangular room with four walls. this document defines the wall names, adjacencies, furniture anchors, folder structure, and panorama image catalog for 3d reconstruction. the room is one of the 4.5 帖 (tatami) rooms on 2f of the sugimito house renovation blueprint, likely 洋室2 or 洋室3 (not yet verified). assumed dimensions: 2.7m × 2.7m. ceiling has a whitewashed wood-plank finish. walls are warm neutral grey. floor is light oak plank.
 
 ## walls
 

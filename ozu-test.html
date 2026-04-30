@@ -22,6 +22,15 @@
   .chip:hover { background: rgba(0,0,0,0.75); }
   .chip.active { background: #fff; color: #111; border-color: #fff; }
   .chip.disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+  #view-chips { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+  #view-chips .chip-row { display: flex; gap: 6px; }
+  .view-chip { pointer-events: auto; padding: 5px 12px; border-radius: 999px; background: rgba(0,0,0,0.45); color: #fff; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; white-space: nowrap; }
+  .view-chip:hover { background: rgba(0,0,0,0.7); }
+  .view-chip.active { background: rgba(255,255,255,0.85); color: #111; border-color: rgba(255,255,255,0.85); }
+  #tod-chips { position: absolute; top: 96px; left: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+  .tod-chip { pointer-events: auto; padding: 5px 12px; border-radius: 999px; background: rgba(0,0,0,0.45); color: #fff; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; }
+  .tod-chip:hover { background: rgba(0,0,0,0.7); }
+  .tod-chip.active { background: rgba(255,255,255,0.85); color: #111; border-color: rgba(255,255,255,0.85); }
   kbd { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.15); border-radius: 3px; font-family: inherit; font-size: 12px; }
 </style>
 </head>
@@ -33,6 +42,12 @@
   <div class="chip active" data-scene="exterior">exterior</div>
   <div class="chip" data-scene="room-1">room-1</div>
   <div class="chip" data-scene="interior">interior</div>
+</div>
+<div id="view-chips"></div>
+<div id="tod-chips">
+  <div class="tod-chip active" data-tod="day">day</div>
+  <div class="tod-chip" data-tod="evening">evening</div>
+  <div class="tod-chip" data-tod="night">night</div>
 </div>
 <div id="mode-label" class="ui">mode: <span id="mode-val">orbit</span></div>
 <div id="room-label" class="ui">—</div>
@@ -172,6 +187,8 @@
       fpYaw: cfg.fpYaw || 0,
       bg: cfg.bg || 0xeef2f6,
       build: cfg.build,
+      viewpoints: cfg.viewpoints || [],
+      noFirstPerson: cfg.noFirstPerson,
     };
     scenes[id] = S;
     cfg.build(S);
@@ -304,15 +321,14 @@
       //   RIGHT  — X = W
 
       // -- FRONT (Z = D) --
-      // 1F: entrance door at x = 3.6..4.5 (approx), small window at x = 1.5..2.1
+      // 1F: entrance door at x = 4.95..5.85 (matches interior genkan), small window at x = 1.5..2.1
       // 2F: two windows
-      // Door opening 3.6..4.5, floor to 2.05
-      solidWall(0,   D, 1.5, D, 0,   F1H, matLower);
-      solidWall(1.5, D, 2.1, D, 0,   0.9, matLower);       // sill under window
-      solidWall(1.5, D, 2.1, D, 1.8, F1H, matLower);       // header above window
-      solidWall(2.1, D, 3.6, D, 0,   F1H, matLower);
-      solidWall(3.6, D, 4.5, D, 2.05, F1H, matLower);      // door header
-      solidWall(4.5, D, W,   D, 0,   F1H, matLower);
+      solidWall(0,    D, 1.5,  D, 0,    F1H, matLower);
+      solidWall(1.5,  D, 2.1,  D, 0,    0.9, matLower);    // sill under window
+      solidWall(1.5,  D, 2.1,  D, 1.8,  F1H, matLower);    // header above window
+      solidWall(2.1,  D, 4.95, D, 0,    F1H, matLower);
+      solidWall(4.95, D, 5.85, D, 2.05, F1H, matLower);    // door header
+      solidWall(5.85, D, W,    D, 0,    F1H, matLower);
       // 2F front — two equal windows
       solidWall(0,   D, 1.2, D, F1H, F1H+F2H, matUpper);
       solidWall(1.2, D, 2.4, D, F1H, F1H+0.9, matUpper);   // under win 1
@@ -349,7 +365,7 @@
       solidWall(0, 4.8, 0, 5.5, 0,   0.9, matLower);
       solidWall(0, 4.8, 0, 5.5, 2.0, F1H, matLower);       // living secondary
       solidWall(0, 5.5, 0, D,   0,   F1H, matLower);
-      // 2F left — bedroom window
+      // 2F left — room-4 window
       solidWall(0, 0,   0, 2.2, F1H, F1H+F2H, matUpper);
       solidWall(0, 2.2, 0, 3.1, F1H, F1H+0.9, matUpper);
       solidWall(0, 2.2, 0, 3.1, F1H+1.8, F1H+F2H, matUpper);
@@ -434,12 +450,12 @@
       {
         const g = new THREE.BoxGeometry(0.9, 2.05, 0.08);
         const m = new THREE.Mesh(g, matDoor);
-        m.position.set(4.05, 1.025, D + 0.02);
+        m.position.set(5.40, 1.025, D + 0.02);
         S.group.add(m);
         // door handle
         const hG = new THREE.BoxGeometry(0.04, 0.04, 0.05);
         const hM = new THREE.Mesh(hG, matTrim);
-        hM.position.set(4.42, 1.05, D + 0.08);
+        hM.position.set(5.77, 1.05, D + 0.08);
         S.group.add(hM);
       }
 
@@ -447,7 +463,7 @@
       {
         const g = new THREE.BoxGeometry(1.4, 0.1, 0.6);
         const m = new THREE.Mesh(g, matPorch);
-        m.position.set(4.05, 0.05, D + 0.35);
+        m.position.set(5.40, 0.05, D + 0.35);
         m.castShadow = true;
         m.receiveShadow = true;
         S.group.add(m);
@@ -456,7 +472,7 @@
       {
         const g = new THREE.BoxGeometry(1.6, 0.08, 0.3);
         const m = new THREE.Mesh(g, matStep);
-        m.position.set(4.05, 0.04, D + 0.85);
+        m.position.set(5.40, 0.04, D + 0.85);
         m.receiveShadow = true;
         S.group.add(m);
       }
@@ -485,10 +501,69 @@
       {
         const g = new THREE.BoxGeometry(1.8, 0.08, 0.9);
         const m = new THREE.Mesh(g, matRoof);
-        m.position.set(4.05, 2.25, D + 0.35);
+        m.position.set(5.40, 2.25, D + 0.35);
         m.castShadow = true;
         m.receiveShadow = true;
         S.group.add(m);
+      }
+
+      // ---------- site context: fences, neighbours, streetlight ----------
+      // Property fences on 3 sides (back, left, right). Front opens onto parking.
+      {
+        const matFence = new THREE.MeshStandardMaterial({ color: 0xb0a08c, roughness: 0.85 });
+        const FH = 0.85, FT = 0.06;
+        // back fence (z = -0.2, full property width)
+        const back = new THREE.Mesh(new THREE.BoxGeometry(W + 0.6, FH, FT), matFence);
+        back.position.set(W / 2, FH / 2, -0.2);
+        back.castShadow = true; back.receiveShadow = true;
+        S.group.add(back);
+        // left/right side fences (run from back to start of parking pad)
+        for (const sx of [-0.2, W + 0.2]) {
+          const side = new THREE.Mesh(new THREE.BoxGeometry(FT, FH, D + 0.4), matFence);
+          side.position.set(sx, FH / 2, D / 2 - 0.1);
+          side.castShadow = true; side.receiveShadow = true;
+          S.group.add(side);
+        }
+      }
+      // Two neighbour-house shells (faceless 2-storey blocks on either side).
+      {
+        const matNLow = new THREE.MeshStandardMaterial({ color: 0xa39685, roughness: 0.92 });
+        const matNUp  = new THREE.MeshStandardMaterial({ color: 0xc7bdac, roughness: 0.92 });
+        const matNRf  = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.9 });
+        function neighbour(cx, cz) {
+          const NW = 4.0, ND = 6.0, N1 = 2.5, N2 = 2.4;
+          const lo = new THREE.Mesh(new THREE.BoxGeometry(NW, N1, ND), matNLow);
+          lo.position.set(cx, N1 / 2, cz);
+          lo.castShadow = true; lo.receiveShadow = true;
+          S.group.add(lo);
+          const up = new THREE.Mesh(new THREE.BoxGeometry(NW, N2, ND), matNUp);
+          up.position.set(cx, N1 + N2 / 2, cz);
+          up.castShadow = true; up.receiveShadow = true;
+          S.group.add(up);
+          const rf = new THREE.Mesh(new THREE.BoxGeometry(NW + 0.5, 0.15, ND + 0.5), matNRf);
+          rf.position.set(cx, N1 + N2 + 0.075, cz);
+          rf.castShadow = true; rf.receiveShadow = true;
+          S.group.add(rf);
+        }
+        neighbour(-4.0,    D / 2);   // west neighbour
+        neighbour(W + 4.0, D / 2);   // east neighbour
+      }
+      // Streetlight across the road
+      {
+        const matPole = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: 0.4, roughness: 0.6 });
+        const matLamp = new THREE.MeshStandardMaterial({
+          color: 0xfff2c8, emissive: 0xffeaa8, emissiveIntensity: 0.4, roughness: 0.5,
+        });
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 4.0, 10), matPole);
+        pole.position.set(W + 1.5, 2.0, D + 4.5);
+        pole.castShadow = true;
+        S.group.add(pole);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.06, 0.06), matPole);
+        arm.position.set(W + 1.2, 4.0, D + 4.5);
+        S.group.add(arm);
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.10, 0.30), matLamp);
+        lamp.position.set(W + 0.92, 3.95, D + 4.5);
+        S.group.add(lamp);
       }
 
       // ---------- lighting ----------
@@ -504,29 +579,69 @@
       sun.shadow.camera.far = 60;
       sun.shadow.bias = -0.0005;
       S.group.add(sun);
+      S.sun = sun;
 
       const sky = new THREE.HemisphereLight(0xcce0ff, 0x444438, 0.5);
       S.group.add(sky);
+      S.sky = sky;
 
       const fill = new THREE.AmbientLight(0xffffff, 0.15);
       S.group.add(fill);
+      S.fill = fill;
     }
   });
 
   // ---------- OZU-TEST INTERIOR SCENE ----------
   // Floor plan per ozu-1-blueprint.pdf, X-MIRROR convention (page-LEFT → code RIGHT).
   // 1F: ldk + corridor + bath + washroom + toilet + genkan + storage + stair shaft.
-  // 2F: room1/2/3 + bedroom + closets + corridor + toilet + L-shape stair shaft hole.
+  // 2F: room-1 + room-2 + room-3 + room-4 + closets + corridor + toilet + L-shape stair shaft hole.
   // L-shape stair: lower flight (5 steps, 1F shaft), upper flight (6 steps, 2F mid band),
   // 90° turn at landing. Steps 6-7 are the corner (skipped on blueprint).
   registerScene('interior', {
     orbitPos: new THREE.Vector3(11, 9, 12),
     orbitTarget: new THREE.Vector3(3.15, 2.5, 3.6),
-    fpStart: new THREE.Vector3(3.15, 1.6, 6.5),
+    fpStart: new THREE.Vector3(5.3, 1.6, 6.8),
     fpYaw: 0,
     bg: 0xbbccd8,
-    noFirstPerson: true,
-    rooms: [],
+    rooms: [
+      // 1F (y=0..2.5) — carve-outs listed BEFORE living-dining bbox so they win the iteration
+      { name: 'kitchen',       x1: 0,    z1: 2.40, x2: 2.55, z2: 4.50, y1: 0,   y2: 2.5 }, // NE carve-out of LDK
+      { name: 'stairs',        x1: 5.40, z1: 2.90, x2: 6.30, z2: 4.50, y1: 0,   y2: 2.5 }, // NW carve-out of LDK (1F shaft footprint)
+      { name: 'living-dining', x1: 0,    z1: 0,    x2: 6.30, z2: 4.50, y1: 0,   y2: 2.5 },
+      { name: 'laundry',       x1: 0,    z1: 4.50, x2: 1.80, z2: 7.20, y1: 0,   y2: 2.5 },
+      { name: 'washroom',      x1: 1.80, z1: 5.40, x2: 3.60, z2: 7.20, y1: 0,   y2: 2.5 },
+      { name: 'toilet-1-f',    x1: 3.60, z1: 5.40, x2: 4.50, z2: 7.20, y1: 0,   y2: 2.5 },
+      { name: 'corridor-1',    x1: 4.50, z1: 4.50, x2: 6.30, z2: 6.30, y1: 0,   y2: 2.5 },
+      { name: 'corridor-1',    x1: 4.50, z1: 6.30, x2: 6.30, z2: 7.20, y1: 0,   y2: 2.5 }, // genkan zone (part of corridor-1 folder)
+      { name: 'corridor-1',    x1: 3.60, z1: 4.50, x2: 4.50, z2: 5.40, y1: 0,   y2: 2.5 }, // east-arm connector strip (south of toilet, west of main shaft)
+      { name: 'corridor-1',    x1: 1.80, z1: 4.50, x2: 3.60, z2: 5.40, y1: 0,   y2: 2.5 }, // washroom-approach strip (south of washroom door)
+      // 2F (y=2.5..5.0)
+      { name: 'stairs',                x1: 4.725, z1: 3.60, x2: 6.30, z2: 4.50, y1: 2.5, y2: 5.0 }, // 2F shaft footprint (L-bend turns west)
+      { name: 'room-3',                x1: 0,    z1: 0,    x2: 2.70, z2: 3.60, y1: 2.5, y2: 5.0 },
+      { name: 'room-1',                x1: 3.60, z1: 4.50, x2: 6.30, z2: 7.20, y1: 2.5, y2: 5.0 },
+      { name: 'room-2',                x1: 0,    z1: 4.50, x2: 2.70, z2: 7.20, y1: 2.5, y2: 5.0 },
+      { name: 'room-4',                x1: 3.60, z1: 0,    x2: 6.30, z2: 3.60, y1: 2.5, y2: 5.0 },
+      { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 5.85, x2: 3.60, z2: 7.20, y1: 2.5, y2: 5.0 }, // toilet zone
+      { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 3.60, x2: 4.725, z2: 4.50, y1: 2.5, y2: 5.0 }, // corridor main strip
+      { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 4.50, x2: 3.60,  z2: 5.85, y1: 2.5, y2: 5.0 }, // corridor north arm to toilet door
+    ],
+    viewpoints: [
+      { id: 'overview',              label: 'overview',              pos: [11, 9, 12], tgt: [3.15, 2.5, 3.60] },
+      { id: '1f',                    label: '1F',                    pos: [10, 4, 11], tgt: [3.15, 1.0, 3.50] },
+      { id: '2f',                    label: '2F',                    pos: [10, 7, 11], tgt: [3.15, 3.7, 3.50] },
+      { id: 'stairs',                label: 'stairs',                pos: [12, 4, 6 ], tgt: [5.85, 1.5, 3.70] },
+      { id: 'living-dining',         label: 'living-dining',         parent: '1f', pos: [ 3, 4,-3 ], tgt: [3.15, 1.0, 2.25] },
+      { id: 'kitchen',               label: 'kitchen',               parent: '1f', pos: [-3, 3, 5 ], tgt: [1.28, 1.0, 3.45] },
+      { id: 'washroom',              label: 'washroom',              parent: '1f', pos: [ 3, 4, 11], tgt: [2.70, 1.0, 6.30] },
+      { id: 'laundry',               label: 'laundry',               parent: '1f', pos: [-2, 4, 11], tgt: [0.90, 1.0, 5.85] },
+      { id: 'toilet-1-f',            label: 'toilet-1-f',            parent: '1f', pos: [ 4, 4, 11], tgt: [4.05, 1.0, 6.30] },
+      { id: 'corridor-1',            label: 'corridor-1',            parent: '1f', pos: [10, 4, 11], tgt: [4.95, 1.0, 5.85] },
+      { id: 'room-1',                label: 'room-1',                parent: '2f', pos: [10, 5, 11], tgt: [4.95, 3.0, 5.85] },
+      { id: 'room-2',                label: 'room-2',                parent: '2f', pos: [-2, 5, 11], tgt: [1.35, 3.0, 5.85] },
+      { id: 'room-3',                label: 'room-3',                parent: '2f', pos: [-2, 5,-2 ], tgt: [1.35, 3.0, 1.80] },
+      { id: 'room-4',                label: 'room-4',                parent: '2f', pos: [10, 5,-2 ], tgt: [4.95, 3.0, 1.80] },
+      { id: 'corridor-2-toilet-2-f', label: 'corridor-2-toilet-2-f', parent: '2f', pos: [ 3,10, 4 ], tgt: [3.15, 3.0, 4.05] },
+    ],
     build: function(S) {
       const W = 6.30, D = 7.20;
       const F1H = 2.50, F2H = 2.50;       // match exterior floor heights
@@ -543,20 +658,44 @@
         floor_washroom: 0xc7d6df,
         floor_toilet: 0xd6cbe0,
         floor_storage: 0xb8b8b0,
-        floor_bedroom: 0xc4b29c,
+        floor_room4: 0xc4b29c,
         floor_room: 0xd0bfa6,
         floor_closet: 0xa89e90,
       };
       const wallMat = new THREE.MeshStandardMaterial({ color: CLR.wall, roughness: 0.95 });
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0xb89878, roughness: 0.6 });
+      const closetDoorMat = new THREE.MeshStandardMaterial({ color: 0xe8dfd0, roughness: 0.6 });
+      const doorHandleMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, metalness: 0.5, roughness: 0.45 });
+
+      // Procedural wood-plank textures per floor type (uses the global plankTex helper).
+      // Each entry: a base CanvasTexture + a density (cycles per metre) used to set repeat.
+      const FLOORS = {
+        ldk:      { tex: plankTex(CLR.floor_ldk,      8, 17), density: 0.5, rough: 0.85 },
+        corridor: { tex: plankTex(CLR.floor_corridor, 8, 23), density: 0.5, rough: 0.85 },
+        stairs:   { tex: plankTex(CLR.floor_stairs,   8, 31), density: 0.6, rough: 0.8  },
+        room4:    { tex: plankTex(CLR.floor_room4,    8, 41), density: 0.5, rough: 0.85 },
+        room:     { tex: plankTex(CLR.floor_room,     8, 53), density: 0.5, rough: 0.85 },
+      };
 
       // Wall builders, parameterised by yBase (1F at y=0, 2F at y=F1H).
-      function makeFloor(x0, z0, x1, z1, color, yBase) {
+      // colorOrSpec is either a hex number (flat colour) or a {tex, density, rough}
+      // object — in which case the texture is cloned and its repeat is set to
+      // (dx * density, dz * density) so larger floors get more cycles, not bigger planks.
+      function makeFloor(x0, z0, x1, z1, colorOrSpec, yBase) {
         const dx = x1 - x0, dz = z1 - z0;
         if (dx <= 0 || dz <= 0) return;
-        const m = new THREE.Mesh(
-          new THREE.BoxGeometry(dx, FLOOR_T, dz),
-          new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
-        );
+        let mat;
+        if (typeof colorOrSpec === 'number') {
+          mat = new THREE.MeshStandardMaterial({ color: colorOrSpec, roughness: 0.9 });
+        } else {
+          const t = colorOrSpec.tex.clone();
+          t.needsUpdate = true;
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(dx * colorOrSpec.density, dz * colorOrSpec.density);
+          mat = new THREE.MeshStandardMaterial({ map: t, roughness: colorOrSpec.rough ?? 0.85 });
+        }
+        const m = new THREE.Mesh(new THREE.BoxGeometry(dx, FLOOR_T, dz), mat);
         m.position.set((x0 + x1) / 2, yBase - FLOOR_T / 2, (z0 + z1) / 2);
         S.group.add(m);
       }
@@ -571,6 +710,7 @@
         m.position.set((x0 + x1) / 2, yBase + height / 2, (z0 + z1) / 2);
         m.rotation.y = -Math.atan2(dz, dx);
         S.group.add(m);
+        S.walls.push(m);
       }
       function wallX(z, a, b, gaps, height, yBase) {
         let cur = a;
@@ -594,18 +734,18 @@
       // ───────────────── 1F ─────────────────
       // LDK base layer + room paint-overs (yOffset 0.001 to avoid z-fighting)
       const F1_ROOMS = [
-        { id: 'ldk',      color: CLR.floor_ldk,      x0: 0,    z0: 0,    x1: W,    z1: D    },
-        { id: 'washroom', color: CLR.floor_washroom, x0: 0,    z0: 4.50, x1: 1.80, z1: D    },
-        { id: 'bath',     color: CLR.floor_bath,     x0: 1.80, z0: 4.80, x1: 3.60, z1: D    },
-        { id: 'toilet',   color: CLR.floor_toilet,   x0: 3.60, z0: 5.40, x1: 4.50, z1: D    },
-        { id: 'genkan',   color: CLR.floor_genkan,   x0: 4.50, z0: 6.30, x1: W,    z1: D    },
-        { id: 'corridor', color: CLR.floor_corridor, x0: 4.50, z0: 4.50, x1: W,    z1: 6.30 },
-        { id: 'storage',  color: CLR.floor_storage,  x0: 3.60, z0: 3.60, x1: 4.50, z1: 4.50 },
-        { id: 'stairs',   color: CLR.floor_stairs,   x0: 5.40, z0: 2.90, x1: W,    z1: 4.50 },
+        { id: 'ldk',      mat: FLOORS.ldk,           x0: 0,    z0: 0,    x1: W,    z1: D    },
+        { id: 'washroom', mat: CLR.floor_washroom,   x0: 0,    z0: 4.50, x1: 1.80, z1: D    },
+        { id: 'bath',     mat: CLR.floor_bath,       x0: 1.80, z0: 4.80, x1: 3.60, z1: D    },
+        { id: 'toilet',   mat: CLR.floor_toilet,     x0: 3.60, z0: 5.40, x1: 4.50, z1: D    },
+        { id: 'genkan',   mat: CLR.floor_genkan,     x0: 4.50, z0: 6.30, x1: W,    z1: D    },
+        { id: 'corridor', mat: FLOORS.corridor,      x0: 4.50, z0: 4.50, x1: W,    z1: 6.30 },
+        { id: 'storage',  mat: CLR.floor_storage,    x0: 3.60, z0: 3.60, x1: 4.50, z1: 4.50 },
+        { id: 'stairs',   mat: FLOORS.stairs,        x0: 5.40, z0: 2.90, x1: W,    z1: 4.50 },
       ];
       for (const r of F1_ROOMS) {
         const y = (r.id === 'ldk') ? 0 : 0.001;
-        makeFloor(r.x0, r.z0, r.x1, r.z1, r.color, y);
+        makeFloor(r.x0, r.z0, r.x1, r.z1, r.mat, y);
       }
 
       // ── WINDOWS — shared helper + glass material (used by 1F and 2F) ──
@@ -634,6 +774,47 @@
         const glass = new THREE.Mesh(new THREE.BoxGeometry(gx, glassH, gz), glassMat);
         glass.position.set(px, yBase + (w.y0 + w.y1) / 2, pz);
         S.group.add(glass);
+        S.walls.push(glass);
+      }
+
+      // ── DOOR helper: closed panel filling a wall gap, with lever handles on both faces.
+      // axis 'X' = panel sits in a z=const wall (panel normal along Z).
+      // axis 'Z' = panel sits in a x=const wall (panel normal along X).
+      // Adds a transom (wall-coloured fill) above the door up to ceiling.
+      function addDoor(axis, axisCoord, a, b, yBase, ceilH, mat) {
+        const w = b - a, mid = (a + b) / 2;
+        const DH = 2.0, DT = 0.04;
+        const xy = (axis === 'X');
+        const dimX = xy ? w  : DT;
+        const dimZ = xy ? DT : w;
+        const px = xy ? mid : axisCoord;
+        const pz = xy ? axisCoord : mid;
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(dimX, DH, dimZ), mat);
+        panel.position.set(px, yBase + DH / 2, pz);
+        S.group.add(panel);
+        S.walls.push(panel);
+        // Transom panel above door (matches wall thickness/colour)
+        const tH = ceilH - DH;
+        if (tH > 0.001) {
+          const tDimX = xy ? w  : WT;
+          const tDimZ = xy ? WT : w;
+          const transom = new THREE.Mesh(new THREE.BoxGeometry(tDimX, tH, tDimZ), wallMat);
+          transom.position.set(px, yBase + DH + tH / 2, pz);
+          S.group.add(transom);
+          S.walls.push(transom);
+        }
+        // Lever handles on both faces, at 75% along width, mid-height.
+        const hW = 0.10, hH = 0.025, hD = 0.05;
+        const handlePos = a + w * 0.75;
+        for (const sign of [-1, +1]) {
+          const hx = xy ? handlePos : axisCoord + sign * (DT / 2 + hD / 2);
+          const hz = xy ? axisCoord + sign * (DT / 2 + hD / 2) : handlePos;
+          const hDimX = xy ? hW : hD;
+          const hDimZ = xy ? hD : hW;
+          const handle = new THREE.Mesh(new THREE.BoxGeometry(hDimX, hH, hDimZ), doorHandleMat);
+          handle.position.set(hx, yBase + 1.0, hz);
+          S.group.add(handle);
+        }
       }
 
       // ── 1F WINDOWS ── (per ozu-1-blueprint.pdf 1F panel; X-mirrored)
@@ -653,7 +834,7 @@
 
       // 1F outer walls (door + window x-gaps merged)
       wallX(0, 0, W, F1_WIN_BACK.map(w => [w.a, w.b]),  F1H, 0);
-      wallX(D, 0, W, [[4.80, 5.85], ...F1_WIN_FRONT.map(w => [w.a, w.b])], F1H, 0);
+      wallX(D, 0, W, [[4.95, 5.85], ...F1_WIN_FRONT.map(w => [w.a, w.b])], F1H, 0);
       wallZ(0, 0, D, F1_WIN_LEFT.map(w => [w.a, w.b]),  F1H, 0);
       wallZ(W, 0, D, [], F1H, 0);
       for (const w of F1_WIN_FRONT) addWinFlex('X', D, w, 0, F1H);
@@ -681,34 +862,34 @@
       // Stair shaft hole on 2F: x=4.725..W, z=3.60..4.50 (upper flight rises through).
       const SX0 = 4.725, SX1 = W, SZ0 = 3.60, SZ1 = 4.50;
       const F2_ROOMS = [
-        { color: CLR.floor_room,     x0: 3.60, z0: 4.50, x1: W,    z1: D    }, // room2
-        { color: CLR.floor_toilet,   x0: 2.70, z0: 5.85, x1: 3.60, z1: D    }, // toilet
-        { color: CLR.floor_room,     x0: 0,    z0: 4.50, x1: 2.70, z1: D    }, // room3
-        { color: CLR.floor_corridor, x0: 2.70, z0: 4.50, x1: 3.60, z1: 5.85 }, // corridor_n stub
-        { color: CLR.floor_corridor, x0: 2.70, z0: 3.60, x1: SX0,  z1: 4.50 }, // mid corridor (x=2.70..stair, after closets carved out)
-        { color: CLR.floor_closet,   x0: 0,    z0: 3.60, x1: 1.35, z1: 4.50 }, // mid-band closet (west) — room1's
-        { color: CLR.floor_closet,   x0: 1.35, z0: 3.60, x1: 2.70, z1: 4.50 }, // mid-band closet (east) — room1's
-        { color: CLR.floor_bedroom,  x0: 3.60, z0: 0,    x1: W,    z1: 3.60 }, // bedroom (single rect, 9.72 m²)
-        { color: CLR.floor_closet,   x0: 2.70, z0: 1.80, x1: 3.60, z1: 3.60 }, // closet_b
-        { color: CLR.floor_closet,   x0: 2.70, z0: 0,    x1: 3.60, z1: 1.80 }, // closet_a
-        { color: CLR.floor_room,     x0: 0,    z0: 0,    x1: 2.70, z1: 3.60 }, // room1
+        { mat: FLOORS.room,        x0: 3.60, z0: 4.50, x1: W,    z1: D    }, // room-1
+        { mat: CLR.floor_toilet,   x0: 2.70, z0: 5.85, x1: 3.60, z1: D    }, // toilet
+        { mat: FLOORS.room,        x0: 0,    z0: 4.50, x1: 2.70, z1: D    }, // room-2
+        { mat: FLOORS.corridor,    x0: 2.70, z0: 4.50, x1: 3.60, z1: 5.85 }, // corridor_n stub
+        { mat: FLOORS.corridor,    x0: 2.70, z0: 3.60, x1: SX0,  z1: 4.50 }, // mid corridor (x=2.70..stair, after closets carved out)
+        { mat: CLR.floor_closet,   x0: 0,    z0: 3.60, x1: 1.35, z1: 4.50 }, // mid-band closet (west) — room-3's
+        { mat: CLR.floor_closet,   x0: 1.35, z0: 3.60, x1: 2.70, z1: 4.50 }, // mid-band closet (east) — room-3's
+        { mat: FLOORS.room4,       x0: 3.60, z0: 0,    x1: W,    z1: 3.60 }, // room-4 (single rect, 9.72 m²)
+        { mat: CLR.floor_closet,   x0: 2.70, z0: 1.80, x1: 3.60, z1: 3.60 }, // closet_b
+        { mat: CLR.floor_closet,   x0: 2.70, z0: 0,    x1: 3.60, z1: 1.80 }, // closet_a
+        { mat: FLOORS.room,        x0: 0,    z0: 0,    x1: 2.70, z1: 3.60 }, // room-3
       ];
-      for (const r of F2_ROOMS) makeFloor(r.x0, r.z0, r.x1, r.z1, r.color, F1H);
+      for (const r of F2_ROOMS) makeFloor(r.x0, r.z0, r.x1, r.z1, r.mat, F1H);
 
       // ── 2F WINDOWS ── 7 windows; all FL+2000 at top (= y=4.50 abs), 0.90 m tall (y=3.60..4.50).
       // y0/y1 below are RELATIVE to F1H (the 2F floor level).
       const F2_WIN_FRONT = [   // z=D wall (front face)
-        { a: 0.505, b: 2.195, y0: 1.10, y1: 2.00 },  // room3 引違 11909
+        { a: 0.505, b: 2.195, y0: 1.10, y1: 2.00 },  // room-2 引違 11909
         { a: 3.020, b: 3.280, y0: 1.10, y1: 2.00 },  // toilet 縦すべり 02609
-        { a: 4.105, b: 5.795, y0: 1.10, y1: 2.00 },  // room2 引違 11909
+        { a: 4.105, b: 5.795, y0: 1.10, y1: 2.00 },  // room-1 引違 11909
       ];
       const F2_WIN_BACK = [    // z=0 wall (back face)
-        { a: 0.600, b: 2.100, y0: 1.10, y1: 2.00 },  // room1 引違 15009
-        { a: 4.200, b: 5.700, y0: 1.10, y1: 2.00 },  // bedroom 引違 15009
+        { a: 0.600, b: 2.100, y0: 1.10, y1: 2.00 },  // room-3 引違 15009
+        { a: 4.200, b: 5.700, y0: 1.10, y1: 2.00 },  // room-4 引違 15009
       ];
       const F2_WIN_LEFT = [    // x=0 wall (left face) — z range
-        { a: 1.670, b: 1.930, y0: 1.10, y1: 2.00 },  // room1 縦すべり 02609
-        { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room3 縦すべり 02609
+        { a: 1.670, b: 1.930, y0: 1.10, y1: 2.00 },  // room-3 縦すべり 02609
+        { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room-2 縦すべり 02609
       ];
 
       // 2F outer walls (door + window x-gaps merged)
@@ -721,19 +902,42 @@
       for (const w of F2_WIN_LEFT)  addWinFlex('Z', 0, w, F1H, F2H);
 
       // ── 2F interior walls ──
-      wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room1 ↔ closet_a (door)
-      wallZ(2.70, 3.60, 4.50, [[3.65, 4.45]], F2H, F1H);  // east mid-closet ↔ corridor (door — room1 reaches corridor through east closet)
-      wallZ(2.70, 4.50, D,    [[5.10, 5.70]], F2H, F1H);  // room3 ↔ corridor_n (door)
-      wallZ(3.60, 0,    3.60, [[2.10, 2.70]], F2H, F1H);  // bedroom ↔ closet_b (door)
-      wallZ(3.60, 4.50, D,    [[4.65, 5.25]], F2H, F1H);  // room2 ↔ corridor_n (door)
+      wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room-3 ↔ closet_a (door)
+      wallZ(2.70, 3.60, 4.50, [[3.65, 4.45]], F2H, F1H);  // east mid-closet ↔ corridor (door — room-3 reaches corridor through east closet)
+      wallZ(2.70, 4.50, D,    [[5.10, 5.70]], F2H, F1H);  // room-2 ↔ corridor_n (door)
+      wallZ(3.60, 0,    3.60, [[2.10, 2.70]], F2H, F1H);  // room-4 ↔ closet_b (door)
+      wallZ(3.60, 4.50, D,    [[4.65, 5.25]], F2H, F1H);  // room-1 ↔ corridor_n (door)
       wallZ(1.35, 3.60, 4.50, [], F2H, F1H);              // wall between west and east mid-band closets
-      wallX(3.60, 0,    2.70, [[0.30, 0.95], [1.55, 2.20]], F2H, F1H);  // room1 ↔ 2 mid-band closets (2 doors)
+      wallX(3.60, 0,    2.70, [[0.30, 0.95], [1.55, 2.20]], F2H, F1H);  // room-3 ↔ 2 mid-band closets (2 doors)
       wallX(3.60, 2.70, 3.60, [], F2H, F1H);
       wallX(3.60, 3.60, W,    [[4.50, 5.20]], F2H, F1H);
-      wallX(4.50, 0,    2.70, [], F2H, F1H);              // closets ↔ room3 (solid)
+      wallX(4.50, 0,    2.70, [], F2H, F1H);              // closets ↔ room-2 (solid)
       wallX(4.50, 3.60, 4.50, [[3.80, 4.40]], F2H, F1H);
       wallX(4.50, 4.50, W,    [], F2H, F1H);
       wallX(5.85, 2.70, 3.60, [[2.85, 3.45]], F2H, F1H);
+
+      // ───────────────── DOORS ─────────────────
+      // Closed-door panels fill the gaps left by wallX/wallZ.
+      const F1_DOORS = [
+        { axis: 'X', c: D,    a: 4.95, b: 5.85, mat: doorMat },          // front door (interior side)
+        { axis: 'X', c: 4.50, a: 0.75, b: 1.35, mat: doorMat },          // ldk ↔ washroom
+        { axis: 'X', c: 4.50, a: 3.80, b: 4.50, mat: doorMat },          // corridor ↔ toilet
+        { axis: 'Z', c: 1.80, a: 5.10, b: 5.70, mat: doorMat },          // washroom ↔ bath
+      ];
+      for (const d of F1_DOORS) addDoor(d.axis, d.c, d.a, d.b, 0, F1H, d.mat);
+
+      const F2_DOORS = [
+        { axis: 'Z', c: 2.70, a: 1.20, b: 1.80, mat: closetDoorMat },    // room-3 ↔ closet_a
+        { axis: 'Z', c: 2.70, a: 3.65, b: 4.45, mat: closetDoorMat },    // east mid-closet ↔ corridor
+        { axis: 'Z', c: 2.70, a: 5.10, b: 5.70, mat: doorMat },          // room-2 ↔ corridor_n
+        { axis: 'Z', c: 3.60, a: 2.10, b: 2.70, mat: closetDoorMat },    // room-4 ↔ closet_b
+        { axis: 'Z', c: 3.60, a: 4.65, b: 5.25, mat: doorMat },          // room-1 ↔ corridor_n
+        { axis: 'X', c: 3.60, a: 0.30, b: 0.95, mat: closetDoorMat },    // room-3 ↔ mid-band closet (west)
+        { axis: 'X', c: 3.60, a: 1.55, b: 2.20, mat: closetDoorMat },    // room-3 ↔ mid-band closet (east)
+        { axis: 'X', c: 4.50, a: 3.80, b: 4.40, mat: doorMat },          // room-4 ↔ corridor
+        { axis: 'X', c: 5.85, a: 2.85, b: 3.45, mat: doorMat },          // toilet ↔ corridor
+      ];
+      for (const d of F2_DOORS) addDoor(d.axis, d.c, d.a, d.b, F1H, F2H, d.mat);
 
       // ───────────────── L-SHAPE STAIR ─────────────────
       const TOTAL_RISERS = 11;
@@ -790,6 +994,42 @@
           S.group.add(body);
         }
       }
+
+      // ───────────────── FURNITURE PLACEHOLDERS ─────────────────
+      // Simple AABB placeholders for fixtures and furniture. Visual only —
+      // not added to S.walls, so walk mode passes through them for now.
+      const matKitchen = new THREE.MeshStandardMaterial({ color: 0xe0ddd5, roughness: 0.55 });
+      const matSofa    = new THREE.MeshStandardMaterial({ color: 0x6a7782, roughness: 0.85 });
+      function furn(x1, z1, x2, z2, y1, y2, mat) {
+        if (x2 <= x1 || z2 <= z1 || y2 <= y1) return;
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(x2 - x1, y2 - y1, z2 - z1),
+          mat
+        );
+        m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+        S.group.add(m);
+      }
+
+      // 1F fixtures
+      furn(2.20, 5.40, 3.00, 7.00, 0.00, 0.55, matAC);          // bathtub
+      furn(0.20, 6.65, 0.80, 7.10, 0.00, 0.85, matToilet);      // washbasin
+      furn(1.10, 4.65, 1.70, 5.25, 0.00, 0.95, matAC);          // washing machine
+      furn(3.85, 6.50, 4.25, 7.05, 0.00, 0.40, matToilet);      // 1F toilet seat
+      furn(3.85, 6.85, 4.25, 7.10, 0.40, 0.85, matToilet);      // 1F toilet tank
+      // 1F LDK
+      furn(5.65, 0.00, 6.30, 2.55, 0.00, 0.85, matKitchen);     // kitchen counter (east wall)
+      furn(3.00, 1.60, 4.40, 2.40, 0.00, 0.74, matDesk);        // dining table
+      furn(2.50, 0.10, 4.30, 0.95, 0.00, 0.80, matSofa);        // sofa (back wall)
+
+      // 2F rooms
+      const FB = F1H;
+      furn(0.10, 0.10, 1.05, 2.05, FB,        FB + 0.50, matMattress);  // room-3 bed
+      furn(0.10, 4.60, 1.05, 6.55, FB,        FB + 0.50, matMattress);  // room-2 bed
+      furn(3.70, 4.60, 4.65, 6.55, FB,        FB + 0.50, matMattress);  // room-1 bed
+      furn(3.70, 0.10, 5.10, 2.05, FB,        FB + 0.50, matMattress);  // room-4 (double)
+      // 2F toilet
+      furn(2.95, 6.50, 3.35, 7.05, FB,        FB + 0.40, matToilet);
+      furn(2.95, 6.85, 3.35, 7.10, FB + 0.40, FB + 0.85, matToilet);
 
       // ───────────────── lighting ─────────────────
       S.group.add(new THREE.AmbientLight(0xffffff, 0.65));
@@ -1138,6 +1378,8 @@
     pitch: 0,
     keys: {},
     speed: 2.2,
+    floorY: 0,           // y of current floor surface (0 = 1F, 2.5 = 2F)
+    eye: 1.6,
   };
   modeVal.textContent = 'orbit';
 
@@ -1170,6 +1412,7 @@
       fp.pos.copy(S.fpStart);
       fp.yaw = S.fpYaw || 0;
       fp.pitch = 0;
+      fp.floorY = 0;
       walkBtn.style.display = 'none';
     } else {
       const S = scenes[activeScene];
@@ -1197,7 +1440,9 @@
       ((a.x2 - a.x1) * (a.z2 - a.z1)) - ((b.x2 - b.x1) * (b.z2 - b.z1))
     );
     for (const r of sorted) {
-      if (p.x >= r.x1 && p.x <= r.x2 && p.z >= r.z1 && p.z <= r.z2) {
+      const inXZ = p.x >= r.x1 && p.x <= r.x2 && p.z >= r.z1 && p.z <= r.z2;
+      const inY  = (r.y1 == null) || (p.y >= r.y1 && p.y <= r.y2);
+      if (inXZ && inY) {
         roomLabel.textContent = r.name;
         return;
       }
@@ -1206,6 +1451,69 @@
   }
 
   // ---------- Scene switching ----------
+  const viewChipsEl = document.getElementById('view-chips');
+  function populateViewChips(S) {
+    viewChipsEl.innerHTML = '';
+    if (!S || !S.viewpoints || S.viewpoints.length === 0) return;
+
+    const parents = S.viewpoints.filter(v => !v.parent);
+    const childrenByParent = {};
+    for (const v of S.viewpoints) {
+      if (v.parent) {
+        (childrenByParent[v.parent] = childrenByParent[v.parent] || []).push(v);
+      }
+    }
+
+    const topRow = document.createElement('div');
+    topRow.className = 'chip-row';
+    const subRow = document.createElement('div');
+    subRow.className = 'chip-row';
+    subRow.style.display = 'none';
+
+    let activeChip = null;
+    let expandedParentId = null;
+
+    function makeChip(v) {
+      const chip = document.createElement('div');
+      chip.className = 'view-chip';
+      chip.textContent = v.label;
+      chip.addEventListener('click', () => {
+        orbit.setFrom(
+          new THREE.Vector3().fromArray(v.pos),
+          new THREE.Vector3().fromArray(v.tgt)
+        );
+        if (activeChip) activeChip.classList.remove('active');
+        chip.classList.add('active');
+        activeChip = chip;
+
+        if (!v.parent) {
+          const kids = childrenByParent[v.id] || [];
+          if (kids.length > 0) {
+            expandedParentId = v.id;
+            renderSubRow(v.id);
+            subRow.style.display = '';
+          } else {
+            expandedParentId = null;
+            subRow.style.display = 'none';
+          }
+        }
+      });
+      return chip;
+    }
+
+    function renderSubRow(parentId) {
+      subRow.innerHTML = '';
+      for (const v of (childrenByParent[parentId] || [])) {
+        subRow.appendChild(makeChip(v));
+      }
+    }
+
+    for (const v of parents) topRow.appendChild(makeChip(v));
+
+    viewChipsEl.appendChild(topRow);
+    viewChipsEl.appendChild(subRow);
+  }
+
   function switchScene(id) {
     const S = scenes[id];
     if (!S) return;
@@ -1218,10 +1526,59 @@
       chip.classList.toggle('active', chip.dataset.scene === id);
     }
     walkBtn.style.display = S.noFirstPerson ? 'none' : 'inline-block';
+    populateViewChips(S);
   }
   for (const chip of document.querySelectorAll('.chip')) {
     chip.addEventListener('click', () => switchScene(chip.dataset.scene));
   }
+
+  // ---------- Time of day (mutates exterior scene's sun/sky/fill + bg) ----------
+  const TOD_PRESETS = {
+    day: {
+      sunColor: 0xfff2dc, sunIntensity: 1.0,  sunPos: [-8, 14, 10],
+      skyTop:   0xcce0ff, skyBot:       0x444438, skyIntensity: 0.5,
+      fillIntensity: 0.15, bg: 0xbbccd8,
+    },
+    evening: {
+      sunColor: 0xff9d5e, sunIntensity: 0.7,  sunPos: [-14, 4, 6],
+      skyTop:   0xff8866, skyBot:       0x402015, skyIntensity: 0.55,
+      fillIntensity: 0.18, bg: 0xe6a07a,
+    },
+    night: {
+      sunColor: 0x6280b0, sunIntensity: 0.12, sunPos: [-6, 10, 8],
+      skyTop:   0x303860, skyBot:       0x141622, skyIntensity: 0.45,
+      fillIntensity: 0.08, bg: 0x161826,
+    },
+  };
+  function applyTod(todId) {
+    const p = TOD_PRESETS[todId];
+    if (!p) return;
+    const ext = scenes['exterior'];
+    if (ext && ext.sun) {
+      ext.sun.color.setHex(p.sunColor);
+      ext.sun.intensity = p.sunIntensity;
+      ext.sun.position.fromArray(p.sunPos);
+    }
+    if (ext && ext.sky) {
+      ext.sky.color.setHex(p.skyTop);
+      ext.sky.groundColor.setHex(p.skyBot);
+      ext.sky.intensity = p.skyIntensity;
+    }
+    if (ext && ext.fill) {
+      ext.fill.intensity = p.fillIntensity;
+    }
+    if (ext) ext.bg = p.bg;
+    if (activeScene === 'exterior') {
+      scene.background = new THREE.Color(p.bg);
+    }
+    for (const chip of document.querySelectorAll('.tod-chip')) {
+      chip.classList.toggle('active', chip.dataset.tod === todId);
+    }
+  }
+  for (const chip of document.querySelectorAll('.tod-chip')) {
+    chip.addEventListener('click', () => applyTod(chip.dataset.tod));
+  }
+
   switchScene('exterior');
 
   // ---------- Animation loop ----------
@@ -1241,6 +1598,29 @@
         move.normalize().multiplyScalar(fp.speed * dt);
         tryMove(new THREE.Vector3(move.x, 0, 0));
         tryMove(new THREE.Vector3(0, 0, move.z));
+      }
+      // Stair-height tracking for the interior scene.
+      // Lower flight: x=5.40..6.30, z=2.90..4.50. Surface y rises with z (top at z=4.50).
+      // Upper flight: x=4.725..6.30, z=3.60..4.50. Surface y rises as x decreases (top at x=4.725).
+      // Outside both zones, snap eye height to whichever floor (1F or 2F) is nearest.
+      if (activeScene === 'interior') {
+        const F1H = 2.50, W = 6.30;
+        const TOP_LO = (5 / 11) * F1H;       // top of lower flight
+        let stairY = null;
+        if (fp.pos.x >= 5.40 && fp.pos.x <= W && fp.pos.z >= 2.90 && fp.pos.z <= 4.50) {
+          stairY = ((fp.pos.z - 2.90) / 1.60) * TOP_LO;
+        }
+        if (fp.pos.x >= 4.725 && fp.pos.x <= W && fp.pos.z >= 3.60 && fp.pos.z <= 4.50) {
+          const upperY = TOP_LO + ((W - fp.pos.x) / 1.575) * (F1H - TOP_LO);
+          stairY = (stairY != null) ? Math.max(stairY, upperY) : upperY;
+        }
+        if (stairY != null) {
+          fp.pos.y = stairY + fp.eye;
+          if (stairY > F1H * 0.6) fp.floorY = F1H;
+          else if (stairY < F1H * 0.4) fp.floorY = 0;
+        } else {
+          fp.pos.y = fp.floorY + fp.eye;
+        }
       }
       camera.position.copy(fp.pos);
       camera.lookAt(
