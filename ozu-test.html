@@ -31,6 +31,9 @@
   .tod-chip { pointer-events: auto; padding: 5px 12px; border-radius: 999px; background: rgba(0,0,0,0.45); color: #fff; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; }
   .tod-chip:hover { background: rgba(0,0,0,0.7); }
   .tod-chip.active { background: rgba(255,255,255,0.85); color: #111; border-color: rgba(255,255,255,0.85); }
+  .qa-view { pointer-events: auto; padding: 4px 10px; border-radius: 4px; background: rgba(0,0,0,0.45); color: #fff; font-size: 11px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; }
+  .qa-view:hover { background: rgba(0,0,0,0.7); }
+  .qa-view.active { background: rgba(255,255,255,0.85); color: #111; border-color: rgba(255,255,255,0.85); }
   kbd { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.15); border-radius: 3px; font-family: inherit; font-size: 12px; }
 </style>
 </head>
@@ -1052,12 +1055,7 @@
         S.group.add(m);
       }
 
-      // 1F fixtures
-      furn(2.20, 5.40, 3.00, 7.00, 0.00, 0.55, matAC);          // bathtub
-      furn(0.20, 6.65, 0.80, 7.10, 0.00, 0.85, matToilet);      // washbasin
-      furn(1.10, 4.65, 1.70, 5.25, 0.00, 0.95, matAC);          // washing machine
-      furn(3.85, 6.50, 4.25, 7.05, 0.00, 0.40, matToilet);      // 1F toilet seat
-      furn(3.85, 6.85, 4.25, 7.10, 0.40, 0.85, matToilet);      // 1F toilet tank
+      // 1F wet-room fixtures (washroom, laundry, toilet-1-f) — see dedicated block after LDK
       // 1F LDK — layout per living-dining/room-map.md (sofa SW half, dining NE half)
       // Kitchen counter pass-through: 2-piece (base cabinet + counter-top with overhang)
       furn(0,    2.40, 2.55, 2.70, 0.00, 0.78, matCabinet);     // base cabinet (kitchen-side, L=2.55m, depth 0.30m)
@@ -1129,11 +1127,50 @@
       // Antique clock — east of corridor archway on the small wall stub
       furn(6.10, 4.42, 6.25, 4.48, 1.40, 1.80, matBrick);
 
+      // ─── 1F wet rooms — washroom, laundry, toilet-1-f ───
+      // Per interior-images/<room>/room-map.md and blueprints/global-coords.md
+      {
+        const matBath      = new THREE.MeshStandardMaterial({ color: 0xeeeae3, roughness: 0.4 });
+        const matBathDark  = new THREE.MeshStandardMaterial({ color: 0x4a3a30, roughness: 0.7 });
+        const matChrome    = new THREE.MeshStandardMaterial({ color: 0xb8bbc0, metalness: 0.7, roughness: 0.25 });
+        const matWasher    = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.55 });
+        const matVanityTop = new THREE.MeshStandardMaterial({ color: 0xeeeae3, roughness: 0.5 });
+        const matBasin     = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.35 });
+
+        // ── WASHROOM (UB) — code x=1.80..3.60, z=5.40..7.20 ──
+        // bath-wall=N(z=7.20 ext), entry-wall=E(x=1.80 to laundry), side-wall=S(z=5.40), end-wall=W(x=3.60 to toilet)
+        // Bathtub: long axis E-W along bath-wall, head W (under tap on end-wall), foot E
+        furn(1.90, 6.30, 3.50, 7.13, 0.00, 0.55, matBath);          // bathtub shell
+        furn(1.85, 7.13, 3.55, 7.15, 0.55, 2.10, matBathDark);      // dark wood-pattern accent strip on bath-wall above tub
+        furn(3.45, 6.55, 3.55, 6.75, 0.60, 0.80, matChrome);        // bathtub tap on end-wall
+        furn(2.40, 7.11, 2.45, 7.13, 0.80, 1.90, matChrome);        // shower bar on bath-wall
+        furn(2.30, 7.05, 2.55, 7.13, 1.85, 1.95, matChrome);        // shower head
+        furn(2.20, 5.42, 3.20, 5.45, 1.10, 1.13, matChrome);        // towel rail on side-wall
+
+        // ── LAUNDRY (洗面所) — code x=0..1.80, z=4.50..7.20 ──
+        // vanity-wall=E(x=0 ext, brick), bath-wall=W(x=1.80 to washroom), door-wall=S(z=4.50), window-wall=N(z=7.20 ext)
+        furn(0.05, 4.50, 0.07, 7.20, 0.00, 2.50, matBrick);         // brick accent on vanity-wall (full)
+        // Washing machine alcove against vanity-wall, north portion (corner-vanity-window NE)
+        furn(0.07, 6.45, 0.67, 7.10, 0.00, 0.95, matWasher);        // washer body
+        furn(0.10, 6.48, 0.65, 7.07, 0.95, 1.00, matChrome);        // washer top panel
+        // Vanity sink against vanity-wall, south portion (corner-door-vanity SE)
+        furn(0.07, 4.60, 0.57, 5.10, 0.00, 0.85, matVanityTop);     // vanity cabinet
+        furn(0.07, 4.60, 0.57, 5.10, 0.85, 0.90, matVanityTop);     // countertop
+        furn(0.17, 4.75, 0.47, 5.00, 0.90, 0.95, matBasin);         // round basin (approximated)
+        furn(0.07, 4.83, 0.13, 4.92, 0.95, 1.15, matChrome);        // faucet
+        furn(0.07, 4.80, 0.12, 4.90, 1.55, 1.65, matBath);          // sconce light above vanity
+
+        // ── TOILET-1-F (1F WC) — code x=3.60..4.50, z=5.40..7.20 ──
+        // toilet-wall=N(z=7.20 ext), door-wall=S(z=5.40), brick-wall=E(x=3.60 to washroom), side-wall=W(x=4.50)
+        furn(3.65, 5.40, 3.67, 7.20, 0.00, 2.50, matBrick);         // brick accent on brick-wall (full)
+        furn(3.85, 6.50, 4.25, 7.05, 0.00, 0.40, matToilet);        // bowl
+        furn(3.85, 6.85, 4.25, 7.10, 0.40, 0.85, matToilet);        // tank
+        furn(3.95, 6.90, 4.15, 7.05, 0.85, 0.92, matBasin);         // hand-wash basin atop tank
+        furn(3.67, 6.20, 3.72, 6.30, 0.65, 0.75, matChrome);        // toilet-paper holder on brick-wall
+      }
+
       // 2F rooms
       const FB = F1H;
-      furn(0.10, 0.10, 1.05, 2.05, FB,        FB + 0.50, matMattress);  // room-3 bed
-      furn(0.10, 4.60, 1.05, 6.55, FB,        FB + 0.50, matMattress);  // room-2 bed
-      furn(3.70, 4.60, 4.65, 6.55, FB,        FB + 0.50, matMattress);  // room-1 bed
       // ─── 2F room-4 (寝室) — 6 帖, 2.7×3.6m, code x=3.60..6.30, z=0..3.60 ───
       // Furniture per interior-images/room-4/room-map.md
       {
@@ -1153,14 +1190,29 @@
         furn(bX0+0.05, bZ0+0.05, bX1-0.05, bZ1-0.05, FB + 0.30, FB + 0.55, matBedding);       // mattress
         furn(bX0+0.20, bZ1-0.40, bX1-0.20, bZ1-0.10, FB + 0.55, FB + 0.65, matAccentPillow);  // pillow
 
-        // Dark wood + black metal cabinet (drawers + open shelves) — along closet-wall, south of bi-fold
-        const cX0 = 3.70, cX1 = 4.10, cZ0 = 0.10, cZ1 = 1.30;
-        furn(cX0,      cZ0, cX1,      cZ1, FB,        FB + 0.80, matWoodDark);      // base / drawers
-        furn(cX0,      cZ0, cX0+0.04, cZ1, FB + 0.80, FB + 1.50, matBlackMetal);    // E upright frame
-        furn(cX1-0.04, cZ0, cX1,      cZ1, FB + 0.80, FB + 1.50, matBlackMetal);    // W upright frame
-        furn(cX0,      cZ0, cX1,      cZ1, FB + 1.05, FB + 1.08, matWoodDark);      // shelf 1
-        furn(cX0,      cZ0, cX1,      cZ1, FB + 1.30, FB + 1.33, matWoodDark);      // shelf 2
-        furn(cX0,      cZ0, cX1,      cZ1, FB + 1.47, FB + 1.50, matWoodDark);      // top
+        // Dark wood + black metal cabinet — along closet-wall (E, x=3.60), near corner-closet-window
+        // Back at cX0 (against wall), front at cX1 (faces room interior +x).
+        // Bottom 80cm: 3×3 drawer face. Top 70cm: open shelves with solid back panel.
+        const cX0 = 3.65, cX1 = 4.05, cZ0 = 0.20, cZ1 = 1.40;
+        const cYbaseTop = FB + 0.80, cYtop = FB + 1.50;
+        // solid drawer base
+        furn(cX0, cZ0, cX1, cZ1, FB, cYbaseTop, matWoodDark);
+        // 2 horizontal drawer-divider grooves on front face (3 rows)
+        furn(cX1-0.005, cZ0, cX1+0.012, cZ1, FB+0.26, FB+0.28, matBlackMetal);
+        furn(cX1-0.005, cZ0, cX1+0.012, cZ1, FB+0.52, FB+0.54, matBlackMetal);
+        // 2 vertical drawer-divider grooves on front face (3 columns → 9-drawer grid)
+        const cZmid1 = cZ0 + (cZ1-cZ0)/3, cZmid2 = cZ0 + 2*(cZ1-cZ0)/3;
+        furn(cX1-0.005, cZmid1-0.005, cX1+0.012, cZmid1+0.005, FB, cYbaseTop, matBlackMetal);
+        furn(cX1-0.005, cZmid2-0.005, cX1+0.012, cZmid2+0.005, FB, cYbaseTop, matBlackMetal);
+        // solid back panel (kills the transparent-stripes look)
+        furn(cX0, cZ0, cX0+0.02, cZ1, cYbaseTop, cYtop, matWoodDark);
+        // 2 front uprights (visible from room)
+        furn(cX1-0.02, cZ0,      cX1, cZ0+0.03, cYbaseTop, cYtop, matBlackMetal);
+        furn(cX1-0.02, cZ1-0.03, cX1, cZ1,      cYbaseTop, cYtop, matBlackMetal);
+        // 3 open shelves
+        furn(cX0+0.02, cZ0, cX1-0.02, cZ1, FB+1.05, FB+1.08, matWoodDark);
+        furn(cX0+0.02, cZ0, cX1-0.02, cZ1, FB+1.27, FB+1.30, matWoodDark);
+        furn(cX0+0.02, cZ0, cX1-0.02, cZ1, FB+1.47, FB+1.50, matWoodDark);
 
         // Coat rack on entrance-wall (z=3.60), west of door (door at x=4.50..5.20)
         furn(3.80, 3.55, 4.40, 3.60, FB + 1.55, FB + 1.65, matWoodLight);                     // backing
@@ -1187,6 +1239,207 @@
           );
           strip.position.set(xC, FB + 1.50, 0.10 + zOff);
           S.group.add(strip);
+        }
+      }
+      // ─── 2F room-3 (洋室1) — 6 帖, 2.7×3.6m, code x=0..2.70, z=0..3.60 ───
+      // Furniture per interior-images/room-3/room-map.md
+      // window-wall=S(z=0), frosted-wall=E(x=0), closet-wall=W(x=2.70), entrance-wall=N(z=3.60)
+      {
+        const matIron         = new THREE.MeshStandardMaterial({ color: 0x1a1715, metalness: 0.3, roughness: 0.6 });
+        const matBedding      = new THREE.MeshStandardMaterial({ color: 0xeeeae0, roughness: 0.95 });
+        const matAccentPillow = new THREE.MeshStandardMaterial({ color: 0x6b7e8a, roughness: 0.9 });
+        const matWoodLight    = new THREE.MeshStandardMaterial({ color: 0xc8a878, roughness: 0.75 });
+        const matWoodDark     = new THREE.MeshStandardMaterial({ color: 0x4a3526, roughness: 0.7 });
+        const matBlackMetal   = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.4, roughness: 0.5 });
+
+        // Iron-frame bed — wood-inset headboard, head at S window-wall, foot toward N
+        const bX0 = 0.30, bX1 = 1.30, bZ0 = 0.10, bZ1 = 2.10;
+        furn(bX0,      bZ0,      bX1,      bZ0+0.05, FB,        FB + 1.00, matWoodDark);     // wood-inset headboard
+        furn(bX0,      bZ1-0.05, bX1,      bZ1,      FB,        FB + 0.45, matIron);         // iron foot rail
+        furn(bX0,      bZ0,      bX0+0.04, bZ1,      FB + 0.20, FB + 0.30, matIron);         // E side rail
+        furn(bX1-0.04, bZ0,      bX1,      bZ1,      FB + 0.20, FB + 0.30, matIron);         // W side rail
+        furn(bX0+0.05, bZ0+0.05, bX1-0.05, bZ1-0.05, FB + 0.30, FB + 0.55, matBedding);      // mattress
+        furn(bX0+0.20, bZ0+0.10, bX1-0.20, bZ0+0.40, FB + 0.55, FB + 0.65, matAccentPillow); // pillow at S head
+
+        // Industrial-style shelving (no drawers, all-open 4-tier) — along closet-wall
+        const sX0 = 2.30, sX1 = 2.65, sZ0 = 2.30, sZ1 = 3.40;
+        const sYtop = FB + 1.80;
+        // solid back panel against closet-wall side
+        furn(sX1-0.02, sZ0, sX1, sZ1, FB, sYtop, matWoodDark);
+        // 2 front uprights (visible from room)
+        furn(sX0, sZ0,      sX0+0.03, sZ0+0.03, FB, sYtop, matBlackMetal);
+        furn(sX0, sZ1-0.03, sX0+0.03, sZ1,      FB, sYtop, matBlackMetal);
+        // 4 horizontal shelves (open between, no drawer fronts)
+        for (let i = 0; i < 4; i++) {
+          const yShelf = FB + 0.10 + i * 0.55;
+          furn(sX0, sZ0, sX1-0.02, sZ1, yShelf, yShelf+0.025, matWoodDark);
+        }
+
+        // Coat rack on entrance-wall (z=3.60), west of door (door is at x=1.55..2.15)
+        furn(2.20, 3.55, 2.60, 3.60, FB + 1.55, FB + 1.65, matWoodLight);
+        for (let i = 0; i < 3; i++) {
+          const hX = 2.28 + i * 0.12;
+          furn(hX, 3.50, hX+0.03, 3.55, FB + 1.55, FB + 1.62, matBlackMetal);
+        }
+
+        // AC unit on window-wall (z=0), near corner-closet-window (SW = code-large-x, code-z=0)
+        furn(2.10, 0.05, 2.55, 0.10, FB + 2.13, FB + 2.39, matACUnit);
+        furn(2.10, 0.10, 2.55, 0.18, FB + 2.16, FB + 2.36, matACGrille);
+        furn(2.08, 0.05, 2.57, 0.10, FB + 2.11, FB + 2.13, matACVent);
+
+        // Curtains in front of sliding window (F2_WIN_BACK[0] = x=0.600..2.100)
+        {
+          const stripCount = 4;
+          const totalSpan = 2.100 - 0.600;
+          const stripW = totalSpan / stripCount;
+          for (let i = 0; i < stripCount; i++) {
+            const xC = 0.600 + (i + 0.5) * stripW;
+            const zOff = (i % 2) * 0.02;
+            const strip = new THREE.Mesh(
+              new THREE.BoxGeometry(stripW - 0.015, 1.30, 0.05),
+              matCurtain
+            );
+            strip.position.set(xC, FB + 1.50, 0.10 + zOff);
+            S.group.add(strip);
+          }
+        }
+      }
+      // ─── 2F room-2 (洋室3) — 4.5 帖, 2.7×2.7m, code x=0..2.70, z=4.50..7.20 ───
+      // Furniture per interior-images/room-2/room-map.md
+      // window-wall=N(z=7.20), ac-wall=E(x=0), closet-wall=W(x=2.70), entrance-wall=S(z=4.50)
+      {
+        const matWhiteIron  = new THREE.MeshStandardMaterial({ color: 0xeeeae3, metalness: 0.2, roughness: 0.5 });
+        const matBedding    = new THREE.MeshStandardMaterial({ color: 0xf0e8e0, roughness: 0.95 });
+        const matPinkPillow = new THREE.MeshStandardMaterial({ color: 0xd9a896, roughness: 0.9 });
+        const matWoodLight  = new THREE.MeshStandardMaterial({ color: 0xc8a878, roughness: 0.75 });
+        const matBlackMetal = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.4, roughness: 0.5 });
+        const matDeskTop    = new THREE.MeshStandardMaterial({ color: 0xeeeae3, roughness: 0.6 });
+        const matChairSeat  = new THREE.MeshStandardMaterial({ color: 0xa6663b, roughness: 0.7 });
+        const matTaupe      = new THREE.MeshStandardMaterial({ color: 0x8a7e6f, roughness: 0.85 });
+
+        // All-white iron-frame bed: head at W (closet-wall), foot at E (ac-wall). Long axis E-W.
+        const bX0 = 0.65, bX1 = 2.60, bZ0 = 5.40, bZ1 = 6.40;
+        // Headboard against closet-wall side
+        furn(bX1, bZ0, bX1+0.05, bZ1, FB, FB + 1.00, matWhiteIron);
+        // Footboard with decorative posts at foot end (E side)
+        furn(bX0-0.05, bZ0,        bX0, bZ1,      FB,        FB + 0.50, matWhiteIron);  // foot rail
+        furn(bX0-0.05, bZ0,        bX0, bZ0+0.05, FB,        FB + 0.95, matWhiteIron);  // foot post NE
+        furn(bX0-0.05, bZ1-0.05,   bX0, bZ1,      FB,        FB + 0.95, matWhiteIron);  // foot post SE
+        // Iron side rails
+        furn(bX0, bZ0,      bX1, bZ0+0.04, FB + 0.20, FB + 0.30, matWhiteIron);
+        furn(bX0, bZ1-0.04, bX1, bZ1,      FB + 0.20, FB + 0.30, matWhiteIron);
+        // Mattress
+        furn(bX0+0.05, bZ0+0.05, bX1-0.05, bZ1-0.05, FB + 0.30, FB + 0.55, matBedding);
+        // Pink pillow at foot end (small-x = E side)
+        furn(bX0+0.10, bZ0+0.20, bX0+0.40, bZ1-0.20, FB + 0.55, FB + 0.65, matPinkPillow);
+
+        // Tall freestanding taupe column at corner-ac-window (NE = small-x, large-z)
+        furn(0.10, 6.70, 0.50, 7.10, FB, FB + 2.00, matTaupe);
+
+        // Desk + chair at NW area (closet-wall × window-wall corner = large-x, large-z)
+        furn(2.10, 6.70, 2.60, 7.10, FB + 0.72, FB + 0.75, matDeskTop);   // desk top
+        furn(2.10, 6.70, 2.13, 7.10, FB,        FB + 0.72, matWoodLight); // left leg/frame
+        furn(2.57, 6.70, 2.60, 7.10, FB,        FB + 0.72, matWoodLight); // right leg/frame
+        furn(2.20, 6.40, 2.50, 6.70, FB + 0.42, FB + 0.46, matChairSeat); // chair seat
+        furn(2.20, 6.40, 2.50, 6.43, FB + 0.46, FB + 0.85, matChairSeat); // chair back
+
+        // Coat rack on entrance-wall (z=4.50), east of door (door at x=1.10..1.70)
+        furn(0.20, 4.50, 0.80, 4.55, FB + 1.55, FB + 1.65, matWoodLight);
+        for (let i = 0; i < 3; i++) {
+          const hX = 0.30 + i * 0.18;
+          furn(hX, 4.55, hX+0.03, 4.60, FB + 1.55, FB + 1.62, matBlackMetal);
+        }
+
+        // AC unit on ac-wall (x=0), high near corner-ac-window (NE = small-x, large-z)
+        furn(0.05, 6.30, 0.10, 6.75, FB + 2.13, FB + 2.39, matACUnit);
+        furn(0.10, 6.30, 0.18, 6.75, FB + 2.16, FB + 2.36, matACGrille);
+        furn(0.05, 6.28, 0.10, 6.77, FB + 2.11, FB + 2.13, matACVent);
+
+        // Curtains in front of sliding window (z=7.20 wall, x=0.505..2.195)
+        {
+          const stripCount = 4;
+          const totalSpan = 2.195 - 0.505;
+          const stripW = totalSpan / stripCount;
+          for (let i = 0; i < stripCount; i++) {
+            const xC = 0.505 + (i + 0.5) * stripW;
+            const zOff = (i % 2) * 0.02;
+            const strip = new THREE.Mesh(
+              new THREE.BoxGeometry(stripW - 0.015, 1.30, 0.05),
+              matCurtain
+            );
+            strip.position.set(xC, FB + 1.50, 7.20 - 0.10 - zOff);
+            S.group.add(strip);
+          }
+        }
+      }
+      // ─── 2F room-1 (洋室2) — 4.5 帖, 2.7×2.7m, code x=3.60..6.30, z=4.50..7.20 ───
+      // Furniture per interior-images/room-1/room-map.md
+      // window-wall=N(z=7.20), ac-wall=W(x=6.30), cabinet-wall=E(x=3.60), entrance-wall=S(z=4.50)
+      {
+        const matIron         = new THREE.MeshStandardMaterial({ color: 0x1a1715, metalness: 0.3, roughness: 0.6 });
+        const matBedding      = new THREE.MeshStandardMaterial({ color: 0xeeeae0, roughness: 0.95 });
+        const matAccentPillow = new THREE.MeshStandardMaterial({ color: 0x6b7e8a, roughness: 0.9 });
+        const matWoodLight    = new THREE.MeshStandardMaterial({ color: 0xc8a878, roughness: 0.75 });
+        const matWoodDark     = new THREE.MeshStandardMaterial({ color: 0x4a3526, roughness: 0.7 });
+        const matBlackMetal   = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.4, roughness: 0.5 });
+        const matDeskWood     = new THREE.MeshStandardMaterial({ color: 0x8b6648, roughness: 0.7 });
+
+        // Iron-frame bed: long side against ac-wall (W=x=6.30), head N (corner-ac-window), foot S (corner-ac-entrance)
+        const bX0 = 5.25, bX1 = 6.25, bZ0 = 5.10, bZ1 = 7.10;
+        furn(bX0,      bZ1,        bX1,      bZ1+0.05, FB,        FB + 1.00, matIron);  // headboard at N
+        furn(bX0,      bZ0-0.05,   bX1,      bZ0,      FB,        FB + 0.50, matIron);  // footboard at S
+        furn(bX0,      bZ0,        bX0+0.04, bZ1,      FB + 0.20, FB + 0.30, matIron);  // E side rail
+        furn(bX1-0.04, bZ0,        bX1,      bZ1,      FB + 0.20, FB + 0.30, matIron);  // W side rail (against ac-wall)
+        furn(bX0+0.05, bZ0+0.05,   bX1-0.05, bZ1-0.05, FB + 0.30, FB + 0.55, matBedding);
+        furn(bX0+0.20, bZ1-0.40,   bX1-0.20, bZ1-0.10, FB + 0.55, FB + 0.65, matAccentPillow);  // pillow at N head
+
+        // Solid wood desk against window-wall (N=z=7.20), under sliding window — extends W from corner-cabinet-window
+        const dX0 = 4.00, dX1 = 5.20, dZ0 = 6.70, dZ1 = 7.10;
+        furn(dX0,      dZ0, dX1,      dZ1, FB + 0.72, FB + 0.75, matDeskWood);  // desk top
+        furn(dX0,      dZ0, dX0+0.03, dZ1, FB,        FB + 0.72, matDeskWood);  // E leg
+        furn(dX1-0.03, dZ0, dX1,      dZ1, FB,        FB + 0.72, matDeskWood);  // W leg
+
+        // Shelf at corner-cabinet-window (NE = code-small-x, large-z) — L-shape with desk against cabinet-wall
+        const sX0 = 3.65, sX1 = 4.00, sZ0 = 6.40, sZ1 = 7.10;
+        const sYtop = FB + 1.50;
+        // back panel against cabinet-wall side (small-x face)
+        furn(sX0, sZ0, sX0+0.02, sZ1, FB, sYtop, matWoodDark);
+        // front uprights
+        furn(sX1-0.03, sZ0,      sX1, sZ0+0.03, FB, sYtop, matBlackMetal);
+        furn(sX1-0.03, sZ1-0.03, sX1, sZ1,      FB, sYtop, matBlackMetal);
+        // 4 horizontal shelves
+        for (let i = 0; i < 4; i++) {
+          const yShelf = FB + 0.10 + i * 0.45;
+          furn(sX0+0.02, sZ0, sX1-0.03, sZ1, yShelf, yShelf+0.025, matWoodDark);
+        }
+
+        // Coat rack on cabinet-wall (E=x=3.60), north of closet bi-fold (closet at z=4.65..5.25)
+        furn(3.65, 5.40, 3.70, 6.00, FB + 1.55, FB + 1.65, matWoodLight);
+        for (let i = 0; i < 3; i++) {
+          const hZ = 5.50 + i * 0.18;
+          furn(3.70, hZ, 3.73, hZ+0.03, FB + 1.55, FB + 1.62, matBlackMetal);
+        }
+
+        // AC unit on ac-wall (W=x=6.30), high near corner-ac-window (NW = large-x, large-z)
+        furn(6.20, 6.30, 6.25, 6.75, FB + 2.13, FB + 2.39, matACUnit);
+        furn(6.12, 6.30, 6.20, 6.75, FB + 2.16, FB + 2.36, matACGrille);
+        furn(6.20, 6.28, 6.25, 6.77, FB + 2.11, FB + 2.13, matACVent);
+
+        // Curtains in front of sliding window (z=7.20 wall, x=4.105..5.795)
+        {
+          const stripCount = 4;
+          const totalSpan = 5.795 - 4.105;
+          const stripW = totalSpan / stripCount;
+          for (let i = 0; i < stripCount; i++) {
+            const xC = 4.105 + (i + 0.5) * stripW;
+            const zOff = (i % 2) * 0.02;
+            const strip = new THREE.Mesh(
+              new THREE.BoxGeometry(stripW - 0.015, 1.30, 0.05),
+              matCurtain
+            );
+            strip.position.set(xC, FB + 1.50, 7.20 - 0.10 - zOff);
+            S.group.add(strip);
+          }
         }
       }
       // 2F toilet
@@ -1302,9 +1555,9 @@
       box(RW,  bbH, bbD, RW/2, bbH/2, bbD/2,      bbColor, bbX);
       box(RW,  bbH, bbD, RW/2, bbH/2, RD - bbD/2, bbColor, bbX);
 
-      // sliding window on x=W
-      feat('x', RW, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
-      winFrame('x', RW, -1, 0.405, 1.595, 0.85, 1.75, matFrameR1);
+      // sliding window on z=D (window-wall, north exterior per blueprint)
+      feat('z', RD, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
+      winFrame('z', RD, -1, 0.405, 1.595, 0.85, 1.75, matFrameR1);
 
       // doorway + casing on z=0
       feat('z', 0, +1, { a1: 0, a2: 0.8, b1: 0, b2: 2.0 }, COL.doorway);
@@ -1323,10 +1576,10 @@
         S.group.add(h);
       }
 
-      // AC unit + frosted window on z=D
-      box(0.8, 0.25, 0.2, 2.1, 2.275, RD - BIAS - 0.1, 0xffffff);
-      feat('z', RD, -1, { a1: 0.82, a2: 1.08, b1: 0.9, b2: 1.9 }, matFrosted);
-      winFrame('z', RD, -1, 0.82, 1.08, 0.9, 1.9, matFrameR1);
+      // AC unit + frosted window on x=W (ac-wall, west exterior per blueprint)
+      box(0.2, 0.25, 0.8, RW - BIAS - 0.1, 2.275, 2.1, 0xffffff);
+      feat('x', RW, -1, { a1: 0.82, a2: 1.08, b1: 0.9, b2: 1.9 }, matFrosted);
+      winFrame('x', RW, -1, 0.82, 1.08, 0.9, 1.9, matFrameR1);
 
       // openable door — hinge at corner-cabinet-entrance, swung open into room
       {
@@ -1342,8 +1595,8 @@
         S.group.add(dGroup);
       }
 
-      // bed
-      aabb({ x1: 0.7, x2: 2.7, z1: 1.7, z2: 2.7, y1: 0.1, y2: 0.5 }, COL.mattress);
+      // bed — long side against ac-wall (x=W); head at z=D, foot at z=0
+      aabb({ x1: 1.7, x2: 2.7, z1: 0.7, z2: 2.7, y1: 0.1, y2: 0.5 }, COL.mattress);
       const IRON = { roughness: 0.45, metalness: 0.6 };
       function metalFrame(panel, topRail, botRail, nBars) {
         const w = panel.x2 - panel.x1, d = panel.z2 - panel.z1;
@@ -1355,16 +1608,21 @@
         const barCy = (topRail.y1 + botRail.y2)/2;
         for (let i = 0; i < nBars; i++) {
           const t = nBars === 1 ? 0.5 : i / (nBars - 1);
-          const z = panel.z1 + (panel.z2 - panel.z1) * t;
-          box(barT, barH, barT, cx, barCy, z, COL.ironDark, IRON);
+          if (d > w) {
+            const z = panel.z1 + d * t;
+            box(barT, barH, barT, cx, barCy, z, COL.ironDark, IRON);
+          } else {
+            const x = panel.x1 + w * t;
+            box(barT, barH, barT, x, barCy, cz, COL.ironDark, IRON);
+          }
         }
       }
-      metalFrame({ x1: 2.65, x2: 2.7, z1: 1.7, z2: 2.7 }, { y1: 0.98, y2: 1.0 }, { y1: 0, y2: 0.02 }, 5);
-      metalFrame({ x1: 0.7,  x2: 0.75, z1: 1.7, z2: 2.7 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
+      metalFrame({ x1: 1.7, x2: 2.7, z1: 2.65, z2: 2.7 }, { y1: 0.98, y2: 1.0 }, { y1: 0, y2: 0.02 }, 5);
+      metalFrame({ x1: 1.7, x2: 2.7, z1: 0.7,  z2: 0.75 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
 
-      // desk
+      // desk — against window-wall (z=D), under sliding window
       {
-        const f = { x1: 2.1, x2: 2.7, z1: 0.4, z2: 1.6 };
+        const f = { x1: 0.4, x2: 1.6, z1: 2.1, z2: 2.7 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
         const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
         const topY = 0.75, topT = 0.05, legT = 0.04;
@@ -1378,9 +1636,9 @@
             box(legT, legH, legT, lx, legH/2, lz, COL.blackMet, BMET);
       }
 
-      // shelf with x-bracing
+      // shelf with x-bracing — at corner-cabinet-window (x=0 × z=D)
       {
-        const f = { x1: 2.1, x2: 2.7, z1: 0, z2: 0.4 };
+        const f = { x1: 0, x2: 0.4, z1: 2.3, z2: 2.7 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
         const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
         const sH = 1.3, postT = 0.03, tierT = 0.025;
@@ -1413,9 +1671,9 @@
         }
       }
 
-      // chair
+      // chair — south of desk (faces north toward desk)
       {
-        const f = { x1: 1.6, x2: 2.1, z1: 1.1, z2: 1.6 };
+        const f = { x1: 0.7, x2: 1.2, z1: 1.6, z2: 2.1 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
         const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
         const seatY = 0.5, seatT = 0.05, backT = 0.05, backH = 0.4;
@@ -1612,10 +1870,84 @@
     roomLabel.textContent = '—';
   }
 
+  // ---------- QA view helpers ----------
+  // Per-room inspection: top, side faces, isometric, free orbit. Hides geometry
+  // above the room's ceiling for top/iso so the floor above doesn't block view.
+  function getRoomBbox(S, name) {
+    if (!S || !S.rooms) return null;
+    const matches = S.rooms.filter(r => r.name === name);
+    if (matches.length === 0) return null;
+    let x1 = Infinity, x2 = -Infinity, z1 = Infinity, z2 = -Infinity;
+    let y1 = Infinity, y2 = -Infinity;
+    for (const r of matches) {
+      x1 = Math.min(x1, r.x1); x2 = Math.max(x2, r.x2);
+      z1 = Math.min(z1, r.z1); z2 = Math.max(z2, r.z2);
+      if (r.y1 != null) { y1 = Math.min(y1, r.y1); y2 = Math.max(y2, r.y2); }
+    }
+    if (y1 === Infinity) { y1 = 0; y2 = 2.5; }
+    return { name, x1, x2, z1, z2, y1, y2 };
+  }
+  function clearQACull(S) {
+    if (!S || !S.group) return;
+    S.group.traverse(obj => {
+      if (obj.isMesh && obj.userData._qaCulled) {
+        obj.visible = obj.userData._qaOrigVisible;
+        delete obj.userData._qaCulled;
+        delete obj.userData._qaOrigVisible;
+      }
+    });
+  }
+  function cullAboveY(S, cullY) {
+    S.group.traverse(obj => {
+      if (!obj.isMesh) return;
+      const h = obj.geometry?.parameters?.height ?? 0;
+      const bottomY = obj.position.y - h / 2;
+      if (bottomY >= cullY - 0.001) {
+        obj.userData._qaOrigVisible = obj.visible;
+        obj.userData._qaCulled = true;
+        obj.visible = false;
+      }
+    });
+  }
+  function applyQAView(S, room, mode) {
+    clearQACull(S);
+    const cx = (room.x1 + room.x2) / 2;
+    const cz = (room.z1 + room.z2) / 2;
+    const cy = (room.y1 + room.y2) / 2;
+    const diag = Math.hypot(room.x2 - room.x1, room.y2 - room.y1, room.z2 - room.z1);
+    let pos, tgt;
+    switch (mode) {
+      case 'top':
+        pos = [cx, room.y2 + diag * 1.2, cz];
+        tgt = [cx, cy, cz];
+        cullAboveY(S, room.y2);
+        break;
+      case 'n':
+        pos = [cx, cy, room.z1 + 0.3]; tgt = [cx, cy, room.z2]; break;
+      case 's':
+        pos = [cx, cy, room.z2 - 0.3]; tgt = [cx, cy, room.z1]; break;
+      case 'e':
+        pos = [room.x2 - 0.3, cy, cz]; tgt = [room.x1, cy, cz]; break;
+      case 'w':
+        pos = [room.x1 + 0.3, cy, cz]; tgt = [room.x2, cy, cz]; break;
+      case 'iso':
+        pos = [room.x2 + diag * 0.3, room.y2 + diag * 0.6, room.z1 - diag * 0.3];
+        tgt = [cx, cy, cz];
+        cullAboveY(S, room.y2);
+        break;
+      default: return;
+    }
+    orbit.setFrom(
+      new THREE.Vector3().fromArray(pos),
+      new THREE.Vector3().fromArray(tgt)
+    );
+  }
+
   // ---------- Scene switching ----------
   const viewChipsEl = document.getElementById('view-chips');
   function populateViewChips(S) {
     viewChipsEl.innerHTML = '';
+    clearQACull(S);
     if (!S || !S.viewpoints || S.viewpoints.length === 0) return;
 
     const parents = S.viewpoints.filter(v => !v.parent);
@@ -1631,15 +1963,55 @@
     const subRow = document.createElement('div');
     subRow.className = 'chip-row';
     subRow.style.display = 'none';
+    const qaRow = document.createElement('div');
+    qaRow.className = 'chip-row qa-row';
+    qaRow.style.display = 'none';
 
     let activeChip = null;
+    let activeQABtn = null;
     let expandedParentId = null;
+
+    function showQARow(room, originalViewpoint) {
+      qaRow.innerHTML = '';
+      qaRow.style.display = '';
+      activeQABtn = null;
+      const modes = [
+        { id: 'top',   label: 'top'   },
+        { id: 'n',     label: 'N'     },
+        { id: 's',     label: 'S'     },
+        { id: 'e',     label: 'E'     },
+        { id: 'w',     label: 'W'     },
+        { id: 'iso',   label: 'iso'   },
+        { id: 'orbit', label: 'orbit' },
+      ];
+      for (const m of modes) {
+        const btn = document.createElement('div');
+        btn.className = 'qa-view';
+        btn.textContent = m.label;
+        btn.addEventListener('click', () => {
+          if (m.id === 'orbit') {
+            clearQACull(S);
+            orbit.setFrom(
+              new THREE.Vector3().fromArray(originalViewpoint.pos),
+              new THREE.Vector3().fromArray(originalViewpoint.tgt)
+            );
+          } else {
+            applyQAView(S, room, m.id);
+          }
+          if (activeQABtn) activeQABtn.classList.remove('active');
+          btn.classList.add('active');
+          activeQABtn = btn;
+        });
+        qaRow.appendChild(btn);
+      }
+    }
 
     function makeChip(v) {
       const chip = document.createElement('div');
       chip.className = 'view-chip';
       chip.textContent = v.label;
       chip.addEventListener('click', () => {
+        clearQACull(S);
         orbit.setFrom(
           new THREE.Vector3().fromArray(v.pos),
           new THREE.Vector3().fromArray(v.tgt)
@@ -1647,6 +2019,15 @@
         if (activeChip) activeChip.classList.remove('active');
         chip.classList.add('active');
         activeChip = chip;
+
+        const room = getRoomBbox(S, v.id);
+        if (room) {
+          showQARow(room, v);
+        } else {
+          qaRow.style.display = 'none';
+          qaRow.innerHTML = '';
+          activeQABtn = null;
+        }
 
         if (!v.parent) {
           const kids = childrenByParent[v.id] || [];
@@ -1674,6 +2055,7 @@
 
     viewChipsEl.appendChild(topRow);
     viewChipsEl.appendChild(subRow);
+    viewChipsEl.appendChild(qaRow);
   }
 
   function switchScene(id) {
