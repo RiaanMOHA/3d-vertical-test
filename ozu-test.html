@@ -311,89 +311,79 @@
       }
 
       // ---------- outer walls with openings ----------
-      // We model each face as a sequence of solid segments + leave gaps for openings.
-      // Openings are filled later with frame + glass.
-      //
-      // Faces:
-      //   FRONT  — Z = D    (street side, where the door is)
-      //   BACK   — Z = 0
-      //   LEFT   — X = 0
-      //   RIGHT  — X = W
+      // Window/door positions match the interior scene's F1_WIN/F2_WIN arrays so the same
+      // building reads consistently from both scenes. Cladding split confirmed against
+      // exterior-images/ozu-1-test-exterior-primary-{1..4}.webp:
+      //   front 1F LEFT (x=0..4.50, wet rooms) = brown panel
+      //   front 1F RIGHT (x=4.50..W, genkan/entry) = cream panel
+      //   2F + back + sides = cream throughout
 
-      // -- FRONT (Z = D) --
-      // 1F: entrance door at x = 4.95..5.85 (matches interior genkan), small window at x = 1.5..2.1
-      // 2F: two windows
-      solidWall(0,    D, 1.5,  D, 0,    F1H, matLower);
-      solidWall(1.5,  D, 2.1,  D, 0,    0.9, matLower);    // sill under window
-      solidWall(1.5,  D, 2.1,  D, 1.8,  F1H, matLower);    // header above window
-      solidWall(2.1,  D, 4.95, D, 0,    F1H, matLower);
-      solidWall(4.95, D, 5.85, D, 2.05, F1H, matLower);    // door header
-      solidWall(5.85, D, W,    D, 0,    F1H, matLower);
-      // 2F front — two equal windows
-      solidWall(0,   D, 1.2, D, F1H, F1H+F2H, matUpper);
-      solidWall(1.2, D, 2.4, D, F1H, F1H+0.9, matUpper);   // under win 1
-      solidWall(1.2, D, 2.4, D, F1H+1.9, F1H+F2H, matUpper);// over win 1
-      solidWall(2.4, D, 3.9, D, F1H, F1H+F2H, matUpper);
-      solidWall(3.9, D, 5.1, D, F1H, F1H+0.9, matUpper);   // under win 2
-      solidWall(3.9, D, 5.1, D, F1H+1.9, F1H+F2H, matUpper);// over win 2
-      solidWall(5.1, D, W,   D, F1H, F1H+F2H, matUpper);
+      // -- FRONT (Z = D) — split cladding --
+      // 1F BROWN side (x=0..4.50): 3 small windows (laundry slim, bath frosted vertical, toilet slim)
+      solidWall(0,    D, 0.60, D, 0,    F1H, matLower);
+      solidWall(0.60, D, 1.20, D, 0,    1.50, matLower);    // laundry 横すべり 06003 sill
+      solidWall(0.60, D, 1.20, D, 1.80, F1H, matLower);     // laundry header
+      solidWall(1.20, D, 2.57, D, 0,    F1H, matLower);
+      solidWall(2.57, D, 2.83, D, 0,    1.10, matLower);    // bath 縦すべり 02607 sill
+      solidWall(2.57, D, 2.83, D, 1.80, F1H, matLower);     // bath header
+      solidWall(2.83, D, 3.87, D, 0,    F1H, matLower);
+      solidWall(3.87, D, 4.23, D, 0,    1.50, matLower);    // toilet 横すべり 03603 sill
+      solidWall(3.87, D, 4.23, D, 1.80, F1H, matLower);     // toilet header
+      solidWall(4.23, D, 4.50, D, 0,    F1H, matLower);
+      // 1F CREAM side (x=4.50..W): genkan with entry door at x=4.95..5.85
+      solidWall(4.50, D, 4.95, D, 0,    F1H, matUpper);
+      solidWall(4.95, D, 5.85, D, 2.05, F1H, matUpper);     // door header
+      solidWall(5.85, D, W,    D, 0,    F1H, matUpper);
+      // 2F front (cream, full width) — room-2 wide + 2F toilet narrow + room-1 wide
+      solidWall(0,     D, 0.505, D, F1H, F1H+F2H, matUpper);
+      solidWall(0.505, D, 2.195, D, F1H, F1H+1.10, matUpper);     // room-2 引違 11909 sill
+      solidWall(0.505, D, 2.195, D, F1H+2.00, F1H+F2H, matUpper); // room-2 header
+      solidWall(2.195, D, 3.020, D, F1H, F1H+F2H, matUpper);
+      solidWall(3.020, D, 3.280, D, F1H, F1H+1.10, matUpper);     // 2F toilet 縦すべり 02609 sill
+      solidWall(3.020, D, 3.280, D, F1H+2.00, F1H+F2H, matUpper); // 2F toilet header
+      solidWall(3.280, D, 4.105, D, F1H, F1H+F2H, matUpper);
+      solidWall(4.105, D, 5.795, D, F1H, F1H+1.10, matUpper);     // room-1 引違 11909 sill
+      solidWall(4.105, D, 5.795, D, F1H+2.00, F1H+F2H, matUpper); // room-1 header
+      solidWall(5.795, D, W,     D, F1H, F1H+F2H, matUpper);
 
-      // -- BACK (Z = 0) --
-      // 1F: one large sliding (LDK), one small frosted
-      solidWall(0,   0, 0.8, 0, 0,   F1H, matLower);
-      solidWall(0.8, 0, 2.4, 0, 0,   0.9, matLower);       // under LDK big window
-      solidWall(0.8, 0, 2.4, 0, 2.0, F1H, matLower);       // over LDK big window
-      solidWall(2.4, 0, 4.2, 0, 0,   F1H, matLower);
-      solidWall(4.2, 0, 4.8, 0, 0,   1.8, matLower);       // under small frosted
-      solidWall(4.2, 0, 4.8, 0, 2.1, F1H, matLower);
-      solidWall(4.8, 0, W,   0, 0,   F1H, matLower);
-      // 2F back
-      solidWall(0,   0, 1.2, 0, F1H, F1H+F2H, matUpper);
-      solidWall(1.2, 0, 2.1, 0, F1H, F1H+0.9, matUpper);
-      solidWall(1.2, 0, 2.1, 0, F1H+1.8, F1H+F2H, matUpper);
-      solidWall(2.1, 0, 4.2, 0, F1H, F1H+F2H, matUpper);
-      solidWall(4.2, 0, 5.1, 0, F1H, F1H+0.9, matUpper);
-      solidWall(4.2, 0, 5.1, 0, F1H+1.8, F1H+F2H, matUpper);
-      solidWall(5.1, 0, W,   0, F1H, F1H+F2H, matUpper);
+      // -- BACK (Z = 0) — all cream (garden side) --
+      // 1F: LDK garden door (full-height 引違 16020) + LDK secondary (引違 16009)
+      solidWall(0,    0, 0.20, 0, 0,    F1H, matUpper);
+      solidWall(0.20, 0, 1.80, 0, 2.00, F1H, matUpper);     // LDK garden door header (full-height door)
+      solidWall(1.80, 0, 3.20, 0, 0,    F1H, matUpper);
+      solidWall(3.20, 0, 4.80, 0, 0,    1.00, matUpper);    // LDK secondary sill
+      solidWall(3.20, 0, 4.80, 0, 1.90, F1H, matUpper);     // LDK secondary header
+      solidWall(4.80, 0, W,    0, 0,    F1H, matUpper);
+      // 2F: room-3 wide + room-4 wide
+      solidWall(0,     0, 0.600, 0, F1H, F1H+F2H, matUpper);
+      solidWall(0.600, 0, 2.100, 0, F1H, F1H+1.10, matUpper);     // room-3 引違 15009 sill
+      solidWall(0.600, 0, 2.100, 0, F1H+2.00, F1H+F2H, matUpper); // room-3 header
+      solidWall(2.100, 0, 4.200, 0, F1H, F1H+F2H, matUpper);
+      solidWall(4.200, 0, 5.700, 0, F1H, F1H+1.10, matUpper);     // room-4 引違 15009 sill
+      solidWall(4.200, 0, 5.700, 0, F1H+2.00, F1H+F2H, matUpper); // room-4 header
+      solidWall(5.700, 0, W,     0, F1H, F1H+F2H, matUpper);
 
-      // -- LEFT (X = 0) --
-      // 1F kitchen — 1 horizontal frosted slit + small
-      solidWall(0, 0,   0, 2.0, 0,   F1H, matLower);
-      solidWall(0, 2.0, 0, 2.9, 0,   1.8, matLower);
-      solidWall(0, 2.0, 0, 2.9, 2.1, F1H, matLower);       // small horizontal
-      solidWall(0, 2.9, 0, 4.8, 0,   F1H, matLower);
-      solidWall(0, 4.8, 0, 5.5, 0,   0.9, matLower);
-      solidWall(0, 4.8, 0, 5.5, 2.0, F1H, matLower);       // living secondary
-      solidWall(0, 5.5, 0, D,   0,   F1H, matLower);
-      // 2F left — room-4 window
-      solidWall(0, 0,   0, 2.2, F1H, F1H+F2H, matUpper);
-      solidWall(0, 2.2, 0, 3.1, F1H, F1H+0.9, matUpper);
-      solidWall(0, 2.2, 0, 3.1, F1H+1.8, F1H+F2H, matUpper);
-      solidWall(0, 3.1, 0, 4.8, F1H, F1H+F2H, matUpper);
-      solidWall(0, 4.8, 0, 5.7, F1H, F1H+0.9, matUpper);
-      solidWall(0, 4.8, 0, 5.7, F1H+1.8, F1H+F2H, matUpper);
-      solidWall(0, 5.7, 0, D,   F1H, F1H+F2H, matUpper);
+      // -- LEFT (X = 0) — all cream --
+      // 1F: 2 LDK casements (縦すべり 02609 narrow vertical, paired)
+      solidWall(0, 0,    0, 1.20, 0,    F1H, matUpper);
+      solidWall(0, 1.20, 0, 1.46, 0,    1.00, matUpper);    // LDK lower casement sill
+      solidWall(0, 1.20, 0, 1.46, 1.90, F1H, matUpper);     // header
+      solidWall(0, 1.46, 0, 3.30, 0,    F1H, matUpper);
+      solidWall(0, 3.30, 0, 3.56, 0,    1.00, matUpper);    // LDK upper casement sill
+      solidWall(0, 3.30, 0, 3.56, 1.90, F1H, matUpper);     // header
+      solidWall(0, 3.56, 0, D,    0,    F1H, matUpper);
+      // 2F: room-3 narrow vertical + room-2 narrow vertical (縦すべり 02609 each)
+      solidWall(0, 0,     0, 1.670, F1H, F1H+F2H, matUpper);
+      solidWall(0, 1.670, 0, 1.930, F1H, F1H+1.10, matUpper);
+      solidWall(0, 1.670, 0, 1.930, F1H+2.00, F1H+F2H, matUpper);
+      solidWall(0, 1.930, 0, 5.720, F1H, F1H+F2H, matUpper);
+      solidWall(0, 5.720, 0, 5.980, F1H, F1H+1.10, matUpper);
+      solidWall(0, 5.720, 0, 5.980, F1H+2.00, F1H+F2H, matUpper);
+      solidWall(0, 5.980, 0, D,     F1H, F1H+F2H, matUpper);
 
-      // -- RIGHT (X = W) --
-      // 1F: bathroom small + washroom small
-      solidWall(W, 0,   W, 1.2, 0,   F1H, matLower);
-      solidWall(W, 1.2, W, 1.8, 0,   1.8, matLower);
-      solidWall(W, 1.2, W, 1.8, 2.1, F1H, matLower);
-      solidWall(W, 1.8, W, 3.0, 0,   F1H, matLower);
-      solidWall(W, 3.0, W, 3.6, 0,   1.8, matLower);
-      solidWall(W, 3.0, W, 3.6, 2.1, F1H, matLower);
-      solidWall(W, 3.6, W, 5.1, 0,   F1H, matLower);
-      solidWall(W, 5.1, W, 5.4, 0,   1.8, matLower);       // toilet slim
-      solidWall(W, 5.1, W, 5.4, 2.1, F1H, matLower);
-      solidWall(W, 5.4, W, D,   0,   F1H, matLower);
-      // 2F right
-      solidWall(W, 0,   W, 2.1, F1H, F1H+F2H, matUpper);
-      solidWall(W, 2.1, W, 3.0, F1H, F1H+0.9, matUpper);
-      solidWall(W, 2.1, W, 3.0, F1H+1.8, F1H+F2H, matUpper);
-      solidWall(W, 3.0, W, 5.0, F1H, F1H+F2H, matUpper);
-      solidWall(W, 5.0, W, 5.6, F1H, F1H+0.9, matUpper);
-      solidWall(W, 5.0, W, 5.6, F1H+1.8, F1H+F2H, matUpper);
-      solidWall(W, 5.6, W, D,   F1H, F1H+F2H, matUpper);
+      // -- RIGHT (X = W) — all cream, no exterior windows on this side per blueprint --
+      solidWall(W, 0, W, D, 0,    F1H, matUpper);
+      solidWall(W, 0, W, D, F1H, F1H+F2H, matUpper);
 
       // ---------- window glass + frames (thin panes sitting in the openings) ----------
       function paneFront(x1, x2, y1, y2, z) {
@@ -402,7 +392,6 @@
         const gM = new THREE.Mesh(gG, matGlass);
         gM.position.set((x1+x2)/2, (y1+y2)/2, z);
         S.group.add(gM);
-        // trim
         const tG = new THREE.BoxGeometry(w + 0.12, h + 0.12, 0.06);
         const tM = new THREE.Mesh(tG, matTrim);
         tM.position.set((x1+x2)/2, (y1+y2)/2, z);
@@ -420,31 +409,26 @@
         S.group.add(tM);
       }
 
-      // Front 1F small window
-      paneFront(1.5, 2.1, 0.9, 1.8, D);
-      // Front 2F windows
-      paneFront(1.2, 2.4, F1H+0.9, F1H+1.9, D);
-      paneFront(3.9, 5.1, F1H+0.9, F1H+1.9, D);
-      // Back 1F LDK big sliding
-      paneFront(0.8, 2.4, 0.9, 2.0, 0);
-      // Back 1F small frosted
-      paneFront(4.2, 4.8, 1.8, 2.1, 0);
-      // Back 2F
-      paneFront(1.2, 2.1, F1H+0.9, F1H+1.8, 0);
-      paneFront(4.2, 5.1, F1H+0.9, F1H+1.8, 0);
-      // Left 1F
-      paneSide(2.0, 2.9, 1.8, 2.1, 0);
-      paneSide(4.8, 5.5, 0.9, 2.0, 0);
-      // Left 2F
-      paneSide(2.2, 3.1, F1H+0.9, F1H+1.8, 0);
-      paneSide(4.8, 5.7, F1H+0.9, F1H+1.8, 0);
-      // Right 1F
-      paneSide(1.2, 1.8, 1.8, 2.1, W);
-      paneSide(3.0, 3.6, 1.8, 2.1, W);
-      paneSide(5.1, 5.4, 1.8, 2.1, W);
-      // Right 2F
-      paneSide(2.1, 3.0, F1H+0.9, F1H+1.8, W);
-      paneSide(5.0, 5.6, F1H+0.9, F1H+1.8, W);
+      // Front 1F panes
+      paneFront(0.60, 1.20, 1.50, 1.80, D);                     // laundry 横すべり 06003
+      paneFront(2.57, 2.83, 1.10, 1.80, D);                     // bath 縦すべり 02607
+      paneFront(3.87, 4.23, 1.50, 1.80, D);                     // toilet 横すべり 03603
+      // Front 2F panes
+      paneFront(0.505, 2.195, F1H+1.10, F1H+2.00, D);           // room-2 引違 11909
+      paneFront(3.020, 3.280, F1H+1.10, F1H+2.00, D);           // 2F toilet 縦すべり 02609
+      paneFront(4.105, 5.795, F1H+1.10, F1H+2.00, D);           // room-1 引違 11909
+      // Back 1F panes
+      paneFront(0.20, 1.80, 0.00, 2.00, 0);                     // LDK garden door 引違 16020
+      paneFront(3.20, 4.80, 1.00, 1.90, 0);                     // LDK secondary 引違 16009
+      // Back 2F panes
+      paneFront(0.600, 2.100, F1H+1.10, F1H+2.00, 0);           // room-3 引違 15009
+      paneFront(4.200, 5.700, F1H+1.10, F1H+2.00, 0);           // room-4 引違 15009
+      // Left 1F panes
+      paneSide(1.20, 1.46, 1.00, 1.90, 0);                      // LDK lower casement
+      paneSide(3.30, 3.56, 1.00, 1.90, 0);                      // LDK upper casement
+      // Left 2F panes
+      paneSide(1.670, 1.930, F1H+1.10, F1H+2.00, 0);            // room-3 縦すべり 02609
+      paneSide(5.720, 5.980, F1H+1.10, F1H+2.00, 0);            // room-2 縦すべり 02609
 
       // ---------- front door ----------
       {
@@ -663,6 +647,9 @@
         floor_closet: 0xa89e90,
       };
       const wallMat = new THREE.MeshStandardMaterial({ color: CLR.wall, roughness: 0.95 });
+      // Outer-wall cladding (matches exterior scene + photos)
+      const matLowerExt = new THREE.MeshStandardMaterial({ color: 0x5a4838, roughness: 0.88 });   // dark brown panel
+      const matUpperExt = new THREE.MeshStandardMaterial({ color: 0xe8e3d9, roughness: 0.92 });   // off-white cream
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xb89878, roughness: 0.6 });
       const closetDoorMat = new THREE.MeshStandardMaterial({ color: 0xe8dfd0, roughness: 0.6 });
       const doorHandleMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, metalness: 0.5, roughness: 0.45 });
@@ -699,36 +686,36 @@
         m.position.set((x0 + x1) / 2, yBase - FLOOR_T / 2, (z0 + z1) / 2);
         S.group.add(m);
       }
-      function makeWall(x0, z0, x1, z1, height, yBase) {
+      function makeWall(x0, z0, x1, z1, height, yBase, mat) {
         const dx = x1 - x0, dz = z1 - z0;
         const len = Math.hypot(dx, dz);
         if (len < 0.001) return;
         const m = new THREE.Mesh(
           new THREE.BoxGeometry(len, height, WT),
-          wallMat
+          mat || wallMat
         );
         m.position.set((x0 + x1) / 2, yBase + height / 2, (z0 + z1) / 2);
         m.rotation.y = -Math.atan2(dz, dx);
         S.group.add(m);
         S.walls.push(m);
       }
-      function wallX(z, a, b, gaps, height, yBase) {
+      function wallX(z, a, b, gaps, height, yBase, mat) {
         let cur = a;
         const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
         for (const [g0, g1] of sorted) {
-          if (g0 > cur) makeWall(cur, z, g0, z, height, yBase);
+          if (g0 > cur) makeWall(cur, z, g0, z, height, yBase, mat);
           cur = Math.max(cur, g1);
         }
-        if (cur < b) makeWall(cur, z, b, z, height, yBase);
+        if (cur < b) makeWall(cur, z, b, z, height, yBase, mat);
       }
-      function wallZ(x, a, b, gaps, height, yBase) {
+      function wallZ(x, a, b, gaps, height, yBase, mat) {
         let cur = a;
         const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
         for (const [g0, g1] of sorted) {
-          if (g0 > cur) makeWall(x, cur, x, g0, height, yBase);
+          if (g0 > cur) makeWall(x, cur, x, g0, height, yBase, mat);
           cur = Math.max(cur, g1);
         }
-        if (cur < b) makeWall(x, cur, x, b, height, yBase);
+        if (cur < b) makeWall(x, cur, x, b, height, yBase, mat);
       }
 
       // ───────────────── 1F ─────────────────
@@ -832,30 +819,34 @@
         { a: 3.30, b: 3.56, y0: 1.00, y1: 1.90 },  // LDK 縦すべり 02609 upper (FL+1900)
       ];
 
-      // 1F outer walls (door + window x-gaps merged)
-      wallX(0, 0, W, F1_WIN_BACK.map(w => [w.a, w.b]),  F1H, 0);
-      wallX(D, 0, W, [[4.95, 5.85], ...F1_WIN_FRONT.map(w => [w.a, w.b])], F1H, 0);
-      wallZ(0, 0, D, F1_WIN_LEFT.map(w => [w.a, w.b]),  F1H, 0);
-      wallZ(W, 0, D, [], F1H, 0);
+      // 1F outer walls (door + window x-gaps merged) — with photo-matched cladding:
+      //   front 1F LEFT (x=0..4.95, wet rooms) = brown panel
+      //   front 1F RIGHT (x=4.95..W, genkan/entry) = cream
+      //   back, left, right + 2F throughout = cream
+      wallX(0, 0, W, F1_WIN_BACK.map(w => [w.a, w.b]),  F1H, 0, matUpperExt);
+      wallX(D, 0, 4.95, F1_WIN_FRONT.map(w => [w.a, w.b]), F1H, 0, matLowerExt);
+      wallX(D, 5.85, W, [], F1H, 0, matUpperExt);
+      // Door header (cream) above the entry — matches exterior scene's solidWall(4.95..5.85, 2.05..F1H)
+      makeWall(4.95, D, 5.85, D, F1H - 2.05, 2.05, matUpperExt);
+      wallZ(0, 0, D, F1_WIN_LEFT.map(w => [w.a, w.b]),  F1H, 0, matUpperExt);
+      wallZ(W, 0, D, [], F1H, 0, matUpperExt);
       for (const w of F1_WIN_FRONT) addWinFlex('X', D, w, 0, F1H);
       for (const w of F1_WIN_BACK)  addWinFlex('X', 0, w, 0, F1H);
       for (const w of F1_WIN_LEFT)  addWinFlex('Z', 0, w, 0, F1H);
-      wallZ(1.80, 4.50, 4.80, [], F1H, 0);
-      wallZ(1.80, 4.80, D,    [[5.10, 5.70]], F1H, 0);
+      wallZ(1.80, 4.50, 5.40, [], F1H, 0);                            // laundry east wall along corridor approach strip
+      wallZ(1.80, 5.40, D,    [[5.50, 6.10]], F1H, 0);                 // laundry ↔ washroom (door)
       wallZ(3.60, 3.60, 4.50, [], F1H, 0);
-      wallZ(3.60, 4.80, 5.40, [], F1H, 0);
-      wallZ(3.60, 5.40, D,    [], F1H, 0);
+      wallZ(3.60, 5.40, D,    [], F1H, 0);                             // washroom ↔ toilet partition
       wallZ(4.50, 3.60, 4.50, [], F1H, 0);
       wallZ(4.50, 5.40, 6.30, [[5.65, 6.30]], F1H, 0);
       wallZ(4.50, 6.30, D,    [], F1H, 0);
       wallZ(5.40, 2.90, 4.50, [], F1H, 0);
       wallX(2.90, 5.40, W,    [], F1H, 0);
       wallX(3.60, 3.60, 4.50, [], F1H, 0);
-      wallX(4.50, 0,    1.80, [[0.75, 1.35]], F1H, 0);
-      wallX(4.50, 3.60, 4.50, [[3.80, 4.50]], F1H, 0);
-      wallX(4.50, 5.40, W,    [[5.40, 6.10]], F1H, 0);
-      wallX(4.80, 1.80, 3.60, [], F1H, 0);
-      wallX(5.40, 3.60, 4.50, [], F1H, 0);
+      wallX(4.50, 0,    1.80, [[0.75, 1.35]], F1H, 0);                 // kitchen ↔ laundry (door)
+      wallX(4.50, 3.60, 4.50, [], F1H, 0);                             // LDK north wall (solid; archway is at x=5.40..6.10)
+      wallX(4.50, 5.40, W,    [[5.40, 6.10]], F1H, 0);                 // LDK ↔ corridor (open archway)
+      wallX(5.40, 1.80, 4.50, [[2.70, 3.30], [3.80, 4.40]], F1H, 0);   // washroom + toilet-1-f south walls, doors each
       wallX(6.30, 4.50, W,    [[5.10, 5.80]], F1H, 0);
 
       // ───────────────── 2F ─────────────────
@@ -892,50 +883,53 @@
         { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room-2 縦すべり 02609
       ];
 
-      // 2F outer walls (door + window x-gaps merged)
-      wallX(0, 0, W, F2_WIN_BACK.map(w => [w.a, w.b]),  F2H, F1H);
-      wallX(D, 0, W, F2_WIN_FRONT.map(w => [w.a, w.b]), F2H, F1H);
-      wallZ(0, 0, D, F2_WIN_LEFT.map(w => [w.a, w.b]),  F2H, F1H);
-      wallZ(W, 0, D, [], F2H, F1H);
+      // 2F outer walls — all cream cladding
+      wallX(0, 0, W, F2_WIN_BACK.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt);
+      wallX(D, 0, W, F2_WIN_FRONT.map(w => [w.a, w.b]), F2H, F1H, matUpperExt);
+      wallZ(0, 0, D, F2_WIN_LEFT.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt);
+      wallZ(W, 0, D, [], F2H, F1H, matUpperExt);
       for (const w of F2_WIN_FRONT) addWinFlex('X', D, w, F1H, F2H);
       for (const w of F2_WIN_BACK)  addWinFlex('X', 0, w, F1H, F2H);
       for (const w of F2_WIN_LEFT)  addWinFlex('Z', 0, w, F1H, F2H);
 
       // ── 2F interior walls ──
-      wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room-3 ↔ closet_a (door)
-      wallZ(2.70, 3.60, 4.50, [[3.65, 4.45]], F2H, F1H);  // east mid-closet ↔ corridor (door — room-3 reaches corridor through east closet)
-      wallZ(2.70, 4.50, D,    [[5.10, 5.70]], F2H, F1H);  // room-2 ↔ corridor_n (door)
-      wallZ(3.60, 0,    3.60, [[2.10, 2.70]], F2H, F1H);  // room-4 ↔ closet_b (door)
-      wallZ(3.60, 4.50, D,    [[4.65, 5.25]], F2H, F1H);  // room-1 ↔ corridor_n (door)
+      wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room-3 east wall, closet_a bi-fold
+      wallZ(2.70, 3.60, 4.50, [], F2H, F1H);              // closet column south edge (no door)
+      wallZ(2.70, 4.50, D,    [[5.10, 5.70]], F2H, F1H);  // room-2 east wall, closet bi-fold
+      wallZ(3.60, 0,    3.60, [[2.10, 2.70]], F2H, F1H);  // room-4 west wall, closet_b bi-fold
+      wallZ(3.60, 4.50, D,    [[4.65, 5.25]], F2H, F1H);  // room-1 west wall, closet bi-fold
       wallZ(1.35, 3.60, 4.50, [], F2H, F1H);              // wall between west and east mid-band closets
-      wallX(3.60, 0,    2.70, [[0.30, 0.95], [1.55, 2.20]], F2H, F1H);  // room-3 ↔ 2 mid-band closets (2 doors)
+      wallX(3.60, 0,    2.70, [[1.55, 2.15]], F2H, F1H);  // room-3 north wall, corridor entrance
       wallX(3.60, 2.70, 3.60, [], F2H, F1H);
-      wallX(3.60, 3.60, W,    [[4.50, 5.20]], F2H, F1H);
-      wallX(4.50, 0,    2.70, [], F2H, F1H);              // closets ↔ room-2 (solid)
-      wallX(4.50, 3.60, 4.50, [[3.80, 4.40]], F2H, F1H);
+      wallX(3.60, 3.60, W,    [[4.50, 5.20]], F2H, F1H);  // room-4 north wall, corridor entrance
+      wallX(4.50, 0,    2.70, [[1.10, 1.70]], F2H, F1H);  // room-2 south wall, corridor entrance
+      wallX(4.50, 3.60, 4.50, [[3.80, 4.40]], F2H, F1H);  // room-1 south wall, corridor entrance
       wallX(4.50, 4.50, W,    [], F2H, F1H);
-      wallX(5.85, 2.70, 3.60, [[2.85, 3.45]], F2H, F1H);
+      wallX(5.85, 2.70, 3.60, [[2.85, 3.45]], F2H, F1H);  // 2F toilet south wall, corridor entrance
 
       // ───────────────── DOORS ─────────────────
       // Closed-door panels fill the gaps left by wallX/wallZ.
       const F1_DOORS = [
-        { axis: 'X', c: D,    a: 4.95, b: 5.85, mat: doorMat },          // front door (interior side)
-        { axis: 'X', c: 4.50, a: 0.75, b: 1.35, mat: doorMat },          // ldk ↔ washroom
-        { axis: 'X', c: 4.50, a: 3.80, b: 4.50, mat: doorMat },          // corridor ↔ toilet
-        { axis: 'Z', c: 1.80, a: 5.10, b: 5.70, mat: doorMat },          // washroom ↔ bath
+        { axis: 'X', c: D,    a: 4.95, b: 5.85, mat: doorMat },          // front door (genkan entrance)
+        { axis: 'X', c: 4.50, a: 0.75, b: 1.35, mat: doorMat },          // kitchen ↔ laundry
+        { axis: 'Z', c: 1.80, a: 5.50, b: 6.10, mat: doorMat },          // laundry ↔ washroom
+        { axis: 'X', c: 5.40, a: 2.70, b: 3.30, mat: doorMat },          // corridor ↔ washroom
+        { axis: 'X', c: 5.40, a: 3.80, b: 4.40, mat: doorMat },          // corridor ↔ toilet-1-f
       ];
       for (const d of F1_DOORS) addDoor(d.axis, d.c, d.a, d.b, 0, F1H, d.mat);
 
       const F2_DOORS = [
+        // Bedroom closet bi-folds (in central column)
         { axis: 'Z', c: 2.70, a: 1.20, b: 1.80, mat: closetDoorMat },    // room-3 ↔ closet_a
-        { axis: 'Z', c: 2.70, a: 3.65, b: 4.45, mat: closetDoorMat },    // east mid-closet ↔ corridor
-        { axis: 'Z', c: 2.70, a: 5.10, b: 5.70, mat: doorMat },          // room-2 ↔ corridor_n
         { axis: 'Z', c: 3.60, a: 2.10, b: 2.70, mat: closetDoorMat },    // room-4 ↔ closet_b
-        { axis: 'Z', c: 3.60, a: 4.65, b: 5.25, mat: doorMat },          // room-1 ↔ corridor_n
-        { axis: 'X', c: 3.60, a: 0.30, b: 0.95, mat: closetDoorMat },    // room-3 ↔ mid-band closet (west)
-        { axis: 'X', c: 3.60, a: 1.55, b: 2.20, mat: closetDoorMat },    // room-3 ↔ mid-band closet (east)
-        { axis: 'X', c: 4.50, a: 3.80, b: 4.40, mat: doorMat },          // room-4 ↔ corridor
-        { axis: 'X', c: 5.85, a: 2.85, b: 3.45, mat: doorMat },          // toilet ↔ corridor
+        { axis: 'Z', c: 2.70, a: 5.10, b: 5.70, mat: closetDoorMat },    // room-2 ↔ closet
+        { axis: 'Z', c: 3.60, a: 4.65, b: 5.25, mat: closetDoorMat },    // room-1 ↔ closet
+        // Bedroom + toilet entrance doors (from corridor)
+        { axis: 'X', c: 3.60, a: 1.55, b: 2.15, mat: doorMat },          // room-3 entrance
+        { axis: 'X', c: 3.60, a: 4.50, b: 5.20, mat: doorMat },          // room-4 entrance
+        { axis: 'X', c: 4.50, a: 1.10, b: 1.70, mat: doorMat },          // room-2 entrance
+        { axis: 'X', c: 4.50, a: 3.80, b: 4.40, mat: doorMat },          // room-1 entrance
+        { axis: 'X', c: 5.85, a: 2.85, b: 3.45, mat: doorMat },          // 2F toilet entrance
       ];
       for (const d of F2_DOORS) addDoor(d.axis, d.c, d.a, d.b, F1H, F2H, d.mat);
 
