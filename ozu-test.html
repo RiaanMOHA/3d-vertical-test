@@ -15,7 +15,7 @@
   #mode-label { top: 54px; left: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); }
   #room-label { top: 14px; right: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); font-weight: 500; }
   #hints { bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); text-align: center; line-height: 1.5; }
-  #walk-btn { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); padding: 10px 18px; background: #fff; color: #111; border: none; border-radius: 999px; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer; pointer-events: auto; display: none; }
+  #walk-btn { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); padding: 10px 18px; background: #fff; color: #111; border: none; border-radius: 999px; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer; pointer-events: auto; display: none !important; }
   #walk-btn:hover { background: #e8e8e8; }
   #chips { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
   .chip { pointer-events: auto; padding: 8px 16px; border-radius: 999px; background: rgba(0,0,0,0.55); color: #fff; font-size: 13px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; }
@@ -52,9 +52,6 @@
 <div id="mode-label" class="ui">mode: <span id="mode-val">orbit</span></div>
 <div id="room-label" class="ui">—</div>
 <button id="walk-btn" type="button">↗ walk inside</button>
-<div id="hints" class="ui">
-  drag to orbit · scroll to zoom · shift-drag to pan · <kbd>WASD</kbd> move in walk mode · <kbd>ESC</kbd> exit walk
-</div>
 
 <script>
 /* Three.js r128 — inlined so file works offline/Quick Look/email preview */
@@ -318,22 +315,26 @@
       //   front 1F RIGHT (x=4.50..W, genkan/entry) = cream panel
       //   2F + back + sides = cream throughout
 
-      // -- FRONT (Z = D) — split cladding --
-      // 1F BROWN side (x=0..4.50): 3 small windows (laundry slim, bath frosted vertical, toilet slim)
-      solidWall(0,    D, 0.60, D, 0,    F1H, matLower);
-      solidWall(0.60, D, 1.20, D, 0,    1.50, matLower);    // laundry 横すべり 06003 sill
-      solidWall(0.60, D, 1.20, D, 1.80, F1H, matLower);     // laundry header
-      solidWall(1.20, D, 2.57, D, 0,    F1H, matLower);
-      solidWall(2.57, D, 2.83, D, 0,    1.10, matLower);    // bath 縦すべり 02607 sill
-      solidWall(2.57, D, 2.83, D, 1.80, F1H, matLower);     // bath header
-      solidWall(2.83, D, 3.87, D, 0,    F1H, matLower);
-      solidWall(3.87, D, 4.23, D, 0,    1.50, matLower);    // toilet 横すべり 03603 sill
-      solidWall(3.87, D, 4.23, D, 1.80, F1H, matLower);     // toilet header
-      solidWall(4.23, D, 4.50, D, 0,    F1H, matLower);
-      // 1F CREAM side (x=4.50..W): genkan with entry door at x=4.95..5.85
-      solidWall(4.50, D, 4.95, D, 0,    F1H, matUpper);
-      solidWall(4.95, D, 5.85, D, 2.05, F1H, matUpper);     // door header
-      solidWall(5.85, D, W,    D, 0,    F1H, matUpper);
+      // -- FRONT (Z = D) — brown panel inset on the wet-room side, cream everywhere else --
+      // Brown panel: x=0..4.50 (wet rooms), y=0..2.10 (does NOT reach 1F ceiling). 3 small windows inside.
+      const BROWN_X1 = 4.50, BROWN_Y1 = 2.10;
+      // Brown wall around windows, up to BROWN_Y1
+      solidWall(0,    D, 0.60, D, 0,    BROWN_Y1, matLower);
+      solidWall(0.60, D, 1.20, D, 0,    1.50, matLower);          // laundry 横すべり 06003 sill
+      solidWall(0.60, D, 1.20, D, 1.80, BROWN_Y1, matLower);      // laundry lintel
+      solidWall(1.20, D, 2.57, D, 0,    BROWN_Y1, matLower);
+      solidWall(2.57, D, 2.83, D, 0,    1.10, matLower);          // bath 縦すべり 02607 sill
+      solidWall(2.57, D, 2.83, D, 1.80, BROWN_Y1, matLower);      // bath lintel
+      solidWall(2.83, D, 3.87, D, 0,    BROWN_Y1, matLower);
+      solidWall(3.87, D, 4.23, D, 0,    1.50, matLower);          // toilet 横すべり 03603 sill
+      solidWall(3.87, D, 4.23, D, 1.80, BROWN_Y1, matLower);      // toilet lintel
+      solidWall(4.23, D, BROWN_X1, D, 0, BROWN_Y1, matLower);
+      // Cream above brown panel (x=0..BROWN_X1, y=BROWN_Y1..F1H)
+      solidWall(0, D, BROWN_X1, D, BROWN_Y1, F1H, matUpper);
+      // Cream right of brown panel (x=BROWN_X1..W, full F1H, with entry door gap at x=4.95..5.85)
+      solidWall(BROWN_X1, D, 4.95, D, 0,    F1H, matUpper);
+      solidWall(4.95,     D, 5.85, D, 2.05, F1H, matUpper);       // door header
+      solidWall(5.85,     D, W,    D, 0,    F1H, matUpper);
       // 2F front (cream, full width) — room-2 wide + 2F toilet narrow + room-1 wide
       solidWall(0,     D, 0.505, D, F1H, F1H+F2H, matUpper);
       solidWall(0.505, D, 2.195, D, F1H, F1H+1.10, matUpper);     // room-2 引違 11909 sill
@@ -610,21 +611,25 @@
       { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 4.50, x2: 3.60,  z2: 5.85, y1: 2.5, y2: 5.0 }, // corridor north arm to toilet door
     ],
     viewpoints: [
+      // overview = external orbit of full building (only viewpoint that stays outside)
       { id: 'overview',              label: 'overview',              pos: [11, 9, 12], tgt: [3.15, 2.5, 3.60] },
-      { id: '1f',                    label: '1F',                    pos: [10, 4, 11], tgt: [3.15, 1.0, 3.50] },
-      { id: '2f',                    label: '2F',                    pos: [10, 7, 11], tgt: [3.15, 3.7, 3.50] },
-      { id: 'stairs',                label: 'stairs',                pos: [12, 4, 6 ], tgt: [5.85, 1.5, 3.70] },
-      { id: 'living-dining',         label: 'living-dining',         parent: '1f', pos: [ 3, 4,-3 ], tgt: [3.15, 1.0, 2.25] },
-      { id: 'kitchen',               label: 'kitchen',               parent: '1f', pos: [-3, 3, 5 ], tgt: [1.28, 1.0, 3.45] },
-      { id: 'washroom',              label: 'washroom',              parent: '1f', pos: [ 3, 4, 11], tgt: [2.70, 1.0, 6.30] },
-      { id: 'laundry',               label: 'laundry',               parent: '1f', pos: [-2, 4, 11], tgt: [0.90, 1.0, 5.85] },
-      { id: 'toilet-1-f',            label: 'toilet-1-f',            parent: '1f', pos: [ 4, 4, 11], tgt: [4.05, 1.0, 6.30] },
-      { id: 'corridor-1',            label: 'corridor-1',            parent: '1f', pos: [10, 4, 11], tgt: [4.95, 1.0, 5.85] },
-      { id: 'room-1',                label: 'room-1',                parent: '2f', pos: [10, 5, 11], tgt: [4.95, 3.0, 5.85] },
-      { id: 'room-2',                label: 'room-2',                parent: '2f', pos: [-2, 5, 11], tgt: [1.35, 3.0, 5.85] },
-      { id: 'room-3',                label: 'room-3',                parent: '2f', pos: [-2, 5,-2 ], tgt: [1.35, 3.0, 1.80] },
-      { id: 'room-4',                label: 'room-4',                parent: '2f', pos: [10, 5,-2 ], tgt: [4.95, 3.0, 1.80] },
-      { id: 'corridor-2-toilet-2-f', label: 'corridor-2-toilet-2-f', parent: '2f', pos: [ 3,10, 4 ], tgt: [3.15, 3.0, 4.05] },
+      // 1F + 2F overviews position camera INSIDE the largest open zone of each floor
+      { id: '1f',                    label: '1F',                    pos: [5.5, 1.6, 0.5], tgt: [1.0, 1.0, 3.5] },
+      { id: '2f',                    label: '2F',                    pos: [3.5, 4.1, 4.0], tgt: [3.0, 4.0, 6.5] },
+      { id: 'stairs',                label: 'stairs',                pos: [5.85, 1.0, 3.5], tgt: [5.85, 2.0, 4.4] },
+      // 1F rooms — camera INSIDE each room at human eye height (y=1.6)
+      { id: 'living-dining',         label: 'living-dining',         parent: '1f', pos: [5.5, 1.6, 0.4], tgt: [1.0, 1.0, 3.5] },
+      { id: 'kitchen',               label: 'kitchen',               parent: '1f', pos: [2.3, 1.6, 4.3], tgt: [0.5, 0.8, 2.7] },
+      { id: 'washroom',              label: 'washroom',              parent: '1f', pos: [3.4, 1.6, 6.9], tgt: [2.0, 1.0, 5.5] },
+      { id: 'laundry',               label: 'laundry',               parent: '1f', pos: [1.6, 1.6, 7.0], tgt: [0.3, 1.2, 4.7] },
+      { id: 'toilet-1-f',            label: 'toilet-1-f',            parent: '1f', pos: [4.3, 1.6, 6.9], tgt: [3.7, 0.8, 5.5] },
+      { id: 'corridor-1',            label: 'corridor-1',            parent: '1f', pos: [5.5, 1.6, 4.6], tgt: [5.0, 1.6, 7.0] },
+      // 2F rooms — camera INSIDE each room at human eye height (y=F1H+1.6=4.1)
+      { id: 'room-1',                label: 'room-1',                parent: '2f', pos: [5.8, 4.1, 4.7], tgt: [4.0, 3.5, 7.0] },
+      { id: 'room-2',                label: 'room-2',                parent: '2f', pos: [2.4, 4.1, 4.7], tgt: [0.5, 3.5, 7.0] },
+      { id: 'room-3',                label: 'room-3',                parent: '2f', pos: [2.4, 4.1, 0.3], tgt: [0.5, 3.5, 3.4] },
+      { id: 'room-4',                label: 'room-4',                parent: '2f', pos: [5.8, 4.1, 0.3], tgt: [4.0, 3.5, 3.4] },
+      { id: 'corridor-2-toilet-2-f', label: 'corridor-2-toilet-2-f', parent: '2f', pos: [3.5, 4.1, 4.0], tgt: [3.0, 4.0, 6.5] },
     ],
     build: function(S) {
       const W = 6.30, D = 7.20;
@@ -686,36 +691,52 @@
         m.position.set((x0 + x1) / 2, yBase - FLOOR_T / 2, (z0 + z1) / 2);
         S.group.add(m);
       }
-      function makeWall(x0, z0, x1, z1, height, yBase, mat) {
+      function makeWall(x0, z0, x1, z1, height, yBase, mat, outerSign) {
         const dx = x1 - x0, dz = z1 - z0;
         const len = Math.hypot(dx, dz);
         if (len < 0.001) return;
-        const m = new THREE.Mesh(
-          new THREE.BoxGeometry(len, height, WT),
-          mat || wallMat
-        );
-        m.position.set((x0 + x1) / 2, yBase + height / 2, (z0 + z1) / 2);
-        m.rotation.y = -Math.atan2(dz, dx);
-        S.group.add(m);
-        S.walls.push(m);
+        const midX = (x0 + x1) / 2, midY = yBase + height / 2, midZ = (z0 + z1) / 2;
+        const yaw = -Math.atan2(dz, dx);
+        if (outerSign && mat && mat !== wallMat) {
+          // 2-layer outer wall: outer slab (mat = cladding) + inner slab (wallMat), each WT/2 thick.
+          // Outward unit vector in world coords = local +Z rotated by yaw, scaled by outerSign.
+          const nx = -dz / len * outerSign, nz = dx / len * outerSign;
+          const off = WT / 4;
+          const outerBox = new THREE.Mesh(new THREE.BoxGeometry(len, height, WT / 2), mat);
+          outerBox.position.set(midX + nx * off, midY, midZ + nz * off);
+          outerBox.rotation.y = yaw;
+          S.group.add(outerBox);
+          S.walls.push(outerBox);
+          const innerBox = new THREE.Mesh(new THREE.BoxGeometry(len, height, WT / 2), wallMat);
+          innerBox.position.set(midX - nx * off, midY, midZ - nz * off);
+          innerBox.rotation.y = yaw;
+          S.group.add(innerBox);
+          S.walls.push(innerBox);
+        } else {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(len, height, WT), mat || wallMat);
+          m.position.set(midX, midY, midZ);
+          m.rotation.y = yaw;
+          S.group.add(m);
+          S.walls.push(m);
+        }
       }
-      function wallX(z, a, b, gaps, height, yBase, mat) {
+      function wallX(z, a, b, gaps, height, yBase, mat, outerSign) {
         let cur = a;
         const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
         for (const [g0, g1] of sorted) {
-          if (g0 > cur) makeWall(cur, z, g0, z, height, yBase, mat);
+          if (g0 > cur) makeWall(cur, z, g0, z, height, yBase, mat, outerSign);
           cur = Math.max(cur, g1);
         }
-        if (cur < b) makeWall(cur, z, b, z, height, yBase, mat);
+        if (cur < b) makeWall(cur, z, b, z, height, yBase, mat, outerSign);
       }
-      function wallZ(x, a, b, gaps, height, yBase, mat) {
+      function wallZ(x, a, b, gaps, height, yBase, mat, outerSign) {
         let cur = a;
         const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
         for (const [g0, g1] of sorted) {
-          if (g0 > cur) makeWall(x, cur, x, g0, height, yBase, mat);
+          if (g0 > cur) makeWall(x, cur, x, g0, height, yBase, mat, outerSign);
           cur = Math.max(cur, g1);
         }
-        if (cur < b) makeWall(x, cur, x, b, height, yBase, mat);
+        if (cur < b) makeWall(x, cur, x, b, height, yBase, mat, outerSign);
       }
 
       // ───────────────── 1F ─────────────────
@@ -738,7 +759,7 @@
       // ── WINDOWS — shared helper + glass material (used by 1F and 2F) ──
       const glassMat = new THREE.MeshStandardMaterial({ color: 0x6a8898, transparent: true, opacity: 0.55, roughness: 0.18, metalness: 0.1 });
       // axis 'X' → window's span runs along x (used for z=const walls); 'Z' → span runs along z (x=const walls).
-      function addWinFlex(axis, axisCoord, w, yBase, totalH) {
+      function addWinFlex(axis, axisCoord, w, yBase, totalH, frameMat) {
         const span = w.b - w.a, mid = (w.a + w.b) / 2;
         const sillH = w.y0, lintelH = totalH - w.y1, glassH = w.y1 - w.y0;
         const xy = (axis === 'X');
@@ -746,16 +767,34 @@
         const dimZ = xy ? WT   : span;
         const px = xy ? mid : axisCoord;
         const pz = xy ? axisCoord : mid;
-        if (sillH > 0) {
-          const sill = new THREE.Mesh(new THREE.BoxGeometry(dimX, sillH, dimZ), wallMat);
-          sill.position.set(px, yBase + sillH / 2, pz);
-          S.group.add(sill);
+        // 2-layer skin when frameMat is exterior cladding (not wallMat).
+        const use2Layer = frameMat && frameMat !== wallMat;
+        let outerSign = 0;
+        if (use2Layer) {
+          if (xy) outerSign = (axisCoord >= D / 2) ? +1 : -1;
+          else    outerSign = (axisCoord >= W / 2) ? +1 : -1;
         }
-        if (lintelH > 0) {
-          const lintel = new THREE.Mesh(new THREE.BoxGeometry(dimX, lintelH, dimZ), wallMat);
-          lintel.position.set(px, yBase + w.y1 + lintelH / 2, pz);
-          S.group.add(lintel);
+        function placeFrame(h, yCenter) {
+          if (use2Layer) {
+            const slabDimX = xy ? span : WT / 2;
+            const slabDimZ = xy ? WT / 2 : span;
+            const off = WT / 4;
+            const dxOff = xy ? 0 : outerSign * off;
+            const dzOff = xy ? outerSign * off : 0;
+            const outerSlab = new THREE.Mesh(new THREE.BoxGeometry(slabDimX, h, slabDimZ), frameMat);
+            outerSlab.position.set(px + dxOff, yCenter, pz + dzOff);
+            S.group.add(outerSlab);
+            const innerSlab = new THREE.Mesh(new THREE.BoxGeometry(slabDimX, h, slabDimZ), wallMat);
+            innerSlab.position.set(px - dxOff, yCenter, pz - dzOff);
+            S.group.add(innerSlab);
+          } else {
+            const box = new THREE.Mesh(new THREE.BoxGeometry(dimX, h, dimZ), frameMat || wallMat);
+            box.position.set(px, yCenter, pz);
+            S.group.add(box);
+          }
         }
+        if (sillH > 0) placeFrame(sillH, yBase + sillH / 2);
+        if (lintelH > 0) placeFrame(lintelH, yBase + w.y1 + lintelH / 2);
         const gx = xy ? span : 0.04;
         const gz = xy ? 0.04 : span;
         const glass = new THREE.Mesh(new THREE.BoxGeometry(gx, glassH, gz), glassMat);
@@ -823,16 +862,20 @@
       //   front 1F LEFT (x=0..4.95, wet rooms) = brown panel
       //   front 1F RIGHT (x=4.95..W, genkan/entry) = cream
       //   back, left, right + 2F throughout = cream
-      wallX(0, 0, W, F1_WIN_BACK.map(w => [w.a, w.b]),  F1H, 0, matUpperExt);
-      wallX(D, 0, 4.95, F1_WIN_FRONT.map(w => [w.a, w.b]), F1H, 0, matLowerExt);
-      wallX(D, 5.85, W, [], F1H, 0, matUpperExt);
-      // Door header (cream) above the entry — matches exterior scene's solidWall(4.95..5.85, 2.05..F1H)
-      makeWall(4.95, D, 5.85, D, F1H - 2.05, 2.05, matUpperExt);
-      wallZ(0, 0, D, F1_WIN_LEFT.map(w => [w.a, w.b]),  F1H, 0, matUpperExt);
-      wallZ(W, 0, D, [], F1H, 0, matUpperExt);
-      for (const w of F1_WIN_FRONT) addWinFlex('X', D, w, 0, F1H);
-      for (const w of F1_WIN_BACK)  addWinFlex('X', 0, w, 0, F1H);
-      for (const w of F1_WIN_LEFT)  addWinFlex('Z', 0, w, 0, F1H);
+      // Back, sides — all cream (2-layer: cladding outside, wallMat inside)
+      wallX(0, 0, W, F1_WIN_BACK.map(w => [w.a, w.b]), F1H, 0, matUpperExt, -1);
+      wallZ(0, 0, D, F1_WIN_LEFT.map(w => [w.a, w.b]), F1H, 0, matUpperExt, +1);
+      wallZ(W, 0, D, [], F1H, 0, matUpperExt, -1);
+      // FRONT 1F: brown panel inset (x=0..4.50, y=0..2.10) with 3 small windows + cream wrapping
+      const BROWN_X1 = 4.50, BROWN_Y1 = 2.10;
+      wallX(D, 0, BROWN_X1, F1_WIN_FRONT.map(w => [w.a, w.b]), BROWN_Y1, 0, matLowerExt, +1);   // brown panel
+      wallX(D, 0, BROWN_X1, [], F1H - BROWN_Y1, BROWN_Y1, matUpperExt, +1);                     // cream above brown
+      wallX(D, BROWN_X1, W, [[4.95, 5.85]], F1H, 0, matUpperExt, +1);                           // cream right of brown, door gap
+      makeWall(4.95, D, 5.85, D, F1H - 2.05, 2.05, matUpperExt, +1);                            // door header
+      // Window frames: brown for front 1F (sill+lintel up to BROWN_Y1), cream elsewhere
+      for (const w of F1_WIN_FRONT) addWinFlex('X', D, w, 0, BROWN_Y1, matLowerExt);
+      for (const w of F1_WIN_BACK)  addWinFlex('X', 0, w, 0, F1H, matUpperExt);
+      for (const w of F1_WIN_LEFT)  addWinFlex('Z', 0, w, 0, F1H, matUpperExt);
       wallZ(1.80, 4.50, 5.40, [], F1H, 0);                            // laundry east wall along corridor approach strip
       wallZ(1.80, 5.40, D,    [[5.50, 6.10]], F1H, 0);                 // laundry ↔ washroom (door)
       wallZ(3.60, 3.60, 4.50, [], F1H, 0);
@@ -844,7 +887,9 @@
       wallX(2.90, 5.40, W,    [], F1H, 0);
       wallX(3.60, 3.60, 4.50, [], F1H, 0);
       wallX(4.50, 0,    1.80, [[0.75, 1.35]], F1H, 0);                 // kitchen ↔ laundry (door)
-      wallX(4.50, 3.60, 4.50, [], F1H, 0);                             // LDK north wall (solid; archway is at x=5.40..6.10)
+      wallX(4.50, 1.80, 3.60, [], F1H, 0);                             // kitchen fridge-wall (east) + LDK ↔ corridor-1 washroom-approach
+      wallX(4.50, 3.60, 4.50, [], F1H, 0);                             // LDK ↔ corridor-1 east-arm
+      wallX(4.50, 4.50, 5.40, [], F1H, 0);                             // LDK ↔ corridor-1 main strip (west of archway)
       wallX(4.50, 5.40, W,    [[5.40, 6.10]], F1H, 0);                 // LDK ↔ corridor (open archway)
       wallX(5.40, 1.80, 4.50, [[2.70, 3.30], [3.80, 4.40]], F1H, 0);   // washroom + toilet-1-f south walls, doors each
       wallX(6.30, 4.50, W,    [[5.10, 5.80]], F1H, 0);
@@ -883,14 +928,14 @@
         { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room-2 縦すべり 02609
       ];
 
-      // 2F outer walls — all cream cladding
-      wallX(0, 0, W, F2_WIN_BACK.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt);
-      wallX(D, 0, W, F2_WIN_FRONT.map(w => [w.a, w.b]), F2H, F1H, matUpperExt);
-      wallZ(0, 0, D, F2_WIN_LEFT.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt);
-      wallZ(W, 0, D, [], F2H, F1H, matUpperExt);
-      for (const w of F2_WIN_FRONT) addWinFlex('X', D, w, F1H, F2H);
-      for (const w of F2_WIN_BACK)  addWinFlex('X', 0, w, F1H, F2H);
-      for (const w of F2_WIN_LEFT)  addWinFlex('Z', 0, w, F1H, F2H);
+      // 2F outer walls — all cream cladding (2-layer: cladding outside, wallMat inside)
+      wallX(0, 0, W, F2_WIN_BACK.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt, -1);
+      wallX(D, 0, W, F2_WIN_FRONT.map(w => [w.a, w.b]), F2H, F1H, matUpperExt, +1);
+      wallZ(0, 0, D, F2_WIN_LEFT.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt, +1);
+      wallZ(W, 0, D, [], F2H, F1H, matUpperExt, -1);
+      for (const w of F2_WIN_FRONT) addWinFlex('X', D, w, F1H, F2H, matUpperExt);
+      for (const w of F2_WIN_BACK)  addWinFlex('X', 0, w, F1H, F2H, matUpperExt);
+      for (const w of F2_WIN_LEFT)  addWinFlex('Z', 0, w, F1H, F2H, matUpperExt);
 
       // ── 2F interior walls ──
       wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room-3 east wall, closet_a bi-fold
@@ -992,8 +1037,11 @@
       // ───────────────── FURNITURE PLACEHOLDERS ─────────────────
       // Simple AABB placeholders for fixtures and furniture. Visual only —
       // not added to S.walls, so walk mode passes through them for now.
-      const matKitchen = new THREE.MeshStandardMaterial({ color: 0xe0ddd5, roughness: 0.55 });
-      const matSofa    = new THREE.MeshStandardMaterial({ color: 0x6a7782, roughness: 0.85 });
+      const matKitchen    = new THREE.MeshStandardMaterial({ color: 0xe0ddd5, roughness: 0.55 });
+      const matSofa       = new THREE.MeshStandardMaterial({ color: 0x6a7782, roughness: 0.85 });
+      const matCabinet    = new THREE.MeshStandardMaterial({ color: 0xf0ece4, roughness: 0.55 });    // raised-panel cream cabinets
+      const matCounterTop = new THREE.MeshStandardMaterial({ color: 0x4a3526, roughness: 0.50 });    // dark wood counter
+      const matTVScreen   = new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.30 });    // black screen
       function furn(x1, z1, x2, z2, y1, y2, mat) {
         if (x2 <= x1 || z2 <= z1 || y2 <= y1) return;
         const m = new THREE.Mesh(
@@ -1010,17 +1058,137 @@
       furn(1.10, 4.65, 1.70, 5.25, 0.00, 0.95, matAC);          // washing machine
       furn(3.85, 6.50, 4.25, 7.05, 0.00, 0.40, matToilet);      // 1F toilet seat
       furn(3.85, 6.85, 4.25, 7.10, 0.40, 0.85, matToilet);      // 1F toilet tank
-      // 1F LDK
-      furn(5.65, 0.00, 6.30, 2.55, 0.00, 0.85, matKitchen);     // kitchen counter (east wall)
-      furn(3.00, 1.60, 4.40, 2.40, 0.00, 0.74, matDesk);        // dining table
-      furn(2.50, 0.10, 4.30, 0.95, 0.00, 0.80, matSofa);        // sofa (back wall)
+      // 1F LDK — layout per living-dining/room-map.md (sofa SW half, dining NE half)
+      // Kitchen counter pass-through: 2-piece (base cabinet + counter-top with overhang)
+      furn(0,    2.40, 2.55, 2.70, 0.00, 0.78, matCabinet);     // base cabinet (kitchen-side, L=2.55m, depth 0.30m)
+      furn(0,    2.25, 2.55, 2.95, 0.78, 0.87, matCounterTop);  // counter-top (depth 0.70m, 0.05m overhang each way)
+      furn(2.40, 2.80, 3.80, 4.10, 0.00, 0.74, matKitchen);     // dining table — NE half near counter end
+      furn(4.00, 0.20, 5.80, 1.10, 0.00, 0.80, matSofa);        // sofa — SW half (large x, small z), faces north toward TV
+      furn(4.30, 1.40, 5.50, 2.20, 0.00, 0.40, matKitchen);     // coffee table — in front of sofa
+      furn(3.80, 4.10, 5.40, 4.50, 0.00, 0.50, matKitchen);     // TV console — against kitchen-wall, aligned with new sofa centre
+      furn(4.30, 4.07, 4.90, 4.10, 0.55, 1.05, matTVScreen);    // TV screen on south face of console (0.60w × 0.50h)
+      // LDK east wall — brick accent (overlay on inside face of x=0 wall, z=0..2.40 LDK zone)
+      // Window gap matches F1_WIN_LEFT[0] (lower casement at z=1.20..1.46).
+      const matBrick   = new THREE.MeshStandardMaterial({ color: 0x5e4a3d, roughness: 0.95 });
+      const matACUnit  = new THREE.MeshStandardMaterial({ color: 0xe8e6df, roughness: 0.55 });
+      const matCurtain = new THREE.MeshStandardMaterial({ color: 0xeee5d2, roughness: 0.95 });
+      const brickXc = WT / 2 + 0.01;     // just inside the east wall's inner face
+      const brickT  = 0.015;
+      for (const [z0, z1] of [[0, 1.20], [1.46, 2.40]]) {
+        const len = z1 - z0;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(brickT, F1H, len), matBrick);
+        m.position.set(brickXc, F1H / 2, (z0 + z1) / 2);
+        S.group.add(m);
+      }
+      // AC unit on brick-wall — body + recessed front grille + bottom vent slit
+      const acBody = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.26, 0.85), matACUnit);
+      acBody.position.set(0.18, 2.13, 1.95);
+      S.group.add(acBody);
+      const matACGrille = new THREE.MeshStandardMaterial({ color: 0xd4d0c5, roughness: 0.65 });
+      const acGrille = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.78), matACGrille);
+      acGrille.position.set(0.22, 2.13, 1.95);     // slightly forward, recessed look
+      S.group.add(acGrille);
+      const matACVent = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.8 });
+      const acVent = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.02, 0.80), matACVent);
+      acVent.position.set(0.18, 1.99, 1.95);       // bottom vent slit
+      S.group.add(acVent);
+      // Curtain in front of LDK east casement — 4 vertical fabric strips with alternating fold offsets
+      {
+        const stripCount = 4;
+        const totalSpan = 0.46;
+        const stripDepth = totalSpan / stripCount;
+        for (let i = 0; i < stripCount; i++) {
+          const zCenter = 1.10 + (i + 0.5) * stripDepth;
+          const xOffset = (i % 2) * 0.02;          // alternate forward/back for fold illusion
+          const strip = new THREE.Mesh(
+            new THREE.BoxGeometry(0.05, 1.15, stripDepth - 0.015),
+            matCurtain
+          );
+          strip.position.set(brickXc + 0.06 + xOffset, 1.375, zCenter);
+          S.group.add(strip);
+        }
+      }
+      // Chandelier-style pendants (1 over dining table, 1 over sofa) — sphere + thin cord to ceiling
+      const matPendant = new THREE.MeshStandardMaterial({ color: 0xf0dca0, roughness: 0.4, metalness: 0.3 });
+      const matCord    = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+      function pendant(x, sphereY, z) {
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.18, 14, 10), matPendant);
+        sphere.position.set(x, sphereY, z);
+        S.group.add(sphere);
+        // cord runs from top of sphere to ceiling
+        const cordTop = F1H, cordBot = sphereY + 0.18;
+        const cordH = cordTop - cordBot;
+        if (cordH > 0.001) {
+          const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordH, 6), matCord);
+          cord.position.set(x, (cordTop + cordBot) / 2, z);
+          S.group.add(cord);
+        }
+      }
+      pendant(3.10, 1.55, 3.45);  // dining (above new dining table position)
+      pendant(4.90, 1.80, 1.80);  // living area (above coffee table)
+      // Antique clock — east of corridor archway on the small wall stub
+      furn(6.10, 4.42, 6.25, 4.48, 1.40, 1.80, matBrick);
 
       // 2F rooms
       const FB = F1H;
       furn(0.10, 0.10, 1.05, 2.05, FB,        FB + 0.50, matMattress);  // room-3 bed
       furn(0.10, 4.60, 1.05, 6.55, FB,        FB + 0.50, matMattress);  // room-2 bed
       furn(3.70, 4.60, 4.65, 6.55, FB,        FB + 0.50, matMattress);  // room-1 bed
-      furn(3.70, 0.10, 5.10, 2.05, FB,        FB + 0.50, matMattress);  // room-4 (double)
+      // ─── 2F room-4 (寝室) — 6 帖, 2.7×3.6m, code x=3.60..6.30, z=0..3.60 ───
+      // Furniture per interior-images/room-4/room-map.md
+      {
+        const matIron         = new THREE.MeshStandardMaterial({ color: 0x1a1715, metalness: 0.3, roughness: 0.6 });
+        const matBedding      = new THREE.MeshStandardMaterial({ color: 0xeeeae0, roughness: 0.95 });
+        const matAccentPillow = new THREE.MeshStandardMaterial({ color: 0x6b7e8a, roughness: 0.9 });
+        const matWoodLight    = new THREE.MeshStandardMaterial({ color: 0xc8a878, roughness: 0.75 });
+        const matWoodDark     = new THREE.MeshStandardMaterial({ color: 0x4a3526, roughness: 0.7 });
+        const matBlackMetal   = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.4, roughness: 0.5 });
+
+        // Iron-frame bed (running N-S along closet-wall side, head N, foot S)
+        const bX0 = 4.40, bX1 = 5.40, bZ0 = 0.60, bZ1 = 2.60;
+        furn(bX0,      bZ1-0.05, bX1,      bZ1,      FB,        FB + 1.00, matIron);          // headboard
+        furn(bX0,      bZ0,      bX1,      bZ0+0.05, FB,        FB + 0.60, matIron);          // footboard
+        furn(bX0,      bZ0,      bX0+0.04, bZ1,      FB + 0.20, FB + 0.30, matIron);          // E side rail
+        furn(bX1-0.04, bZ0,      bX1,      bZ1,      FB + 0.20, FB + 0.30, matIron);          // W side rail
+        furn(bX0+0.05, bZ0+0.05, bX1-0.05, bZ1-0.05, FB + 0.30, FB + 0.55, matBedding);       // mattress
+        furn(bX0+0.20, bZ1-0.40, bX1-0.20, bZ1-0.10, FB + 0.55, FB + 0.65, matAccentPillow);  // pillow
+
+        // Dark wood + black metal cabinet (drawers + open shelves) — along closet-wall, south of bi-fold
+        const cX0 = 3.70, cX1 = 4.10, cZ0 = 0.10, cZ1 = 1.30;
+        furn(cX0,      cZ0, cX1,      cZ1, FB,        FB + 0.80, matWoodDark);      // base / drawers
+        furn(cX0,      cZ0, cX0+0.04, cZ1, FB + 0.80, FB + 1.50, matBlackMetal);    // E upright frame
+        furn(cX1-0.04, cZ0, cX1,      cZ1, FB + 0.80, FB + 1.50, matBlackMetal);    // W upright frame
+        furn(cX0,      cZ0, cX1,      cZ1, FB + 1.05, FB + 1.08, matWoodDark);      // shelf 1
+        furn(cX0,      cZ0, cX1,      cZ1, FB + 1.30, FB + 1.33, matWoodDark);      // shelf 2
+        furn(cX0,      cZ0, cX1,      cZ1, FB + 1.47, FB + 1.50, matWoodDark);      // top
+
+        // Coat rack on entrance-wall (z=3.60), west of door (door at x=4.50..5.20)
+        furn(3.80, 3.55, 4.40, 3.60, FB + 1.55, FB + 1.65, matWoodLight);                     // backing
+        for (let i = 0; i < 3; i++) {
+          const hX = 3.92 + i * 0.18;
+          furn(hX, 3.50, hX+0.03, 3.55, FB + 1.55, FB + 1.62, matBlackMetal);                 // hook
+        }
+
+        // AC unit on window-wall (z=0), near SW corner (large x, near W)
+        furn(5.85, 0.05, 6.20, 0.10, FB + 2.13, FB + 2.39, matACUnit);                        // body
+        furn(5.85, 0.10, 6.20, 0.18, FB + 2.16, FB + 2.36, matACGrille);                      // recessed grille
+        furn(5.83, 0.05, 6.22, 0.10, FB + 2.11, FB + 2.13, matACVent);                        // bottom vent
+
+        // Curtains in front of sliding window (F2_WIN_BACK[1] = x=4.200..5.700)
+        const stripCount = 4;
+        const totalSpan = 5.700 - 4.200;
+        const stripW = totalSpan / stripCount;
+        for (let i = 0; i < stripCount; i++) {
+          const xC = 4.200 + (i + 0.5) * stripW;
+          const zOff = (i % 2) * 0.02;
+          const strip = new THREE.Mesh(
+            new THREE.BoxGeometry(stripW - 0.015, 1.30, 0.05),
+            matCurtain
+          );
+          strip.position.set(xC, FB + 1.50, 0.10 + zOff);
+          S.group.add(strip);
+        }
+      }
       // 2F toilet
       furn(2.95, 6.50, 3.35, 7.05, FB,        FB + 0.40, matToilet);
       furn(2.95, 6.85, 3.35, 7.10, FB + 0.40, FB + 0.85, matToilet);
