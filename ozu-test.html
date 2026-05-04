@@ -189,6 +189,7 @@
       build: cfg.build,
       viewpoints: cfg.viewpoints || [],
       noFirstPerson: cfg.noFirstPerson,
+      fov: cfg.fov,
     };
     scenes[id] = S;
     cfg.build(S);
@@ -1466,11 +1467,12 @@
   // 2.7 × 2.7 × 2.5 room with sliding window, closet, doorway, AC, frosted window,
   // bed, desk, shelf with X-bracing, chair, 4 pendant lights, openable door.
   registerScene('room-1', {
-    orbitPos: new THREE.Vector3(4.5, 3.5, 4.5),
+    orbitPos: new THREE.Vector3(6.5, 4.5, 6.5),
     orbitTarget: new THREE.Vector3(1.35, 1.0, 1.35),
     fpStart: new THREE.Vector3(0.5, 1.6, 0.5),
     fpYaw: -Math.PI / 4,
     bg: 0x1a1b1f,
+    fov: 42,
     noFirstPerson: true,
     rooms: [],
     build: function(S) {
@@ -1522,9 +1524,36 @@
         feat(axis, innerCoord, inward, { a1: a2,   a2: a2+t, b1: b1,   b2: b2   }, mat);
       }
 
-      const matFloorR1 = new THREE.MeshStandardMaterial({ color: COL.floor,   roughness: 0.85 });
-      const matCeilR1  = new THREE.MeshStandardMaterial({ color: COL.ceiling, roughness: 0.9 });
-      const matWallR1  = new THREE.MeshStandardMaterial({ color: COL.wall,    roughness: 0.9 });
+      // PBR texture loader (recovered from v4 — assets at ozu-test/room-1-textures/).
+      // Each call clones textures so each material has its own UV repeat.
+      function pbrMatR1(slug, repU, repV, extras = {}) {
+        const loader = new THREE.TextureLoader();
+        const base = `ozu-test/room-1-textures/${slug}/${slug}`;
+        const map = loader.load(`${base}_diff.jpg`);
+        map.encoding = THREE.sRGBEncoding;
+        const normalMap = loader.load(`${base}_nor_gl.jpg`);
+        const roughnessMap = loader.load(`${base}_rough.jpg`);
+        for (const t of [map, normalMap, roughnessMap]) {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(repU, repV);
+        }
+        return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
+      }
+      const matFloorR1 = pbrMatR1('wood_floor',           RW / 1.7, RD / 1.7, { roughness: 0.7 });
+      // Whitewashed-plank ceiling — built with plankTex so we get plank seam
+      // lines + grain at a pale base colour. Tinting the brown wood_floor map
+      // by white can't actually lighten it, hence the procedural texture.
+      const ceilTexR1 = plankTex(0xebe2cd, 10, 13);
+      ceilTexR1.repeat.set(1.5, 1.5);
+      const matCeilR1 = new THREE.MeshStandardMaterial({ map: ceilTexR1, roughness: 0.75 });
+      // Smooth painted walls (warm grey, matches reference photos). No textures —
+      // the PBR plaster map looked too noisy/bumpy for a freshly painted bedroom.
+      const wallPaintArgs = { color: 0xa8a098, roughness: 0.55 };
+      const matWall_x0 = new THREE.MeshStandardMaterial(wallPaintArgs);
+      const matWall_xW = new THREE.MeshStandardMaterial(wallPaintArgs);
+      const matWall_z0 = new THREE.MeshStandardMaterial(wallPaintArgs);
+      const matWall_zD = new THREE.MeshStandardMaterial(wallPaintArgs);
       const matGlassR1 = new THREE.MeshStandardMaterial({ color: 0xb8d4e0, transparent: true, opacity: 0.35, roughness: 0.1 });
       const matFrosted = new THREE.MeshStandardMaterial({ color: 0xe8e8e0, transparent: true, opacity: 0.75, roughness: 0.95 });
       const matCloset  = new THREE.MeshStandardMaterial({ color: 0xf2ece4, roughness: 0.7 });
@@ -1538,14 +1567,14 @@
       const ceil = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.02, RD), matCeilR1);
       ceil.position.set(RW/2, RH + 0.01, RD/2); S.group.add(ceil);
 
-      // 4 walls
-      const wA = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWallR1);
+      // 4 walls (per-wall plaster textures)
+      const wA = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWall_x0);
       wA.position.set(-WT_R/2, RH/2, RD/2); S.group.add(wA);
-      const wB = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWallR1);
+      const wB = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWall_xW);
       wB.position.set(RW + WT_R/2, RH/2, RD/2); S.group.add(wB);
-      const wC = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWallR1);
+      const wC = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWall_z0);
       wC.position.set(RW/2, RH/2, -WT_R/2); S.group.add(wC);
-      const wD = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWallR1);
+      const wD = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWall_zD);
       wD.position.set(RW/2, RH/2, RD + WT_R/2); S.group.add(wD);
 
       // baseboards
@@ -1554,10 +1583,41 @@
       box(bbD, bbH, RD, RW - bbD/2,   bbH/2, RD/2, bbColor, bbX);
       box(RW,  bbH, bbD, RW/2, bbH/2, bbD/2,      bbColor, bbX);
       box(RW,  bbH, bbD, RW/2, bbH/2, RD - bbD/2, bbColor, bbX);
+      // crown molding (white line between walls and ceiling)
+      const cmH = 0.06, cmD = 0.02, cmColor = 0xffffff, cmY = RH - cmH/2;
+      box(cmD, cmH, RD, cmD/2,        cmY, RD/2, cmColor, bbX);
+      box(cmD, cmH, RD, RW - cmD/2,   cmY, RD/2, cmColor, bbX);
+      box(RW,  cmH, cmD, RW/2, cmY, cmD/2,      cmColor, bbX);
+      box(RW,  cmH, cmD, RW/2, cmY, RD - cmD/2, cmColor, bbX);
 
-      // sliding window on z=D (window-wall, north exterior per blueprint)
-      feat('z', RD, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
-      winFrame('z', RD, -1, 0.405, 1.595, 0.85, 1.75, matFrameR1);
+      // sliding window on x=W (window-wall per April 22 v4 layout)
+      feat('x', RW, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
+      winFrame('x', RW, -1, 0.405, 1.595, 0.85, 1.75, matFrameR1);
+      // curtains on window-wall — gathered at both sides of sliding window.
+      // Shelf side (zL, near z=0): bottom drapes onto shelf top tier (y=1.27).
+      // Far side (zR, near z=D): hangs to floor.
+      {
+        const matCurt = new THREE.MeshStandardMaterial({ color: 0xddd2c0, roughness: 1, side: THREE.DoubleSide });
+        const cTop = 1.85;
+        const cX = RW - 0.08;
+        const stripT = 0.04, stripW = 0.06;
+        const SHELF_TOP_Y = 1.27;
+        for (let i = 0; i < 3; i++) {
+          const xOff = (i % 2) * 0.02;
+          // shelf-side bunch — short, rests on top of shelf
+          const zL = 0.405 - 0.01 - i * stripW;
+          const hL = cTop - SHELF_TOP_Y, yL = (cTop + SHELF_TOP_Y) / 2;
+          const sL = new THREE.Mesh(new THREE.BoxGeometry(stripT, hL, stripW), matCurt);
+          sL.position.set(cX - xOff, yL, zL);
+          S.group.add(sL);
+          // far-side bunch — full length to floor
+          const zR = 1.595 + 0.01 + i * stripW;
+          const hR = cTop - 0.10, yR = (cTop + 0.10) / 2;
+          const sR = new THREE.Mesh(new THREE.BoxGeometry(stripT, hR, stripW), matCurt);
+          sR.position.set(cX - xOff, yR, zR);
+          S.group.add(sR);
+        }
+      }
 
       // doorway + casing on z=0
       feat('z', 0, +1, { a1: 0, a2: 0.8, b1: 0, b2: 2.0 }, COL.doorway);
@@ -1565,10 +1625,14 @@
       box(0.8 + cW2, cW2, cD2, (0.8 + cW2)/2, 2.0 + cW2/2,  cZ2, 0xfafafa, { roughness: 0.6 });
       box(cW2, 2.0 + cW2, cD2, cW2/2,         (2.0 + cW2)/2, cZ2, 0xfafafa, { roughness: 0.6 });
       box(cW2, 2.0 + cW2, cD2, 0.8 + cW2/2,   (2.0 + cW2)/2, cZ2, 0xfafafa, { roughness: 0.6 });
+      // closed white door panel + lever handle
+      box(0.8, 2.0, 0.04, 0.4, 1.0, 0.025, 0xffffff, { roughness: 0.55 });
+      box(0.10, 0.02, 0.04, 0.68, 1.02, 0.06, 0x9a9a9a, { roughness: 0.3, metalness: 0.7 });
+      box(0.02, 0.02, 0.05, 0.71, 1.02, 0.04, 0x9a9a9a, { roughness: 0.3, metalness: 0.7 });
 
-      // closet on x=0
-      feat('x', 0, +1, { a1: 0.75, a2: 1.95, b1: 0, b2: 2.2 }, matCloset);
-      const seamZ = (0.75 + 1.95) / 2;
+      // closet on x=0 — flush against ac-wall (z=D corner)
+      feat('x', 0, +1, { a1: 1.50, a2: 2.70, b1: 0, b2: 2.2 }, matCloset);
+      const seamZ = (1.50 + 2.70) / 2;
       feat('x', 0, +1, { a1: seamZ - 0.0025, a2: seamZ + 0.0025, b1: 0, b2: 2.2 }, matSeam);
       for (const z of [seamZ - 0.06, seamZ + 0.06]) {
         const h = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.10, 0.04), matHandle);
@@ -1576,27 +1640,13 @@
         S.group.add(h);
       }
 
-      // AC unit + frosted window on x=W (ac-wall, west exterior per blueprint)
-      box(0.2, 0.25, 0.8, RW - BIAS - 0.1, 2.275, 2.1, 0xffffff);
-      feat('x', RW, -1, { a1: 0.82, a2: 1.08, b1: 0.9, b2: 1.9 }, matFrosted);
-      winFrame('x', RW, -1, 0.82, 1.08, 0.9, 1.9, matFrameR1);
+      // AC unit + frosted window on z=D (ac-wall per April 22 v4 layout)
+      box(0.8, 0.25, 0.2, 2.1, 2.275, RD - BIAS - 0.1, 0xffffff);
+      feat('z', RD, -1, { a1: 0.30, a2: 0.56, b1: 0.9, b2: 1.9 }, matFrosted);
+      winFrame('z', RD, -1, 0.30, 0.56, 0.9, 1.9, matFrameR1);
 
-      // openable door — hinge at corner-cabinet-entrance, swung open into room
-      {
-        const dGroup = new THREE.Group();
-        dGroup.rotation.y = -Math.PI / 2;
-        const matDoor = new THREE.MeshStandardMaterial({ color: 0xf2ece4, roughness: 0.6 });
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.0, 0.04), matDoor);
-        panel.position.set(0.4, 1.0, -0.02);
-        dGroup.add(panel);
-        const hndl = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.02, 0.03), matHandle);
-        hndl.position.set(0.7, 1.0, -0.04 - 0.015);
-        dGroup.add(hndl);
-        S.group.add(dGroup);
-      }
-
-      // bed — long side against ac-wall (x=W); head at z=D, foot at z=0
-      aabb({ x1: 1.7, x2: 2.7, z1: 0.7, z2: 2.7, y1: 0.1, y2: 0.5 }, COL.mattress);
+      // bed — April 22 v4: along ac-wall (z=D); head at corner-ac-window (x=W), foot at corner-ac-entrance (x=0.7)
+      aabb({ x1: 0.7, x2: 2.7, z1: 1.7, z2: 2.7, y1: 0.1, y2: 0.5 }, COL.mattress);
       const IRON = { roughness: 0.45, metalness: 0.6 };
       function metalFrame(panel, topRail, botRail, nBars) {
         const w = panel.x2 - panel.x1, d = panel.z2 - panel.z1;
@@ -1617,16 +1667,17 @@
           }
         }
       }
-      metalFrame({ x1: 1.7, x2: 2.7, z1: 2.65, z2: 2.7 }, { y1: 0.98, y2: 1.0 }, { y1: 0, y2: 0.02 }, 5);
-      metalFrame({ x1: 1.7, x2: 2.7, z1: 0.7,  z2: 0.75 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
+      metalFrame({ x1: 2.65, x2: 2.7, z1: 1.7, z2: 2.7 }, { y1: 0.98, y2: 1.0 }, { y1: 0, y2: 0.02 }, 5);
+      metalFrame({ x1: 0.7,  x2: 0.75, z1: 1.7, z2: 2.7 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
 
-      // desk — against window-wall (z=D), under sliding window
+      // desk — against window-wall (x=W), under sliding window. Shortened
+      // from v4 z=0.4..1.6 to 0.4..1.4 to leave breathing room before the bed.
       {
-        const f = { x1: 0.4, x2: 1.6, z1: 2.1, z2: 2.7 };
+        const f = { x1: 2.1, x2: 2.7, z1: 0.4, z2: 1.4 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
         const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
         const topY = 0.75, topT = 0.05, legT = 0.04;
-        const matDesk = new THREE.MeshStandardMaterial({ color: COL.deskWood, roughness: 0.7 });
+        const matDesk = pbrMatR1('dark_wood', 1.2, 0.6, { roughness: 0.7 });
         const top = new THREE.Mesh(new THREE.BoxGeometry(w, topT, d), matDesk);
         top.position.set(cx, topY - topT/2, cz); S.group.add(top);
         const legH = topY - topT;
@@ -1636,9 +1687,9 @@
             box(legT, legH, legT, lx, legH/2, lz, COL.blackMet, BMET);
       }
 
-      // shelf with x-bracing — at corner-cabinet-window (x=0 × z=D)
+      // shelf with x-bracing — April 22 v4: at corner-entrance-window (x=W × z=0), L-shape with desk
       {
-        const f = { x1: 0, x2: 0.4, z1: 2.3, z2: 2.7 };
+        const f = { x1: 2.1, x2: 2.7, z1: 0, z2: 0.4 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
         const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
         const sH = 1.3, postT = 0.03, tierT = 0.025;
@@ -1647,7 +1698,7 @@
         for (const px of [f.x1 + postT/2, f.x2 - postT/2])
           for (const pz of [f.z1 + postT/2, f.z2 - postT/2])
             box(postT, sH, postT, px, sH/2, pz, COL.blackMet, BMET);
-        const matTier = new THREE.MeshStandardMaterial({ color: COL.deskWood, roughness: 0.7 });
+        const matTier = pbrMatR1('dark_wood', 0.4, 0.4, { roughness: 0.7 });
         for (const y of tierYs) {
           const tier = new THREE.Mesh(new THREE.BoxGeometry(w, tierT, d), matTier);
           tier.position.set(cx, y, cz); S.group.add(tier);
@@ -1671,19 +1722,20 @@
         }
       }
 
-      // chair — south of desk (faces north toward desk)
+      // chair — tucked under desk; smaller seat/base so it eats less floor.
       {
-        const f = { x1: 0.7, x2: 1.2, z1: 1.6, z2: 2.1 };
+        const f = { x1: 1.95, x2: 2.4, z1: 0.7, z2: 1.15 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
         const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
-        const seatY = 0.5, seatT = 0.05, backT = 0.05, backH = 0.4;
-        const pedT = 0.08, baseT = 0.02;
+        const seatY = 0.5, seatT = 0.05, backT = 0.04, backH = 0.4;
+        const pedT = 0.06, baseT = 0.015;
         const BMET = { roughness: 0.5, metalness: 0.6 };
         box(w, seatT, d, cx, seatY - seatT/2, cz, COL.chairSeat);
         box(backT, backH, d, f.x1 + backT/2, seatY + backH/2, cz, COL.chairSeat);
         const pHa = seatY - seatT - baseT;
         box(pedT, pHa, pedT, cx, baseT + pHa/2, cz, COL.blackMet, BMET);
-        box(w * 0.9, baseT, d * 0.9, cx, baseT/2, cz, COL.blackMet, BMET);
+        // narrower 5-arm-style base footprint (0.7 of seat)
+        box(w * 0.7, baseT, d * 0.7, cx, baseT/2, cz, COL.blackMet, BMET);
       }
 
       // pendant lights (4 emissive cylinder shades hanging from a wood cross)
@@ -1704,11 +1756,28 @@
           }
       }
 
-      // lighting
-      S.group.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dir1 = new THREE.DirectionalLight(0xffffff, 0.4);
-      dir1.position.set(5, 8, 3);
+      // lighting — sunlight through window-wall (x=W) casting shadows
+      S.group.add(new THREE.AmbientLight(0xffffff, 0.45));
+      const dir1 = new THREE.DirectionalLight(0xfff4e0, 0.9);
+      dir1.position.set(6.5, 4.5, 1.35);
+      dir1.target.position.set(1.0, 0.6, 1.35);
+      dir1.castShadow = true;
+      dir1.shadow.mapSize.set(2048, 2048);
+      dir1.shadow.camera.left = -3;
+      dir1.shadow.camera.right = 3;
+      dir1.shadow.camera.top = 3;
+      dir1.shadow.camera.bottom = -3;
+      dir1.shadow.camera.near = 0.1;
+      dir1.shadow.camera.far = 12;
+      dir1.shadow.bias = -0.0005;
       S.group.add(dir1);
+      S.group.add(dir1.target);
+      // Enable cast/receive shadow on every mesh in the room.
+      S.group.traverse(obj => {
+        if (!obj.isMesh) return;
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+      });
     }
   });
 
@@ -1887,13 +1956,52 @@
     if (y1 === Infinity) { y1 = 0; y2 = 2.5; }
     return { name, x1, x2, z1, z2, y1, y2 };
   }
+  // Returns a bbox spanning a whole floor ('1f' / '2f') or a single room.
+  // Floor bboxes aggregate every room whose y1 is in the floor's range.
+  function getZoneBbox(S, id) {
+    if (id === '1f' || id === '2f') {
+      const yLo = (id === '1f') ? 0 : 2.5;
+      const yHi = (id === '1f') ? 2.5 : 5.0;
+      let x1 = Infinity, x2 = -Infinity, z1 = Infinity, z2 = -Infinity;
+      for (const r of (S && S.rooms) || []) {
+        if (r.y1 == null) continue;
+        if (r.y1 >= yLo && r.y1 < yHi) {
+          x1 = Math.min(x1, r.x1); x2 = Math.max(x2, r.x2);
+          z1 = Math.min(z1, r.z1); z2 = Math.max(z2, r.z2);
+        }
+      }
+      if (x1 === Infinity) return null;
+      return { name: id.toUpperCase(), x1, x2, z1, z2, y1: yLo, y2: yHi };
+    }
+    return getRoomBbox(S, id);
+  }
+  // Two independent cull tracks: _qaCulled = view-mode cull (top, iso angle),
+  // _qaIsolated = zone-isolation cull (1F, kitchen, etc). _qaOrigVisible holds
+  // the mesh's original visibility, set on the first cull and restored only
+  // when BOTH tracks are clear.
   function clearQACull(S) {
     if (!S || !S.group) return;
     S.group.traverse(obj => {
-      if (obj.isMesh && obj.userData._qaCulled) {
+      if (!obj.isMesh) return;
+      if (obj.userData._qaCulled || obj.userData._qaIsolated) {
         obj.visible = obj.userData._qaOrigVisible;
         delete obj.userData._qaCulled;
+        delete obj.userData._qaIsolated;
         delete obj.userData._qaOrigVisible;
+      }
+    });
+  }
+  function clearViewCull(S) {
+    // Clear top/iso angle cull only — leave zone isolation in place.
+    if (!S || !S.group) return;
+    S.group.traverse(obj => {
+      if (!obj.isMesh) return;
+      if (obj.userData._qaCulled) {
+        delete obj.userData._qaCulled;
+        if (!obj.userData._qaIsolated) {
+          obj.visible = obj.userData._qaOrigVisible;
+          delete obj.userData._qaOrigVisible;
+        }
       }
     });
   }
@@ -1903,14 +2011,37 @@
       const h = obj.geometry?.parameters?.height ?? 0;
       const bottomY = obj.position.y - h / 2;
       if (bottomY >= cullY - 0.001) {
-        obj.userData._qaOrigVisible = obj.visible;
+        if (obj.userData._qaOrigVisible === undefined) {
+          obj.userData._qaOrigVisible = obj.visible;
+        }
         obj.userData._qaCulled = true;
         obj.visible = false;
       }
     });
   }
+  // Hide every mesh whose center sits outside the bbox. Side pads keep
+  // boundary walls visible. Upper Y pad is NEGATIVE so the floor slab
+  // sitting at bbox.y2 (which is the next floor's underside) is hidden —
+  // i.e. when isolating 1F the 2F floor doesn't cover the view from above.
+  function isolateZone(S, bbox) {
+    const PAD = 0.15, UPPER_Y_PAD = -0.05;
+    S.group.traverse(obj => {
+      if (!obj.isMesh) return;
+      const p = obj.position;
+      const inX = p.x >= bbox.x1 - PAD && p.x <= bbox.x2 + PAD;
+      const inZ = p.z >= bbox.z1 - PAD && p.z <= bbox.z2 + PAD;
+      const inY = p.y >= bbox.y1 - PAD && p.y <= bbox.y2 + UPPER_Y_PAD;
+      if (!(inX && inZ && inY)) {
+        if (obj.userData._qaOrigVisible === undefined) {
+          obj.userData._qaOrigVisible = obj.visible;
+        }
+        obj.userData._qaIsolated = true;
+        obj.visible = false;
+      }
+    });
+  }
   function applyQAView(S, room, mode) {
-    clearQACull(S);
+    clearViewCull(S);
     const cx = (room.x1 + room.x2) / 2;
     const cz = (room.z1 + room.z2) / 2;
     const cy = (room.y1 + room.y2) / 2;
@@ -1990,7 +2121,7 @@
         btn.textContent = m.label;
         btn.addEventListener('click', () => {
           if (m.id === 'orbit') {
-            clearQACull(S);
+            clearViewCull(S);
             orbit.setFrom(
               new THREE.Vector3().fromArray(originalViewpoint.pos),
               new THREE.Vector3().fromArray(originalViewpoint.tgt)
@@ -2020,8 +2151,13 @@
         chip.classList.add('active');
         activeChip = chip;
 
-        const room = getRoomBbox(S, v.id);
+        const room = getZoneBbox(S, v.id);
         if (room) {
+          isolateZone(S, room);
+          // Floor-level zones default to the open iso (top-down) view.
+          if (v.id === '1f' || v.id === '2f') {
+            applyQAView(S, room, 'iso');
+          }
           showQARow(room, v);
         } else {
           qaRow.style.display = 'none';
@@ -2055,7 +2191,8 @@
 
     viewChipsEl.appendChild(topRow);
     viewChipsEl.appendChild(subRow);
-    viewChipsEl.appendChild(qaRow);
+    // Angle row (top/N/S/E/W/iso/orbit) intentionally not appended —
+    // dropped to reduce UI complexity. Drag-orbit covers the use case.
   }
 
   function switchScene(id) {
@@ -2063,6 +2200,11 @@
     if (!S) return;
     for (const k of Object.keys(scenes)) scenes[k].group.visible = (k === id);
     activeScene = id;
+    const targetFov = S.fov ?? 60;
+    if (camera.fov !== targetFov) {
+      camera.fov = targetFov;
+      camera.updateProjectionMatrix();
+    }
     orbit.setFrom(S.orbitPos, S.orbitTarget);
     scene.background = new THREE.Color(S.bg);
     if (document.pointerLockElement) document.exitPointerLock();
