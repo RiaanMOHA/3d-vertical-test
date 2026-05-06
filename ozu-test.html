@@ -110,8 +110,10 @@
     color: var(--text-on-prominent);
   }
 
-  /* === Views button inside the dock === */
-  #views-btn {
+  /* === Direct dock buttons (Views, Lights, any future control) ===
+     Targets every <button> placed directly inside #dock so new controls
+     inherit the iOS Liquid Glass pill styling without a CSS edit. */
+  #dock > button {
     pointer-events: auto;
     height: 40px; padding: 0 14px;
     display: inline-flex; align-items: center; gap: 6px;
@@ -120,12 +122,21 @@
     background: transparent;
     color: var(--text-on-glass);
     font: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.01em;
-    cursor: pointer;
-    transition: background 0.18s ease, transform 0.12s ease;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
   }
-  #views-btn:hover { background: var(--glass-bg-hover); }
-  #views-btn:active { transform: scale(0.96); }
-  #views-btn .caret { font-size: 11px; opacity: 0.75; }
+  #dock > button:hover { background: var(--glass-bg-hover); }
+  #dock > button:active { transform: scale(0.96); }
+  #dock > button .caret { font-size: 11px; opacity: 0.75; }
+  #dock > button.active {
+    background: var(--glass-bg-prominent);
+    border-color: var(--glass-stroke-prominent);
+    color: var(--text-on-prominent);
+  }
+  /* Honour the HTML hidden attribute — without this, our display:inline-flex
+     above wins over the browser default and the button stays visible even
+     when JS marks it hidden. Generic so any future dock button benefits. */
+  #dock > button[hidden] { display: none; }
 
   /* === Popovers — visually distinct from the dock === */
   .popover {
@@ -212,7 +223,7 @@
   @media (max-width: 480px) {
     #dock { height: 52px; padding: 5px; }
     #scene-segment .seg { height: 38px; padding: 0 11px; font-size: 13px; }
-    #views-btn { height: 38px; padding: 0 11px; font-size: 13px; }
+    #dock > button { height: 38px; padding: 0 11px; font-size: 13px; }
     #back-link { width: 40px; height: 40px; font-size: 17px; }
     #views-popover {
       bottom: calc(20px + var(--safe-bottom) + 52px + 24px);
@@ -223,7 +234,7 @@
   }
   @media (min-width: 768px) {
     #dock { height: 60px; padding: 8px; }
-    #scene-segment .seg, #views-btn { height: 42px; }
+    #scene-segment .seg, #dock > button { height: 42px; }
   }
   @media (min-width: 1024px) {
     #dock { max-width: 720px; }
@@ -258,7 +269,7 @@
     <span class="caret" aria-hidden="true">▴</span>
   </button>
   <div id="lights-divider" class="dock-divider" aria-hidden="true" hidden></div>
-  <button id="lights-btn" class="seg chip active" type="button" aria-pressed="true" hidden>Lights</button>
+  <button id="lights-btn" type="button" aria-pressed="false" hidden>Lights</button>
 </div>
 
 <!-- Views popover (existing populateViewChips fills #view-chips) -->
@@ -3036,6 +3047,280 @@
 } )();
 </script>
 <script>
+( function () {
+
+	/**
+*
+* Supersample Anti-Aliasing Render THREE.Pass
+*
+* This manual approach to SSAA re-renders the scene ones for each sample with camera jitter and accumulates the results.
+*
+* References: https://en.wikipedia.org/wiki/Supersampling
+*
+*/
+
+	class SSAARenderPass extends THREE.Pass {
+
+		constructor( scene, camera, clearColor, clearAlpha ) {
+
+			super();
+			this.scene = scene;
+			this.camera = camera;
+			this.sampleLevel = 4; // specified as n, where the number of samples is 2^n, so sampleLevel = 4, is 2^4 samples, 16.
+
+			this.unbiased = true; // as we need to clear the buffer in this pass, clearColor must be set to something, defaults to black.
+
+			this.clearColor = clearColor !== undefined ? clearColor : 0x000000;
+			this.clearAlpha = clearAlpha !== undefined ? clearAlpha : 0;
+			this._oldClearColor = new THREE.Color();
+			if ( THREE.CopyShader === undefined ) console.error( 'THREE.SSAARenderPass relies on THREE.CopyShader' );
+			const copyShader = THREE.CopyShader;
+			this.copyUniforms = THREE.UniformsUtils.clone( copyShader.uniforms );
+			this.copyMaterial = new THREE.ShaderMaterial( {
+				uniforms: this.copyUniforms,
+				vertexShader: copyShader.vertexShader,
+				fragmentShader: copyShader.fragmentShader,
+				premultipliedAlpha: true,
+				transparent: true,
+				blending: THREE.AdditiveBlending,
+				depthTest: false,
+				depthWrite: false
+			} );
+			this.fsQuad = new THREE.FullScreenQuad( this.copyMaterial );
+
+		}
+
+		dispose() {
+
+			if ( this.sampleRenderTarget ) {
+
+				this.sampleRenderTarget.dispose();
+				this.sampleRenderTarget = null;
+
+			}
+
+		}
+
+		setSize( width, height ) {
+
+			if ( this.sampleRenderTarget ) this.sampleRenderTarget.setSize( width, height );
+
+		}
+
+		render( renderer, writeBuffer, readBuffer ) {
+
+			if ( ! this.sampleRenderTarget ) {
+
+				this.sampleRenderTarget = new THREE.WebGLRenderTarget( readBuffer.width, readBuffer.height, {
+					minFilter: THREE.LinearFilter,
+					magFilter: THREE.LinearFilter,
+					format: THREE.RGBAFormat
+				} );
+				this.sampleRenderTarget.texture.name = 'SSAARenderPass.sample';
+
+			}
+
+			const jitterOffsets = _JitterVectors[ Math.max( 0, Math.min( this.sampleLevel, 5 ) ) ];
+
+			const autoClear = renderer.autoClear;
+			renderer.autoClear = false;
+			renderer.getClearColor( this._oldClearColor );
+			const oldClearAlpha = renderer.getClearAlpha();
+			const baseSampleWeight = 1.0 / jitterOffsets.length;
+			const roundingRange = 1 / 32;
+			this.copyUniforms[ 'tDiffuse' ].value = this.sampleRenderTarget.texture;
+			const width = readBuffer.width,
+				height = readBuffer.height; // render the scene multiple times, each slightly jitter offset from the last and accumulate the results.
+
+			for ( let i = 0; i < jitterOffsets.length; i ++ ) {
+
+				const jitterOffset = jitterOffsets[ i ];
+
+				if ( this.camera.setViewOffset ) {
+
+					this.camera.setViewOffset( width, height, jitterOffset[ 0 ] * 0.0625, jitterOffset[ 1 ] * 0.0625, // 0.0625 = 1 / 16
+						width, height );
+
+				}
+
+				let sampleWeight = baseSampleWeight;
+
+				if ( this.unbiased ) {
+
+					// the theory is that equal weights for each sample lead to an accumulation of rounding errors.
+					// The following equation varies the sampleWeight per sample so that it is uniformly distributed
+					// across a range of values whose rounding errors cancel each other out.
+					const uniformCenteredDistribution = - 0.5 + ( i + 0.5 ) / jitterOffsets.length;
+					sampleWeight += roundingRange * uniformCenteredDistribution;
+
+				}
+
+				this.copyUniforms[ 'opacity' ].value = sampleWeight;
+				renderer.setClearColor( this.clearColor, this.clearAlpha );
+				renderer.setRenderTarget( this.sampleRenderTarget );
+				renderer.clear();
+				renderer.render( this.scene, this.camera );
+				renderer.setRenderTarget( this.renderToScreen ? null : writeBuffer );
+
+				if ( i === 0 ) {
+
+					renderer.setClearColor( 0x000000, 0.0 );
+					renderer.clear();
+
+				}
+
+				this.fsQuad.render( renderer );
+
+			}
+
+			if ( this.camera.clearViewOffset ) this.camera.clearViewOffset();
+			renderer.autoClear = autoClear;
+			renderer.setClearColor( this._oldClearColor, oldClearAlpha );
+
+		}
+
+	} // These jitter vectors are specified in integers because it is easier.
+	// I am assuming a [-8,8) integer grid, but it needs to be mapped onto [-0.5,0.5)
+	// before being used, thus these integers need to be scaled by 1/16.
+	//
+	// Sample patterns reference: https://msdn.microsoft.com/en-us/library/windows/desktop/ff476218%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
+
+
+	const _JitterVectors = [[[ 0, 0 ]], [[ 4, 4 ], [ - 4, - 4 ]], [[ - 2, - 6 ], [ 6, - 2 ], [ - 6, 2 ], [ 2, 6 ]], [[ 1, - 3 ], [ - 1, 3 ], [ 5, 1 ], [ - 3, - 5 ], [ - 5, 5 ], [ - 7, - 1 ], [ 3, 7 ], [ 7, - 7 ]], [[ 1, 1 ], [ - 1, - 3 ], [ - 3, 2 ], [ 4, - 1 ], [ - 5, - 2 ], [ 2, 5 ], [ 5, 3 ], [ 3, - 5 ], [ - 2, 6 ], [ 0, - 7 ], [ - 4, - 6 ], [ - 6, 4 ], [ - 8, 0 ], [ 7, - 4 ], [ 6, 7 ], [ - 7, - 8 ]], [[ - 4, - 7 ], [ - 7, - 5 ], [ - 3, - 5 ], [ - 5, - 4 ], [ - 1, - 4 ], [ - 2, - 2 ], [ - 6, - 1 ], [ - 4, 0 ], [ - 7, 1 ], [ - 1, 2 ], [ - 6, 3 ], [ - 3, 3 ], [ - 7, 6 ], [ - 3, 6 ], [ - 5, 7 ], [ - 1, 7 ], [ 5, - 7 ], [ 1, - 6 ], [ 6, - 5 ], [ 4, - 4 ], [ 2, - 3 ], [ 7, - 2 ], [ 1, - 1 ], [ 4, - 1 ], [ 2, 1 ], [ 6, 2 ], [ 0, 4 ], [ 4, 4 ], [ 2, 5 ], [ 7, 5 ], [ 5, 6 ], [ 3, 7 ]]];
+
+	THREE.SSAARenderPass = SSAARenderPass;
+
+} )();
+( function () {
+
+	/**
+ *
+ * Temporal Anti-Aliasing Render Pass
+ *
+ * When there is no motion in the scene, the TAA render pass accumulates jittered camera samples across frames to create a high quality anti-aliased result.
+ *
+ * References:
+ *
+ * TODO: Add support for motion vector pas so that accumulation of samples across frames can occur on dynamics scenes.
+ *
+ */
+
+	class TAARenderPass extends THREE.SSAARenderPass {
+
+		constructor( scene, camera, clearColor, clearAlpha ) {
+
+			super( scene, camera, clearColor, clearAlpha );
+			this.sampleLevel = 0;
+			this.accumulate = false;
+
+		}
+
+		render( renderer, writeBuffer, readBuffer, deltaTime ) {
+
+			if ( ! this.accumulate ) {
+
+				super.render( renderer, writeBuffer, readBuffer, deltaTime );
+				this.accumulateIndex = - 1;
+				return;
+
+			}
+
+			const jitterOffsets = _JitterVectors[ 5 ];
+
+			if ( ! this.sampleRenderTarget ) {
+
+				this.sampleRenderTarget = new THREE.WebGLRenderTarget( readBuffer.width, readBuffer.height, this.params );
+				this.sampleRenderTarget.texture.name = 'TAARenderPass.sample';
+
+			}
+
+			if ( ! this.holdRenderTarget ) {
+
+				this.holdRenderTarget = new THREE.WebGLRenderTarget( readBuffer.width, readBuffer.height, this.params );
+				this.holdRenderTarget.texture.name = 'TAARenderPass.hold';
+
+			}
+
+			if ( this.accumulate && this.accumulateIndex === - 1 ) {
+
+				super.render( renderer, this.holdRenderTarget, readBuffer, deltaTime );
+				this.accumulateIndex = 0;
+
+			}
+
+			const autoClear = renderer.autoClear;
+			renderer.autoClear = false;
+			const sampleWeight = 1.0 / jitterOffsets.length;
+
+			if ( this.accumulateIndex >= 0 && this.accumulateIndex < jitterOffsets.length ) {
+
+				this.copyUniforms[ 'opacity' ].value = sampleWeight;
+				this.copyUniforms[ 'tDiffuse' ].value = writeBuffer.texture; // render the scene multiple times, each slightly jitter offset from the last and accumulate the results.
+
+				const numSamplesPerFrame = Math.pow( 2, this.sampleLevel );
+
+				for ( let i = 0; i < numSamplesPerFrame; i ++ ) {
+
+					const j = this.accumulateIndex;
+					const jitterOffset = jitterOffsets[ j ];
+
+					if ( this.camera.setViewOffset ) {
+
+						this.camera.setViewOffset( readBuffer.width, readBuffer.height, jitterOffset[ 0 ] * 0.0625, jitterOffset[ 1 ] * 0.0625, // 0.0625 = 1 / 16
+							readBuffer.width, readBuffer.height );
+
+					}
+
+					renderer.setRenderTarget( writeBuffer );
+					renderer.clear();
+					renderer.render( this.scene, this.camera );
+					renderer.setRenderTarget( this.sampleRenderTarget );
+					if ( this.accumulateIndex === 0 ) renderer.clear();
+					this.fsQuad.render( renderer );
+					this.accumulateIndex ++;
+					if ( this.accumulateIndex >= jitterOffsets.length ) break;
+
+				}
+
+				if ( this.camera.clearViewOffset ) this.camera.clearViewOffset();
+
+			}
+
+			const accumulationWeight = this.accumulateIndex * sampleWeight;
+
+			if ( accumulationWeight > 0 ) {
+
+				this.copyUniforms[ 'opacity' ].value = 1.0;
+				this.copyUniforms[ 'tDiffuse' ].value = this.sampleRenderTarget.texture;
+				renderer.setRenderTarget( writeBuffer );
+				renderer.clear();
+				this.fsQuad.render( renderer );
+
+			}
+
+			if ( accumulationWeight < 1.0 ) {
+
+				this.copyUniforms[ 'opacity' ].value = 1.0 - accumulationWeight;
+				this.copyUniforms[ 'tDiffuse' ].value = this.holdRenderTarget.texture;
+				renderer.setRenderTarget( writeBuffer );
+				if ( accumulationWeight === 0 ) renderer.clear();
+				this.fsQuad.render( renderer );
+
+			}
+
+			renderer.autoClear = autoClear;
+
+		}
+
+	}
+
+	const _JitterVectors = [[[ 0, 0 ]], [[ 4, 4 ], [ - 4, - 4 ]], [[ - 2, - 6 ], [ 6, - 2 ], [ - 6, 2 ], [ 2, 6 ]], [[ 1, - 3 ], [ - 1, 3 ], [ 5, 1 ], [ - 3, - 5 ], [ - 5, 5 ], [ - 7, - 1 ], [ 3, 7 ], [ 7, - 7 ]], [[ 1, 1 ], [ - 1, - 3 ], [ - 3, 2 ], [ 4, - 1 ], [ - 5, - 2 ], [ 2, 5 ], [ 5, 3 ], [ 3, - 5 ], [ - 2, 6 ], [ 0, - 7 ], [ - 4, - 6 ], [ - 6, 4 ], [ - 8, 0 ], [ 7, - 4 ], [ 6, 7 ], [ - 7, - 8 ]], [[ - 4, - 7 ], [ - 7, - 5 ], [ - 3, - 5 ], [ - 5, - 4 ], [ - 1, - 4 ], [ - 2, - 2 ], [ - 6, - 1 ], [ - 4, 0 ], [ - 7, 1 ], [ - 1, 2 ], [ - 6, 3 ], [ - 3, 3 ], [ - 7, 6 ], [ - 3, 6 ], [ - 5, 7 ], [ - 1, 7 ], [ 5, - 7 ], [ 1, - 6 ], [ 6, - 5 ], [ 4, - 4 ], [ 2, - 3 ], [ 7, - 2 ], [ 1, - 1 ], [ 4, - 1 ], [ 2, 1 ], [ 6, 2 ], [ 0, 4 ], [ 4, 4 ], [ 2, 5 ], [ 7, 5 ], [ 5, 6 ], [ 3, 7 ]]];
+
+	THREE.TAARenderPass = TAARenderPass;
+
+} )();
+</script>
+<script>
 (function() {
   'use strict';
 
@@ -3141,36 +3426,55 @@
 
   // ---------- Post-processing pipeline (room-1 standalone only) ----------
   // EffectComposer with SSAO (corner darkness), UnrealBloom (light glow),
-  // SMAA (edge anti-alias). Only used while room-1 is active; exterior +
-  // interior render through the plain renderer.render path unchanged.
+  // Post-processing pipeline (room-1 standalone only). Exterior + interior
+  // render through the plain renderer.render path unchanged.
   let _room1Composer = null;
-  let _room1SSAO = null;
   let _room1Bloom = null;
+  let _room1SSAA = null;
   let _room1SMAA = null;
   function buildRoom1Composer() {
     const w = window.innerWidth, h = window.innerHeight;
     const dpr = renderer.getPixelRatio();
-    const composer = new THREE.EffectComposer(renderer);
-    composer.addPass(new THREE.RenderPass(scene, camera));
+    const isWebGL2 = renderer.capabilities.isWebGL2;
+    // Composer working buffer — multisample so bloom + SMAA edges are
+    // themselves anti-aliased. We pass LOGICAL dims to the render target
+    // and rely on composer.setPixelRatio below to scale internally.
+    let composer;
+    if (isWebGL2) {
+      const rt = new THREE.WebGLMultisampleRenderTarget(w, h);
+      rt.samples = 8;
+      composer = new THREE.EffectComposer(renderer, rt);
+    } else {
+      composer = new THREE.EffectComposer(renderer);
+    }
+    // EffectComposer with custom rt defaults _pixelRatio to 1 (not the
+    // renderer's dpr). Force it to match the renderer.
+    composer.setPixelRatio(dpr);
+    // SSAA — 4 jittered samples per frame. Combined with 8x MSAA + SMAA
+    // this is sufficient on geometry that's >= 3px wide. Thin geometry
+    // (< 3px) won't fully resolve at any AA setting; that's a geometry
+    // problem, not a pipeline problem.
+    const ssaa = new THREE.SSAARenderPass(scene, camera);
+    ssaa.unbiased = true;
+    ssaa.sampleLevel = 2;
+    composer.addPass(ssaa);
     const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.25, 0.4, 0.7);
     composer.addPass(bloom);
-    // SMAA edge antialiasing — sharper than FXAA for jagged geometry.
+    // SMAA final cleanup. Constructed at pixel dims to match what
+    // composer.addPass will pass to its setSize callback.
     const smaa = new THREE.SMAAPass(w * dpr, h * dpr);
     composer.addPass(smaa);
-    _room1SSAO = null;
     _room1Bloom = bloom;
+    _room1SSAA = ssaa;
     _room1SMAA = smaa;
+    window.__room1 = { composer, ssaa, bloom, smaa, renderer };
     return composer;
   }
   function resizeRoom1Composer(w, h) {
     if (!_room1Composer) return;
+    // Logical dims — composer scales by its _pixelRatio internally and
+    // calls pass.setSize on every pass with the correct pixel dims.
     _room1Composer.setSize(w, h);
-    if (_room1SSAO) _room1SSAO.setSize(w, h);
-    if (_room1Bloom) _room1Bloom.setSize(w, h);
-    if (_room1SMAA) {
-      const dpr = renderer.getPixelRatio();
-      _room1SMAA.setSize(w * dpr, h * dpr);
-    }
   }
 
   // ---------- Procedural environment map (room-1 standalone only) ----------
@@ -3418,9 +3722,15 @@
       solidWall(0, 5.720, 0, 5.980, F1H+2.00, F1H+F2H, matUpper);
       solidWall(0, 5.980, 0, D,     F1H, F1H+F2H, matUpper);
 
-      // -- RIGHT (X = W) — all cream, no exterior windows on this side per blueprint --
+      // -- RIGHT (X = W, real-world WEST) — cream, with room-4 + room-1 frosted privacy windows on 2F --
       solidWall(W, 0, W, D, 0,    F1H, matUpper);
-      solidWall(W, 0, W, D, F1H, F1H+F2H, matUpper);
+      solidWall(W, 0,     W, 1.670, F1H, F1H+F2H, matUpper);
+      solidWall(W, 1.670, W, 1.930, F1H, F1H+1.10, matUpper);     // room-4 縦すべり 02609 sill
+      solidWall(W, 1.670, W, 1.930, F1H+2.00, F1H+F2H, matUpper); // room-4 header
+      solidWall(W, 1.930, W, 5.720, F1H, F1H+F2H, matUpper);
+      solidWall(W, 5.720, W, 5.980, F1H, F1H+1.10, matUpper);     // room-1 縦すべり 02609 sill
+      solidWall(W, 5.720, W, 5.980, F1H+2.00, F1H+F2H, matUpper); // room-1 header
+      solidWall(W, 5.980, W, D,     F1H, F1H+F2H, matUpper);
 
       // ---------- window glass + frames (thin panes sitting in the openings) ----------
       function paneFront(x1, x2, y1, y2, z) {
@@ -3466,6 +3776,9 @@
       // Left 2F panes
       paneSide(1.670, 1.930, F1H+1.10, F1H+2.00, 0);            // room-3 縦すべり 02609
       paneSide(5.720, 5.980, F1H+1.10, F1H+2.00, 0);            // room-2 縦すべり 02609
+      // Right 2F panes
+      paneSide(1.670, 1.930, F1H+1.10, F1H+2.00, W);            // room-4 縦すべり 02609
+      paneSide(5.720, 5.980, F1H+1.10, F1H+2.00, W);            // room-1 縦すべり 02609
 
       // ---------- front door ----------
       {
@@ -3765,6 +4078,19 @@
         }
         if (cur < b) makeWall(cur, z, b, z, height, yBase, mat, outerSign);
       }
+
+      // Ceiling helper — flat plaster slab whose TOP face sits at yTop.
+      const CEIL_T = 0.04;
+      const matCeiling = new THREE.MeshStandardMaterial({ color: 0xf3f0eb, roughness: 0.95 });
+      function makeCeiling(x0, z0, x1, z1, yTop) {
+        const dx = x1 - x0, dz = z1 - z0;
+        if (dx <= 0 || dz <= 0) return;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(dx, CEIL_T, dz), matCeiling);
+        m.position.set((x0 + x1) / 2, yTop - CEIL_T / 2, (z0 + z1) / 2);
+        m.userData._isCeiling = true;
+        m.userData._ceilingFloor = (yTop > F1H + 0.1) ? '2f' : '1f';
+        S.group.add(m);
+      }
       function wallZ(x, a, b, gaps, height, yBase, mat, outerSign) {
         let cur = a;
         const sorted = [...(gaps || [])].sort((p, q) => p[0] - q[0]);
@@ -3791,6 +4117,14 @@
         const y = (r.id === 'ldk') ? 0 : 0.001;
         makeFloor(r.x0, r.z0, r.x1, r.z1, r.mat, y);
       }
+
+      // 1F ceilings — flat plaster covering everything except the stair-shaft hole at x=5.40..W, z=2.90..4.50 (where the upper flight rises through).
+      const F1_CEIL = [
+        { x0: 0,    z0: 0,    x1: W,    z1: 2.90 },   // south of stair shaft (full width)
+        { x0: 0,    z0: 2.90, x1: 5.40, z1: 4.50 },   // west of stair shaft
+        { x0: 0,    z0: 4.50, x1: W,    z1: D    },   // north of stair shaft (full width)
+      ];
+      for (const c of F1_CEIL) makeCeiling(c.x0, c.z0, c.x1, c.z1, F1H - FLOOR_T);
 
       // ── WINDOWS — shared helper + glass material (used by 1F and 2F) ──
       const glassMat = new THREE.MeshStandardMaterial({ color: 0x6a8898, transparent: true, opacity: 0.55, roughness: 0.18, metalness: 0.1 });
@@ -3843,7 +4177,8 @@
       // axis 'X' = panel sits in a z=const wall (panel normal along Z).
       // axis 'Z' = panel sits in a x=const wall (panel normal along X).
       // Adds a transom (wall-coloured fill) above the door up to ceiling.
-      function addDoor(axis, axisCoord, a, b, yBase, ceilH, mat) {
+      function addDoor(axis, axisCoord, a, b, yBase, ceilH, mat, type) {
+        type = type || 'hinged';
         const w = b - a, mid = (a + b) / 2;
         const DH = 2.0, DT = 0.04;
         const xy = (axis === 'X');
@@ -3865,17 +4200,55 @@
           S.group.add(transom);
           S.walls.push(transom);
         }
-        // Lever handles on both faces, at 75% along width, mid-height.
-        const hW = 0.10, hH = 0.025, hD = 0.05;
-        const handlePos = a + w * 0.75;
-        for (const sign of [-1, +1]) {
-          const hx = xy ? handlePos : axisCoord + sign * (DT / 2 + hD / 2);
-          const hz = xy ? axisCoord + sign * (DT / 2 + hD / 2) : handlePos;
-          const hDimX = xy ? hW : hD;
-          const hDimZ = xy ? hD : hW;
-          const handle = new THREE.Mesh(new THREE.BoxGeometry(hDimX, hH, hDimZ), doorHandleMat);
-          handle.position.set(hx, yBase + 1.0, hz);
-          S.group.add(handle);
+        if (type === 'bi-fold') {
+          // Vertical center seam — slightly darker recessed-look strip suggesting the fold line.
+          const seamMat = new THREE.MeshStandardMaterial({ color: 0x8a7a66, roughness: 0.7 });
+          const seamW = 0.015;
+          const sDimX = xy ? seamW : DT + 0.006;
+          const sDimZ = xy ? DT + 0.006 : seamW;
+          const seam = new THREE.Mesh(new THREE.BoxGeometry(sDimX, DH * 0.96, sDimZ), seamMat);
+          seam.position.set(px, yBase + DH / 2, pz);
+          S.group.add(seam);
+          // Two thin vertical finger-pulls per face, one each side of the seam, near the top.
+          const pullW = 0.012, pullH = 0.18, pullD = 0.012;
+          for (const sign of [-1, +1]) {
+            for (const pSide of [-1, +1]) {
+              const offset = pSide * (w * 0.18);
+              const hx = xy ? mid + offset : axisCoord + sign * (DT / 2 + pullD);
+              const hz = xy ? axisCoord + sign * (DT / 2 + pullD) : mid + offset;
+              const hDimX = xy ? pullW : pullD;
+              const hDimZ = xy ? pullD : pullW;
+              const pull = new THREE.Mesh(new THREE.BoxGeometry(hDimX, pullH, hDimZ), doorHandleMat);
+              pull.position.set(hx, yBase + DH * 0.85, hz);
+              S.group.add(pull);
+            }
+          }
+        } else {
+          // Hinged: lever handles + 3 hinge cubes on the opposite edge.
+          const hW = 0.10, hH = 0.025, hD = 0.05;
+          const handlePos = a + w * 0.75;
+          for (const sign of [-1, +1]) {
+            const hx = xy ? handlePos : axisCoord + sign * (DT / 2 + hD / 2);
+            const hz = xy ? axisCoord + sign * (DT / 2 + hD / 2) : handlePos;
+            const hDimX = xy ? hW : hD;
+            const hDimZ = xy ? hD : hW;
+            const handle = new THREE.Mesh(new THREE.BoxGeometry(hDimX, hH, hDimZ), doorHandleMat);
+            handle.position.set(hx, yBase + 1.0, hz);
+            S.group.add(handle);
+          }
+          const hingeMat = new THREE.MeshStandardMaterial({ color: 0x5c5c5c, metalness: 0.6, roughness: 0.4 });
+          const hgW = 0.025, hgH = 0.08, hgD = DT + 0.008;
+          const hingeEdge = a + 0.03;
+          const hingeYs = [yBase + 0.28, yBase + DH * 0.5, yBase + DH - 0.28];
+          for (const hy of hingeYs) {
+            const hgx = xy ? hingeEdge : axisCoord;
+            const hgz = xy ? axisCoord : hingeEdge;
+            const hgDimX = xy ? hgW : hgD;
+            const hgDimZ = xy ? hgD : hgW;
+            const hinge = new THREE.Mesh(new THREE.BoxGeometry(hgDimX, hgH, hgDimZ), hingeMat);
+            hinge.position.set(hgx, hy, hgz);
+            S.group.add(hinge);
+          }
         }
       }
 
@@ -3948,6 +4321,9 @@
       ];
       for (const r of F2_ROOMS) makeFloor(r.x0, r.z0, r.x1, r.z1, r.mat, F1H);
 
+      // 2F ceilings — flat plaster covering the entire 2F footprint (closes the "looking up shows sky" gap).
+      makeCeiling(0, 0, W, D, F1H + F2H);
+
       // ── 2F WINDOWS ── 7 windows; all FL+2000 at top (= y=4.50 abs), 0.90 m tall (y=3.60..4.50).
       // y0/y1 below are RELATIVE to F1H (the 2F floor level).
       const F2_WIN_FRONT = [   // z=D wall (front face)
@@ -3963,15 +4339,20 @@
         { a: 1.670, b: 1.930, y0: 1.10, y1: 2.00 },  // room-3 縦すべり 02609
         { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room-2 縦すべり 02609
       ];
+      const F2_WIN_RIGHT = [   // x=W wall (right face, real-world WEST) — z range
+        { a: 1.670, b: 1.930, y0: 1.10, y1: 2.00 },  // room-4 縦すべり 02609
+        { a: 5.720, b: 5.980, y0: 1.10, y1: 2.00 },  // room-1 縦すべり 02609 (NW bedroom)
+      ];
 
       // 2F outer walls — all cream cladding (2-layer: cladding outside, wallMat inside)
       wallX(0, 0, W, F2_WIN_BACK.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt, -1);
       wallX(D, 0, W, F2_WIN_FRONT.map(w => [w.a, w.b]), F2H, F1H, matUpperExt, +1);
       wallZ(0, 0, D, F2_WIN_LEFT.map(w => [w.a, w.b]),  F2H, F1H, matUpperExt, +1);
-      wallZ(W, 0, D, [], F2H, F1H, matUpperExt, -1);
+      wallZ(W, 0, D, F2_WIN_RIGHT.map(w => [w.a, w.b]), F2H, F1H, matUpperExt, -1);
       for (const w of F2_WIN_FRONT) addWinFlex('X', D, w, F1H, F2H, matUpperExt);
       for (const w of F2_WIN_BACK)  addWinFlex('X', 0, w, F1H, F2H, matUpperExt);
       for (const w of F2_WIN_LEFT)  addWinFlex('Z', 0, w, F1H, F2H, matUpperExt);
+      for (const w of F2_WIN_RIGHT) addWinFlex('Z', W, w, F1H, F2H, matUpperExt);
 
       // ── 2F interior walls ──
       wallZ(2.70, 0,    3.60, [[1.20, 1.80]], F2H, F1H);  // room-3 east wall, closet_a bi-fold
@@ -3993,36 +4374,108 @@
       const F1_DOORS = [
         { axis: 'X', c: D,    a: 4.95, b: 5.85, mat: doorMat },          // front door (genkan entrance)
         { axis: 'X', c: 4.50, a: 0.75, b: 1.35, mat: doorMat },          // kitchen ↔ laundry
-        { axis: 'Z', c: 1.80, a: 5.50, b: 6.10, mat: doorMat },          // laundry ↔ washroom
+        { axis: 'Z', c: 1.80, a: 5.50, b: 6.10, mat: closetDoorMat, type: 'bi-fold' },  // laundry ↔ washroom (white folding/accordion door)
         { axis: 'X', c: 5.40, a: 2.70, b: 3.30, mat: doorMat },          // corridor ↔ washroom
         { axis: 'X', c: 5.40, a: 3.80, b: 4.40, mat: doorMat },          // corridor ↔ toilet-1-f
       ];
-      for (const d of F1_DOORS) addDoor(d.axis, d.c, d.a, d.b, 0, F1H, d.mat);
+      for (const d of F1_DOORS) addDoor(d.axis, d.c, d.a, d.b, 0, F1H, d.mat, d.type);
 
       const F2_DOORS = [
-        // Bedroom closet bi-folds (in central column)
-        { axis: 'Z', c: 2.70, a: 1.20, b: 1.80, mat: closetDoorMat },    // room-3 ↔ closet_a
-        { axis: 'Z', c: 3.60, a: 2.10, b: 2.70, mat: closetDoorMat },    // room-4 ↔ closet_b
-        { axis: 'Z', c: 2.70, a: 5.10, b: 5.70, mat: closetDoorMat },    // room-2 ↔ closet
-        { axis: 'Z', c: 3.60, a: 4.65, b: 5.25, mat: closetDoorMat },    // room-1 ↔ closet
-        // Bedroom + toilet entrance doors (from corridor)
+        // Bedroom closet bi-folds (in central column) — render with center seam + finger pulls
+        { axis: 'Z', c: 2.70, a: 1.20, b: 1.80, mat: closetDoorMat, type: 'bi-fold' },    // room-3 ↔ closet_a
+        { axis: 'Z', c: 3.60, a: 2.10, b: 2.70, mat: closetDoorMat, type: 'bi-fold' },    // room-4 ↔ closet_b
+        { axis: 'Z', c: 2.70, a: 5.10, b: 5.70, mat: closetDoorMat, type: 'bi-fold' },    // room-2 ↔ closet
+        { axis: 'Z', c: 3.60, a: 4.65, b: 5.25, mat: closetDoorMat, type: 'bi-fold' },    // room-1 ↔ closet
+        // Bedroom + toilet entrance doors (from corridor) — hinged
         { axis: 'X', c: 3.60, a: 1.55, b: 2.15, mat: doorMat },          // room-3 entrance
         { axis: 'X', c: 3.60, a: 4.50, b: 5.20, mat: doorMat },          // room-4 entrance
         { axis: 'X', c: 4.50, a: 1.10, b: 1.70, mat: doorMat },          // room-2 entrance
         { axis: 'X', c: 4.50, a: 3.80, b: 4.40, mat: doorMat },          // room-1 entrance
         { axis: 'X', c: 5.85, a: 2.85, b: 3.45, mat: doorMat },          // 2F toilet entrance
       ];
-      for (const d of F2_DOORS) addDoor(d.axis, d.c, d.a, d.b, F1H, F2H, d.mat);
+      for (const d of F2_DOORS) addDoor(d.axis, d.c, d.a, d.b, F1H, F2H, d.mat, d.type);
 
-      // ───────────────── L-SHAPE STAIR ─────────────────
+      // ───────────────── GENKAN DETAIL (Phase 3) ─────────────────
+      // Genkan zone: x=4.50..6.30, z=6.30..D=7.20. Front door at x=4.95..5.85, z=D.
+      {
+        // Doormat — dark charcoal rectangle just inside the front door.
+        const matDoormat = new THREE.MeshStandardMaterial({ color: 0x3a3530, roughness: 0.95 });
+        const doormat = new THREE.Mesh(new THREE.BoxGeometry(0.90, 0.012, 0.55), matDoormat);
+        doormat.position.set(5.40, 0.011, D - 0.32);
+        S.group.add(doormat);
+
+        // Shoe storage cabinet (玄関収納) — full-height white bi-fold along the west wall.
+        // Blueprint annotation: L=2550 (2.55 m). Spans from corridor's south end (z=4.65)
+        // through the genkan to the front wall (z=7.20). 3 bi-fold pairs (6 panels total).
+        const cab = { x0: 5.85, x1: 6.20, z0: 4.65, z1: 7.20, y0: 0.05, y1: 2.40 };
+        const matCabBody = new THREE.MeshStandardMaterial({ color: 0xf5f3ee, roughness: 0.6 });
+        const cabBody = new THREE.Mesh(
+          new THREE.BoxGeometry(cab.x1 - cab.x0, cab.y1 - cab.y0, cab.z1 - cab.z0),
+          matCabBody
+        );
+        cabBody.position.set((cab.x0 + cab.x1) / 2, (cab.y0 + cab.y1) / 2, (cab.z0 + cab.z1) / 2);
+        S.group.add(cabBody);
+        const seamMatGen = new THREE.MeshStandardMaterial({ color: 0xc8bdaf, roughness: 0.7 });
+        const PAIR_COUNT = 3;
+        const PAIR_LEN = (cab.z1 - cab.z0) / PAIR_COUNT;   // 0.85 m each
+        for (let i = 0; i < PAIR_COUNT; i++) {
+          const pairCenterZ = cab.z0 + (i + 0.5) * PAIR_LEN;
+          // Center fold-seam (where the two panels of a bi-fold pair meet)
+          const fold = new THREE.Mesh(
+            new THREE.BoxGeometry(0.008, (cab.y1 - cab.y0) * 0.98, 0.012),
+            seamMatGen
+          );
+          fold.position.set(cab.x0 - 0.002, (cab.y0 + cab.y1) / 2, pairCenterZ);
+          S.group.add(fold);
+          // Two finger-pulls flanking the fold seam
+          for (const off of [-0.20, 0.20]) {
+            const pull = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.14, 0.012), doorHandleMat);
+            pull.position.set(cab.x0 - 0.008, cab.y1 - 0.40, pairCenterZ + off);
+            S.group.add(pull);
+          }
+          // Section divider between this pair and the next (skip after the last pair)
+          if (i < PAIR_COUNT - 1) {
+            const dividerZ = cab.z0 + (i + 1) * PAIR_LEN;
+            const divider = new THREE.Mesh(
+              new THREE.BoxGeometry(0.010, (cab.y1 - cab.y0) * 0.99, 0.018),
+              seamMatGen
+            );
+            divider.position.set(cab.x0 - 0.001, (cab.y0 + cab.y1) / 2, dividerZ);
+            S.group.add(divider);
+          }
+        }
+
+        // 3-hook coat rack on entry-wall (z=D), west of front door (real-world west).
+        const rackX0 = 5.92, rackX1 = 6.27, rackY = 1.65, rackZ = D - 0.06;
+        const matRackBase = new THREE.MeshStandardMaterial({ color: 0xe8e0d2, roughness: 0.85 });
+        const rackBase = new THREE.Mesh(
+          new THREE.BoxGeometry(rackX1 - rackX0, 0.10, 0.025),
+          matRackBase
+        );
+        rackBase.position.set((rackX0 + rackX1) / 2, rackY, rackZ);
+        S.group.add(rackBase);
+        const matHook = new THREE.MeshStandardMaterial({ color: 0x2a2520, metalness: 0.3, roughness: 0.5 });
+        for (const frac of [0.15, 0.50, 0.85]) {
+          const hookX = rackX0 + (rackX1 - rackX0) * frac;
+          const hook = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.10, 0.05), matHook);
+          hook.position.set(hookX, rackY - 0.025, rackZ - 0.04);
+          S.group.add(hook);
+        }
+      }
+
+      // ───────────────── L-SHAPE STAIR (Phase 5: boxed-stair upgrade) ─────────────────
       const TOTAL_RISERS = 11;
       const RISE = F1H / TOTAL_RISERS;          // 0.227 m
       const TREAD_T = 0.04;
       const treadMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4d, roughness: 0.85 });
       const riserMat = new THREE.MeshStandardMaterial({ color: CLR.floor_stairs, roughness: 0.9 });
-      // boxed-stair carriage: solid block under each tread closes the underside
-      // so the stair reads as one staircase, not floating slabs.
+      // Smooth diagonal soffit wedge under each flight (replaces stacked-box bodies).
       const carriageMat = new THREE.MeshStandardMaterial({ color: 0x7a5e3d, roughness: 0.95 });
+      // Closed-string side board ("stringer") on each flight's open side.
+      const stringerMat = new THREE.MeshStandardMaterial({ color: 0x6f553a, roughness: 0.85 });
+      // Handrail (sloped cylinder + brackets/posts).
+      const handrailMat = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.5 });
+      const handrailBracketMat = new THREE.MeshStandardMaterial({ color: 0x5c5c5c, metalness: 0.6, roughness: 0.4 });
 
       // Lower flight: 5 steps in 1F shaft (x=5.40..W, z=2.90..4.50), climbing +z.
       const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;
@@ -4038,11 +4491,54 @@
         const riser = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
         riser.position.set(LXc, yTop - RISE / 2, z0);
         S.group.add(riser);
-        const bodyH = yTop - TREAD_T;
-        if (bodyH > 0.001) {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(LW, bodyH, TREAD_LO), carriageMat);
-          body.position.set(LXc, bodyH / 2, (z0 + z1) / 2);
-          S.group.add(body);
+      }
+      // Lower flight diagonal soffit wedge (smooth underside).
+      // Triangle profile in (z, y) plane, extruded along x from LX0 to LX1.
+      {
+        const lowerTopY = 5 * RISE - TREAD_T;
+        const sh = new THREE.Shape();
+        sh.moveTo(2.90, 0);
+        sh.lineTo(4.50, 0);
+        sh.lineTo(4.50, lowerTopY);
+        sh.closePath();
+        const geom = new THREE.ExtrudeGeometry(sh, { depth: LW, bevelEnabled: false });
+        const wedge = new THREE.Mesh(geom, carriageMat);
+        wedge.rotation.y = -Math.PI / 2;
+        wedge.position.set(LX0, 0, 0);
+        S.group.add(wedge);
+      }
+      // Lower flight side stringer — closed-string board on the corridor side at x=LX0.
+      {
+        const ST_T = 0.03;
+        const sh = new THREE.Shape();
+        sh.moveTo(2.90, 0);
+        sh.lineTo(4.50, 0);
+        sh.lineTo(4.50, 5 * RISE + 0.05);
+        sh.lineTo(2.90, RISE + 0.05);
+        sh.closePath();
+        const geom = new THREE.ExtrudeGeometry(sh, { depth: ST_T, bevelEnabled: false });
+        const stringer = new THREE.Mesh(geom, stringerMat);
+        stringer.rotation.y = -Math.PI / 2;
+        stringer.position.set(LX0 - ST_T, 0, 0);
+        S.group.add(stringer);
+      }
+      // Lower flight handrail — sloped cylinder + 3 brackets, mounted to the wall at x=W.
+      {
+        const HR_R = 0.025, HR_INSET = 0.05;
+        const sZ = 2.90, eZ = 4.50;
+        const sY = 0.85, eY = 5 * RISE + 0.85;
+        const dz = eZ - sZ, dy = eY - sY;
+        const len = Math.sqrt(dz * dz + dy * dy);
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
+        rail.rotation.x = Math.atan2(dz, dy);
+        rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
+        S.group.add(rail);
+        for (const t of [0.05, 0.5, 0.95]) {
+          const z = sZ + t * dz;
+          const y = sY + t * dy;
+          const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.025, 0.025), handrailBracketMat);
+          bracket.position.set(LX1 - HR_INSET / 2, y - 0.04, z);
+          S.group.add(bracket);
         }
       }
 
@@ -4062,11 +4558,61 @@
         const riser = new THREE.Mesh(new THREE.BoxGeometry(0.02, RISE, UD), riserMat);
         riser.position.set(x1, yTop - RISE / 2, UZc);
         S.group.add(riser);
-        const bodyH = yTop - TREAD_T;
-        if (bodyH > 0.001) {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(TREAD_UP, bodyH, UD), carriageMat);
-          body.position.set((x0 + x1) / 2, bodyH / 2, UZc);
-          S.group.add(body);
+      }
+      // Upper flight diagonal soffit wedge.
+      // Triangle profile in (x, y) plane, extruded along z from UZ0 to UZ1.
+      // Bottom edge at y = 5*RISE matches the top of the lower flight (the L-turn landing height).
+      {
+        const upperBottomY = 5 * RISE;
+        const upperTopY = 11 * RISE - TREAD_T;
+        const sh = new THREE.Shape();
+        sh.moveTo(W, upperBottomY);
+        sh.lineTo(UX0, upperBottomY);
+        sh.lineTo(UX0, upperTopY);
+        sh.closePath();
+        const geom = new THREE.ExtrudeGeometry(sh, { depth: UD, bevelEnabled: false });
+        const wedge = new THREE.Mesh(geom, carriageMat);
+        wedge.position.set(0, 0, UZ0);
+        S.group.add(wedge);
+      }
+      // Upper flight side stringer — closed-string board on the open side at z=UZ0.
+      {
+        const ST_T = 0.03;
+        const upperBottomY = 5 * RISE;
+        const upperTopY = 11 * RISE - TREAD_T;
+        const sh = new THREE.Shape();
+        sh.moveTo(W, upperBottomY);
+        sh.lineTo(UX0, upperBottomY);
+        sh.lineTo(UX0, upperTopY + 0.05);
+        sh.lineTo(W, 6 * RISE + 0.05);
+        sh.closePath();
+        const geom = new THREE.ExtrudeGeometry(sh, { depth: ST_T, bevelEnabled: false });
+        const stringer = new THREE.Mesh(geom, stringerMat);
+        stringer.position.set(0, 0, UZ0 - ST_T);
+        S.group.add(stringer);
+      }
+      // Upper flight handrail — sloped cylinder + 2 newel posts on top of the open-side stringer.
+      {
+        const HR_R = 0.025;
+        const sX = W, eX = UX0;
+        const sY = 6 * RISE + 0.85, eY = 11 * RISE + 0.85;
+        const dx = eX - sX, dy = eY - sY;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const railZ = UZ0 - 0.015;
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
+        rail.rotation.z = Math.atan2(-dx, dy);
+        rail.position.set((sX + eX) / 2, (sY + eY) / 2, railZ);
+        S.group.add(rail);
+        for (const t of [0.05, 0.95]) {
+          const x = sX + t * dx;
+          const yTop = sY + t * dy;
+          const stringerTop = 6 * RISE + 0.05 + t * ((11 * RISE - TREAD_T + 0.05) - (6 * RISE + 0.05));
+          const postLen = yTop - stringerTop;
+          if (postLen > 0.05) {
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.025, postLen, 0.025), stringerMat);
+            post.position.set(x, stringerTop + postLen / 2, railZ);
+            S.group.add(post);
+          }
         }
       }
 
@@ -4478,6 +5024,44 @@
       // 2F toilet
       furn(2.95, 6.50, 3.35, 7.05, FB,        FB + 0.40, matToilet);
       furn(2.95, 6.85, 3.35, 7.10, FB + 0.40, FB + 0.85, matToilet);
+      // Phase 4 detail additions: hand-wash basin on tank, paper holder, frosted pane, picture frame
+      {
+        const matChromeT = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, metalness: 0.85, roughness: 0.2 });
+        // Hand-wash basin on top of tank (Japanese 手洗い付きタンク)
+        furn(3.05, 6.92, 3.25, 7.05, FB + 0.85, FB + 0.92, matToilet);
+        // Chrome spout coming up from the back wall over the basin
+        const spoutVert = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.06, 0.02), matChromeT);
+        spoutVert.position.set(3.15, FB + 0.94, 7.04);
+        S.group.add(spoutVert);
+        const spoutHoriz = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.07), matChromeT);
+        spoutHoriz.position.set(3.15, FB + 0.95, 7.00);
+        S.group.add(spoutHoriz);
+        // Paper holder on east wall (code-x=2.70 wall, interior face at x=2.75), alongside toilet
+        const tpBracket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.18), matChromeT);
+        tpBracket.position.set(2.78, FB + 0.85, 6.75);
+        S.group.add(tpBracket);
+        const tpRollMat = new THREE.MeshStandardMaterial({ color: 0xfdfaf3, roughness: 0.85 });
+        const tpRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.11, 16), tpRollMat);
+        tpRoll.rotation.z = Math.PI / 2;
+        tpRoll.position.set(2.83, FB + 0.81, 6.75);
+        S.group.add(tpRoll);
+        // Frosted privacy pane just inside the existing window glass at x=3.020..3.280, y=F1H+1.10..F1H+2.00
+        const matFrosted = new THREE.MeshStandardMaterial({
+          color: 0xeef2f4, transparent: true, opacity: 0.92, roughness: 0.95
+        });
+        const frostedPane = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.90, 0.012), matFrosted);
+        frostedPane.position.set(3.15, F1H + 1.55, D - 0.06);
+        S.group.add(frostedPane);
+        // Small dark picture frame on the west long wall (code-x=3.60), at eye level
+        const matPicFrame = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.6 });
+        const matPicArt = new THREE.MeshStandardMaterial({ color: 0xa89682, roughness: 0.7 });
+        const picFrame = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.30, 0.24), matPicFrame);
+        picFrame.position.set(3.55 - 0.012, FB + 1.45, 6.45);
+        S.group.add(picFrame);
+        const picArt = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.24, 0.19), matPicArt);
+        picArt.position.set(3.55 - 0.018, FB + 1.45, 6.45);
+        S.group.add(picArt);
+      }
 
       // ───────────────── lighting ─────────────────
       S.group.add(new THREE.AmbientLight(0xffffff, 0.65));
@@ -4504,12 +5088,12 @@
     fpStart: new THREE.Vector3(0.5, 1.6, 0.5),
     fpYaw: -Math.PI / 4,
     bg: 0x1a1b1f,
-    fov: 42,
+    fov: 32,
     noFirstPerson: true,
     rooms: [],
     build: function(S) {
       const RW = 2.70, RD = 2.70, RH = 2.50;
-      const WT_R = 0.02, FEAT = 0.02, BIAS = 0.003, FRAME_T = 0.04;
+      const WT_R = 0.02, FEAT = 0.04, BIAS = 0.003, FRAME_T = 0.07;
       const COL = {
         floor: 0xd4b896, ceiling: 0xf5f0e8, wall: 0xc8c2b8,
         ironDark: 0x1a1715, mattress: 0xf5eedd, deskWood: 0x8b4513,
@@ -4574,6 +5158,25 @@
         }
         return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
       }
+      // Cloth shader — adds a subtle fresnel-edge "sheen" to fabric materials
+      // (pillows, sheet, curtains). r128 has no native sheen; we inject a
+      // simple fresnel highlight via onBeforeCompile. Keep strength low —
+      // pillows in the room-1 photos are plain smooth fabric, not velvet.
+      function applyClothShader(material, sheenColor = 0xfff8ee, sheenStrength = 0.15) {
+        const sc = new THREE.Color(sheenColor);
+        material.onBeforeCompile = (shader) => {
+          shader.uniforms.sheenColor = { value: sc };
+          shader.uniforms.sheenStrength = { value: sheenStrength };
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>',
+              '#include <common>\nuniform vec3 sheenColor;\nuniform float sheenStrength;')
+            .replace('#include <output_fragment>',
+              'float NoV = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);\n' +
+              'float fresnel = pow(1.0 - NoV, 4.0);\n' +
+              'gl_FragColor.rgb += sheenColor * sheenStrength * fresnel;\n' +
+              '#include <output_fragment>');
+        };
+      }
       const matFloorR1 = pbrMatR1('wood_floor',           RW / 1.7, RD / 1.7, { roughness: 0.7 });
       // Whitewashed-plank ceiling — built with plankTex so we get plank seam
       // lines + grain at a pale base colour. Tinting the brown wood_floor map
@@ -4623,6 +5226,9 @@
         const tex = new THREE.CanvasTexture(cvs);
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
         return tex;
       })();
       ceilTexR1.repeat.set(1.5, 1.5);
@@ -4631,6 +5237,9 @@
       // Smooth painted walls — neutral cool grey, matches the real photos
       // in interior-images/room-1/. No textures (PBR plaster map looked
       // too bumpy for a freshly painted bedroom).
+      // Walls — smooth modern painted finish (the real walls in the photos
+      // are uniform painted plaster, not the rough/bumpy variety). Flat color
+      // is correct here; PBR plaster textures looked wrong against the photo.
       const wallPaintArgs = { color: 0xa9a59f, roughness: 0.55 };
       const matWall_x0 = new THREE.MeshStandardMaterial(wallPaintArgs);
       const matWall_xW = new THREE.MeshStandardMaterial(wallPaintArgs);
@@ -4643,10 +5252,13 @@
         transmission: 1.0, ior: 1.52, thickness: 0.02,
         roughness: 0.04, metalness: 0.0,
       });
-      const matFrosted = new THREE.MeshPhysicalMaterial({
-        color: 0xf2f2ec, transparent: true, opacity: 1.0,
-        transmission: 0.85, ior: 1.52, thickness: 0.02,
-        roughness: 0.85, metalness: 0.0,
+      // Frosted privacy glass: not transmissive — three.js r128's transmission
+      // doesn't blur scene geometry behind it (only the env map). Instead use
+      // an almost-opaque translucent panel so the buildings backdrop reads as
+      // a vague light/dark suggestion, like real etched bathroom glass.
+      const matFrosted = new THREE.MeshStandardMaterial({
+        color: 0xeae8e2, transparent: true, opacity: 0.93,
+        roughness: 0.95, metalness: 0.0,
       });
       const matCloset  = new THREE.MeshStandardMaterial({ color: 0xf2ece4, roughness: 0.7 });
       const matFrameR1 = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
@@ -4659,35 +5271,45 @@
       const ceil = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.02, RD), matCeilR1);
       ceil.position.set(RW/2, RH + 0.01, RD/2); S.group.add(ceil);
 
-      // 4 walls (per-wall plaster textures)
-      // window-wall (wB, x=W) and ac-wall (wD, z=D) are split into 4 segments
-      // around their windows so the glass actually shows what's beyond.
+      // 4 walls. Window-wall (wB, x=W) and ac-wall (wD, z=D) are single meshes
+      // built from a Shape with a window-shaped hole — no segment seams.
       const wA = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWall_x0);
       wA.position.set(-WT_R/2, RH/2, RD/2); S.group.add(wA);
       const wC = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWall_z0);
       wC.position.set(RW/2, RH/2, -WT_R/2); S.group.add(wC);
-      // window-wall segments around sliding window at z=[0.405, 1.595], y=[0.85, 1.75]
-      const wB_segs = [];
-      function wBseg(zStart, zLen, yStart, yLen) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(WT_R, yLen, zLen), matWall_xW);
-        m.position.set(RW + WT_R/2, yStart + yLen/2, zStart + zLen/2);
-        S.group.add(m); wB_segs.push(m);
+      // Helper: build a flat wall plane with a rectangular hole cut out.
+      // Returns a ShapeGeometry sized wallW × wallH with the hole at (hx1,hy1)-(hx2,hy2).
+      function wallShapeWithHole(wallW, wallH, hx1, hy1, hx2, hy2) {
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(wallW, 0);
+        shape.lineTo(wallW, wallH);
+        shape.lineTo(0, wallH);
+        shape.lineTo(0, 0);
+        const path = new THREE.Path();
+        path.moveTo(hx1, hy1);
+        path.lineTo(hx2, hy1);
+        path.lineTo(hx2, hy2);
+        path.lineTo(hx1, hy2);
+        path.lineTo(hx1, hy1);
+        shape.holes.push(path);
+        return new THREE.ShapeGeometry(shape);
       }
-      wBseg(0, RD, 0, 0.85);                          // below
-      wBseg(0, RD, 1.75, RH - 1.75);                  // above
-      wBseg(0, 0.405, 0.85, 0.90);                    // left
-      wBseg(1.595, RD - 1.595, 0.85, 0.90);           // right
-      // ac-wall segments around frosted window at x=[0.30, 0.56], y=[0.9, 1.9]
-      const wD_segs = [];
-      function wDseg(xStart, xLen, yStart, yLen) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(xLen, yLen, WT_R), matWall_zD);
-        m.position.set(xStart + xLen/2, yStart + yLen/2, RD + WT_R/2);
-        S.group.add(m); wD_segs.push(m);
-      }
-      wDseg(0, RW, 0, 0.9);                           // below
-      wDseg(0, RW, 1.9, RH - 1.9);                    // above
-      wDseg(0, 0.30, 0.9, 1.0);                       // left
-      wDseg(0.56, RW - 0.56, 0.9, 1.0);               // right
+      // Make the segmented walls double-sided so the user can see them from
+      // outside the room too (since these are flat single-mesh planes, not boxes).
+      matWall_xW.side = THREE.DoubleSide;
+      matWall_zD.side = THREE.DoubleSide;
+      // window-wall: hole at sliding window z=[0.405, 1.595], y=[0.85, 1.75]
+      // ShapeGeometry on (x, y) plane, normal +z; rotate -90° around y so x→z and normal→-x.
+      const wB = new THREE.Mesh(wallShapeWithHole(RD, RH, 0.405, 0.85, 1.595, 1.75), matWall_xW);
+      wB.rotation.y = -Math.PI/2;
+      wB.position.set(RW, 0, 0);
+      S.group.add(wB);
+      // ac-wall: hole at frosted window x=[0.30, 0.56], y=[0.9, 1.9]
+      // ShapeGeometry on (x, y) plane, normal +z; positioned at z=RD (normal points away from room — DoubleSide makes it visible from inside too).
+      const wD = new THREE.Mesh(wallShapeWithHole(RW, RH, 0.30, 0.9, 0.56, 1.9), matWall_zD);
+      wD.position.set(0, 0, RD);
+      S.group.add(wD);
 
       // Suburban Japanese houses backdrop visible through the windows.
       // 2F view — neighbour roofs / 2nd-floor walls + sky.
@@ -4764,11 +5386,14 @@
         }
         const t = new THREE.CanvasTexture(cvs);
         t.encoding = THREE.sRGBEncoding;
+        t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        t.minFilter = THREE.LinearMipmapLinearFilter;
+        t.magFilter = THREE.LinearFilter;
         return t;
       })();
       // Backdrop plane outside the window-wall (sliding window).
       {
-        const planeMat = new THREE.MeshBasicMaterial({ map: buildingsTex, side: THREE.DoubleSide });
+        const planeMat = new THREE.MeshBasicMaterial({ map: buildingsTex, side: THREE.DoubleSide, toneMapped: false });
         const plane = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), planeMat);
         plane.position.set(RW + 3.0, 1.5, RD / 2);
         plane.rotation.y = -Math.PI / 2; // face -x toward the room
@@ -4776,7 +5401,7 @@
       }
       // Backdrop plane outside the ac-wall (frosted privacy window).
       {
-        const planeMat = new THREE.MeshBasicMaterial({ map: buildingsTex, side: THREE.DoubleSide });
+        const planeMat = new THREE.MeshBasicMaterial({ map: buildingsTex, side: THREE.DoubleSide, toneMapped: false });
         const plane = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), planeMat);
         plane.position.set(RW / 2, 1.5, RD + 3.0);
         plane.rotation.y = Math.PI; // face -z toward the room
@@ -4800,12 +5425,13 @@
       feat('x', RW, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
       winFrame('x', RW, -1, 0.405, 1.595, 0.85, 1.75, matFrameR1);
       // central vertical mullion — meeting point of the two hikichigai panels.
-      feat('x', RW, -1, { a1: 0.99, a2: 1.01, b1: 0.85, b2: 1.75 }, matFrameR1);
+      feat('x', RW, -1, { a1: 0.98, a2: 1.02, b1: 0.85, b2: 1.75 }, matFrameR1);
       // curtains on window-wall — gathered + tieback at both sides of the sliding window.
       // Hourglass-shaped bunched fabric (wide top + bottom, narrow at the tieback).
       {
         const matCurt = new THREE.MeshStandardMaterial({ color: 0xddd2c0, roughness: 1 });
         const matBand = new THREE.MeshStandardMaterial({ color: 0xc7bba2, roughness: 0.95 });
+        applyClothShader(matCurt);
         const cTop = 1.85, cX = RW - 0.10;
         const SHELF_TOP_Y = 1.27;
         function bunch(zPos, yBot, yTie) {
@@ -4938,7 +5564,7 @@
         const cx = (panel.x1+panel.x2)/2, cz = (panel.z1+panel.z2)/2;
         box(w, topRail.y2-topRail.y1, d, cx, (topRail.y1+topRail.y2)/2, cz, COL.ironDark, IRON);
         box(w, botRail.y2-botRail.y1, d, cx, (botRail.y1+botRail.y2)/2, cz, COL.ironDark, IRON);
-        const barT = 0.03;
+        const barT = 0.05;
         const barH = topRail.y1 - botRail.y2;
         const barCy = (topRail.y1 + botRail.y2)/2;
         for (let i = 0; i < nBars; i++) {
@@ -4971,6 +5597,9 @@
         const matSheet = new THREE.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.95 });
         const matPillowWhite = new THREE.MeshStandardMaterial({ color: 0xfafaf4, roughness: 0.95 });
         const matPillowAccent = new THREE.MeshStandardMaterial({ color: 0x4d534f, roughness: 0.95 });
+        applyClothShader(matSheet);
+        applyClothShader(matPillowWhite);
+        applyClothShader(matPillowAccent);
         // sheet — flat slab over the mattress, slightly oversized so it drapes.
         const sheet = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.04, 1.04), matSheet);
         sheet.position.set(1.7, 0.52, 2.2); S.group.add(sheet);
@@ -5094,6 +5723,9 @@
           t.wrapS = THREE.RepeatWrapping;
           t.wrapT = THREE.RepeatWrapping;
           t.repeat.set(2, 3);
+          t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          t.minFilter = THREE.LinearMipmapLinearFilter;
+          t.magFilter = THREE.LinearFilter;
           return t;
         })();
         const matShade = new THREE.MeshStandardMaterial({
@@ -5127,11 +5759,11 @@
 
       // lighting — sunlight through window-wall (x=W) casting shadows
       S.group.add(new THREE.AmbientLight(0xffffff, 0.25));
-      const dir1 = new THREE.DirectionalLight(0xfff4e0, 0.85);
+      const dir1 = new THREE.DirectionalLight(0xfff4e0, 1.6);
       dir1.position.set(6.5, 4.5, 1.35);
       dir1.target.position.set(1.0, 0.6, 1.35);
       dir1.castShadow = true;
-      dir1.shadow.mapSize.set(2048, 2048);
+      dir1.shadow.mapSize.set(4096, 4096);
       dir1.shadow.camera.left = -3;
       dir1.shadow.camera.right = 3;
       dir1.shadow.camera.top = 3;
@@ -5140,7 +5772,7 @@
       dir1.shadow.camera.far = 12;
       dir1.shadow.bias = -0.0005;
       dir1.shadow.normalBias = 0.02;
-      dir1.shadow.radius = 6;            // softer shadow edges (PCFSoftShadowMap kernel)
+      dir1.shadow.radius = 4;            // narrower than the thinnest geometry so shadows don't bleed through bedposts/mullion
       S.group.add(dir1);
       S.group.add(dir1.target);
       // cool fill light from the cabinet-wall side — fills the dark corners
@@ -5168,7 +5800,7 @@
       // furniture and projecting them onto their outside faces — i.e. the
       // room would look like an X-ray box from outside. Floor still
       // receives shadows so the sun beam still lands on it inside.
-      for (const m of [wA, wC, ceil, ...wB_segs, ...wD_segs]) {
+      for (const m of [wA, wC, ceil, wB, wD]) {
         m.castShadow = false;
         m.receiveShadow = false;
       }
@@ -5551,6 +6183,14 @@
           // Floor-level zones default to the open iso (top-down) view.
           if (v.id === '1f' || v.id === '2f') {
             applyQAView(S, room, 'iso');
+            // Hide the floor's own ceiling so the top-down view isn't blocked.
+            S.group.traverse(obj => {
+              if (obj.isMesh && obj.userData._isCeiling && obj.userData._ceilingFloor === v.id) {
+                if (obj.userData._qaOrigVisible === undefined) obj.userData._qaOrigVisible = obj.visible;
+                obj.userData._qaIsolated = true;
+                obj.visible = false;
+              }
+            });
           }
           showQARow(room, v);
         } else {
@@ -5754,11 +6394,13 @@
       orbit.update();
     }
     updateRoomLabel();
-    if (activeScene === 'room-1' && _room1Composer) {
-      _room1Composer.render();
-    } else {
-      renderer.render(scene, camera);
-    }
+    // Plain renderer.render uses the browser's hardware MSAA (antialias: true
+    // on the WebGLRenderer). For room-1 we previously routed through
+    // EffectComposer for bloom, but composer pipelines in r128 produce
+    // fundamentally lower-quality AA than browser MSAA — confirmed jagged
+    // edges across many tuning attempts. So all scenes now use the plain
+    // path. Lamp glow lives purely in the emissive material (no bloom halo).
+    renderer.render(scene, camera);
   }
   animate();
 })();

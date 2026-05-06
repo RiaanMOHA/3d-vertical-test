@@ -1,4 +1,6 @@
-# Phase D — per-room 3D rebuild plan
+# SUPERSEDED — Phase D per-room 3D rebuild plan (HISTORICAL, do not follow)
+
+> **SUPERSEDED — DO NOT FOLLOW.** This was an older per-room rebuild plan. The work it describes is **already done** and the current source of truth is `../master-plan.md` (which marks all relevant rooms as ✅ done). This file is kept for history only. The phase numbers in this file (D-1 through D-8) are **obsolete** and should not be quoted as current. If you find yourself reading this file looking for "what to do next," stop and read `../master-plan.md` instead.
 
 Replaces placeholder mattress/toilet boxes in the interior scene's bedroom + wet-room zones with detailed geometry per each room's `room-map.md`.
 

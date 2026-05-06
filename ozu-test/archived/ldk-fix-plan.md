@@ -1,4 +1,6 @@
-# LDK fix plan
+# SUPERSEDED — LDK fix plan (HISTORICAL, do not follow)
+
+> **SUPERSEDED — DO NOT FOLLOW.** This was an older LDK (living-dining-kitchen) repositioning + polish plan. Phase 1 (furniture repositioning) and Phase 3 (geometry polish — TV console, kitchen pass-through, AC unit detail, curtains) are **already done** per `../master-plan.md`. Phase 2's brick-texture decision is also resolved (deferred indefinitely per master plan). This file is kept for history only. If you find yourself reading this file looking for "what to do next," stop and read `../master-plan.md` instead.
 
 Plan to fix the audit findings on `ozu-test.html` LDK + front-facade work. Three phases, pause for review between each.
 

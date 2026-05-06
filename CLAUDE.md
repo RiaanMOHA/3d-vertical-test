@@ -16,19 +16,31 @@ A multi-project hub for interactive 3D web prototypes. Each project is a single 
 ## Folder map
 
 ```
-index.html               project hub — lists each project as a card
-ozu-test.html            main project: 3D house reconstruction (~2,200 lines of app code + inlined three.js)
-test.html                playground / prototype sandbox — DO NOT delete or modify
-ozu-test/                source assets for ozu-test.html
-  blueprints/            blueprint PDF + derived measurement docs (Phase A/C output)
-  exterior-images/       front-facade photos for the exterior build
-  interior-images/       per-room photo folders + room-map.md per room
-  ldk-fix-plan.md        living-dining-kitchen polish plan
-  phase-d-plan.md        per-room rebuild plan
-test/                    playground / prototype assets — DO NOT delete or modify
-.handoffs/               per-session handoff journals — managed by /handoff and /pickup skills
-showcase/                gitignored portfolio documentation (9 files)
+index.html                          project hub — lists each project as a card
+ozu-test.html                       main project: 3D house reconstruction (~2,200 lines of app code + inlined three.js)
+test.html                           playground / prototype sandbox — DO NOT delete or modify
+ozu-test/                           source assets + ACTIVE plans for ozu-test.html
+  blueprints/                       blueprint PDF + reference data (global-coords.md, room-identity.md)
+  exterior-images/                  front-facade photos for the exterior build
+  interior-images/                  per-room photo folders + room-map.md per room
+  master-plan.md                       ACTIVE — Ozu-1 property master plan (whole house, exterior + interior)
+  room-1-ONLY-rendering-plan.md        ACTIVE — room-1 standalone sandbox rendering plan (broad roadmap, Phases A–G)
+  room-1-ONLY-cutting-edge-plan.md     ACTIVE — focused quality pass for room-1 sandbox (sub-plan of rendering plan)
+  archived/                            SUPERSEDED plans, kept for history (do not follow)
+room-1-ONLY-v5-feasibility/         ROOM-1 ONLY — v5 feasibility audit (not the master plan, not the rendering plan)
+test/                               playground / prototype assets — DO NOT delete or modify
+.handoffs/                          per-session handoff journals — managed by /handoff and /pickup skills
+_backups/                           timestamped pre-cleanup backups (safe to delete after verification)
+showcase/                           gitignored portfolio documentation (9 files)
 ```
+
+### Plans hierarchy
+
+- **Ozu-1 master plan** (`ozu-test/master-plan.md`) — the whole property. Phases 1–8.
+- **Room-1 standalone rendering plan** (`ozu-test/room-1-ONLY-rendering-plan.md`) — only the standalone `registerScene('room-1', ...)` sandbox. Phases A–G. Distinct scope from the master plan's "room-1 zone" inside the interior scene.
+- **Room-1 cutting-edge focused plan** (`ozu-test/room-1-ONLY-cutting-edge-plan.md`) — sub-plan of the rendering plan. Focused quality pass on three specific issues: pixelation, lighting, real-world textures.
+- **Room-1 v5 feasibility audit** (`room-1-ONLY-v5-feasibility/`) — read-only research about rebuilding room-1 with 2026 tools (gaussian splats, WebGPU, AR). Not a build plan.
+- **Archived plans** (`ozu-test/archived/`) — `phase-d-plan.md` and `ldk-fix-plan.md`. Both superseded by the master plan; kept for history only.
 
 ## Conventions
 
@@ -75,4 +87,4 @@ Do not modify, rename, archive, or delete:
 
 ## Where additional context lives
 
-User preferences and feedback rules are in the per-project memory at `~/.claude/projects/-Users-riaan-3d-vertical-test/memory/MEMORY.md`. Read that to learn the user's collaboration style, past corrections, and project-specific quirks (e.g. blueprint X-mirror, stair shape, no floating geometry).
+User preferences and feedback rules are in the per-project memory at `~/.claude/projects/-home-moha-Project-3d-vertical-test/memory/MEMORY.md`. Read that to learn the user's collaboration style, past corrections, and project-specific quirks (e.g. blueprint X-mirror, stair shape, no floating geometry).
