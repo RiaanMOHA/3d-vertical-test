@@ -3,3 +3,11 @@ node_modules/
 .claude/
 showcase/
 _backups/
+# Splat training artefacts (835 MB of .ply + COLMAP output)
+_splat-train/
+# Vite + r184 sandbox scaffolded as a future Plan B; not running, not used by ozu-test.html
+room-1-3d/
+# pnpm lockfile is only for the room-1-3d sandbox above; project root uses npm
+pnpm-lock.yaml
+# QA screenshots (11 MB of session PNGs — kept locally for reference)
+qa/

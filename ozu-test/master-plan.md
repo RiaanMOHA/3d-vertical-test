@@ -105,7 +105,7 @@ Most rooms have no ceiling. Looking up shows sky. Add a ceiling to
 each room, the corridor, and the entry. Quick once you do them all in
 one sweep.
 
-**Status:** not started.
+**Status:** done.
 
 ### Phase 2 — Fix the doorways
 
@@ -117,7 +117,7 @@ needs the right type per the blueprint:
 - 🔲 Bi-fold (folding) closet doors
 - 🔲 Open archways
 
-**Status:** not started.
+**Status:** done.
 
 ### Phase 3 — Detail the genkan (entry area)
 
@@ -125,7 +125,7 @@ needs the right type per the blueprint:
 - 🔲 Shoe storage cabinet (玄関収納)
 - 🔲 Any other entry detail per the photos
 
-**Status:** not started.
+**Status:** done.
 
 ### Phase 4 — Detail the second-floor toilet
 
@@ -134,7 +134,7 @@ needs the right type per the blueprint:
 - 🔲 Frosted privacy window detail
 - 🔲 Picture frame on the long wall (decide which side)
 
-**Status:** not started.
+**Status:** done.
 
 ### Phase 5 — Real stairs (both staircases)
 
@@ -144,7 +144,7 @@ needs the right type per the blueprint:
 
 Applies to both ground-floor and second-floor staircases.
 
-**Status:** not started.
+**Status:** done.
 
 ### Phase 6 — Finish exterior polish
 
@@ -152,15 +152,144 @@ Applies to both ground-floor and second-floor staircases.
 - 🔲 Settle the back-of-house door-or-window question
 - 🔲 Add the frosted privacy window on room-4's outside wall
 
-**Status:** not started.
+**Status:** done.
 
 ### Phase 7 — Walk-through-the-house mode
 
-- 🔲 Currently half-broken (camera passes through walls + furniture).
-  Either fix it (add furniture to the wall-collision list, fix
-  through-wall) or remove the mode.
+- ✅ Removed entirely. The walk button + WASD/pointer-lock movement
+  + per-scene start positions + the wall-collision list have all
+  been deleted. Orbit is now the only camera mode.
 
-**Status:** not started.
+**Status:** done (2026-05-06, removed).
+
+### Phase 7.5 — Presentation-fidelity quick wins
+
+Applied 2026-05-06 after a deep multi-agent audit. Each item is a
+small, focused edit that closed a specific gap between the current
+build and 2026 architectural-visualization standards.
+
+- ✅ Ceramics upgraded to MeshPhysicalMaterial with clearcoat
+  (matToilet at line 3363) — toilets / basins now render as glazed
+  porcelain instead of matte plaster
+- ✅ ACES filmic tone mapping applied globally (was room-1 only) —
+  highlights no longer clip on cream walls in exterior + interior
+- ✅ Procedural PMREM environment map applied globally — metals now
+  reflect indirect light in every scene, not just room-1
+- ✅ Interior shadows enabled — DirectionalLight now casts, every
+  solid mesh casts + receives. Plus an indoor HemisphereLight for
+  sky/floor bounce
+- ✅ 2F top-of-stair parapet added — closes the 1.10 m guard gap at
+  the south edge of the stair shaft (documented but missing before)
+- ✅ Genkan 土間 step-down (150 mm) + 上がり框 wood lip step added
+  — proper Japanese front-entry geometry
+- ✅ Whitewashed wood-plank ceiling texture applied (was flat
+  plaster) — matches the photos' dominant ceiling material
+- ✅ Two warm-white PointLights at the LDK back-wall windows
+  approximate daylight streaming in (placeholder for proper
+  RectAreaLights, which need an extra inlined uniforms library)
+- ✅ Smoke detectors (住宅用火災警報器) added on every 2F bedroom
+  ceiling + at the top of the stair — mandatory per 消防法
+- ✅ 2F toilet picture frame moved from west wall to east wall per
+  photo evidence
+
+**Status:** done (2026-05-06).
+
+### Phase 7.6 — Photo-fidelity colour pass
+
+Closing visible mismatches between the build and the room photos. Each
+item is a small material-level change.
+
+- ✅ Brick accent recoloured from warm-brown (`0x5e4a3d`) to cool
+  grey-white (`0x9a9a96`) — matches the cool grey-white brick + white
+  mortar visible in the LDK and 1F-toilet photos
+- ✅ Laundry "brick" feature wall removed entirely — photos show plain
+  painted wall, not brick. The vanity wall now reverts to default
+  cream paint
+- ✅ 1F + 2F toilet floors changed from lavender-purple (`0xd6cbe0`)
+  flat colour to warm light wood plank (`0xc4a888`) using the same
+  procedural plank texture used in the bedrooms
+- ✅ LDK pendant lights (sphere shades over dining + sofa) given
+  warm-glow emissive — they now read as lit pendants instead of cold
+  dark spheres
+- ✅ Bi-fold closet door pulls + hinged door handles upgraded from
+  matte grey (`0x9a9a9a`, metalness 0.5) to chrome
+  (`0xc8cdd2`, metalness 0.85, roughness 0.18) per photos
+- ✅ Bi-fold centre seam darkened from bronze tone (`0x8a7a66`) to a
+  recessed shadow (`0x4a4a4a`) — was reading as a fake bronze strip,
+  now reads as a real fold line
+
+**Status:** done (2026-05-06).
+
+**Deferred** — needed but not yet done:
+- ✅ 2F bedroom walls — DONE (see Phase 7.8 below).
+- ✅ Front door upgrade — DONE (see Phase 7.9 below).
+- Kitchen detail pass (sink, faucet, cooktop, range hood, fridge,
+  upper cabinets, subway tile). Complex.
+
+### Phase 7.8 — Bedroom wall paint (taupe-grey)
+
+Photo evidence shows all four 2F bedrooms have taupe-grey walls
+(~`0x8e857a`), not the global cream `wallMat` (`0xeeeae3`) used
+elsewhere. The shared `wallMat` can't be tinted per-room without
+refactoring the wall builders, so a thin paint overlay was added on
+the interior face of each bedroom's walls.
+
+- ✅ New helper `addBedroomWallPaint(x0, z0, x1, z1, yFloor, ceilH,
+  doorList, gapsBySide)` — paints all four interior wall faces with
+  door + window x-ranges punched out
+- ✅ Paint Y range sits between the existing baseboard and crown
+  bands so trim still reads as a separate layer
+- ✅ Applied to room-1, room-2, room-3, room-4 with their
+  respective door + window cutouts wired up
+
+**Status:** done (2026-05-06).
+
+### Phase 7.7 — Architectural trim sweep
+
+Adds the painted-trim layer that real JP residential interiors all
+have. Uses one shared off-white `trimMat` (`0xfafaf6`) for visual
+consistency.
+
+- ✅ **Door casings (architrave / 飾り枠)** added to all 14 doors
+  automatically — the `addDoor` helper now draws four trim strips per
+  door (two vertical jambs, one top header, on each face of the
+  wall). 70 mm wide × 12 mm proud.
+- ✅ **Baseboards (巾木)** added in all four 2F bedrooms — 70 mm tall
+  strip along the floor perimeter, with door openings punched out so
+  the baseboard doesn't run through the door panels.
+- ✅ **Crown molding (回り縁)** added in the same four bedrooms — 50
+  mm strip at the ceiling line, same perimeter logic.
+- ✅ Reusable helper `addRoomTrim(x0, z0, x1, z1, yFloor, ceilH, doorList)`
+  — call it for any clean rectangular room and it handles both
+  baseboard + crown + door cuts.
+
+**Status:** done (2026-05-06).
+
+**Deferred** — trim still missing in:
+- LDK (irregular L-shape — would need either explicit per-segment
+  calls or a polygon-based perimeter helper)
+- 1F + 2F corridors (also irregular)
+- Closets (small enough not to matter visually)
+- Wet rooms (washroom, bath, toilet, laundry, genkan) — JP wet rooms
+  typically don't have wood baseboards, so this is correct as-is
+
+### Phase 7.9 — Front door rebuild
+
+The genkan front door was previously a flat tan box (`doorMat 0xb89878`).
+Photos show a typical 2026 JP residential entry: two-tone steel slab
+with a vertical glass slit, chrome grip pull, brushed kickplate, and
+mail slot.
+
+- ✅ Removed the front door from the standard `addDoor` loop and built
+  it custom with seven elements: lower brown panel + upper charcoal
+  panel + vertical glass slit (transmission glass) + chrome grip pull
+  + brushed kickplate + mail slot + transom + casing
+- ✅ Geometry matches the existing 0.90 m × 2.00 m opening; no other
+  wall or doorway data touched
+- ✅ Architrave matches the trim style used by every other door
+  (trimMat off-white, 70 mm wide × 12 mm proud)
+
+**Status:** done (2026-05-06).
 
 ### Phase 8 — Small clean-ups
 

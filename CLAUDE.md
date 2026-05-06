@@ -7,11 +7,15 @@ A multi-project hub for interactive 3D web prototypes. Each project is a single 
 ## Stack
 
 - Vanilla HTML, CSS custom properties, vanilla JavaScript
-- three.js r128 inlined into each project HTML file (no external library load, works offline)
-- Custom inline `OrbitControls` class (with a Mac-trackpad phantom-zoom guard)
+- **three.js r184 (May 2026)** loaded as ESM from `vendor/three/build/three.module.min.js` (~365 KB minified)
+- **HDRLoader** from `vendor/three/examples/jsm/loaders/HDRLoader.js` — loads Poly Haven HDRI for real sky-based IBL
+- HDRI asset: `ozu-test/hdri/kloppenheim_06_puresky_2k.hdr` (~4.4 MB, CC0, suburban afternoon sky)
+- Project script uses `<script type="module">` — natively ESM, no bundler
+- Custom inline `OrbitControls` class kept (with a Mac-trackpad phantom-zoom guard) — distinct from official r184 `OrbitControls`, which is also vendored
 - Python `http.server` as the dev server, wrapped with `concurrently` (only npm dependency)
 - Package manager: npm
 - No bundler, no transpiler, no framework, no build step
+- Works offline once `vendor/` + `ozu-test/hdri/` are populated (initial download requires network)
 
 ## Folder map
 
@@ -46,7 +50,7 @@ showcase/                           gitignored portfolio documentation (9 files)
 
 ### Architecture
 
-- **One HTML file per project.** No project may grow into a folder of separate JS files. Three.js stays inlined.
+- **One HTML file per project.** Project source code stays in a single `<script type="module">` block. Three.js + HDRLoader + HDRI are vendored into `vendor/` and `ozu-test/hdri/` respectively; the HTML file imports them as ESM modules.
 - **Three-layer hierarchy:** platform (`index.html`) → project (`ozu-test.html`) → in-page interior transitions. Never spawn a separate URL or port for an interior view.
 - **Window arrays as single source of truth:** in `ozu-test.html`, the `F1_WIN_*` and `F2_WIN_*` arrays drive both the exterior and interior scenes. Edit the array, both scenes update.
 - **Source-of-truth hierarchy (when sources conflict):** blueprint at 400 dpi > photos > room maps > HTML code comments > existing 3D code > memory rules > never eyeball.
@@ -67,6 +71,18 @@ showcase/                           gitignored portfolio documentation (9 files)
 - Format: `<scope>: <short description>` followed by a short body.
 - Scope is usually `ozu-test` for project work, `cleanup` for housekeeping.
 - Examples in the repo log: `ozu-test: 2-layer outer walls, brown panel inset, LDK polish, room-4 build`.
+
+## No constraints — full power, always
+
+You have access to an incredibly powerful GPU. **Never artificially constrain audits, research, parallel agents, search depth, or analysis breadth.** Specifically:
+
+- When the user asks for "cutting edge" / "latest" / "state of the art" research, target THE ABSOLUTE CURRENT MOMENT — not "recent" (months stale), not training-cutoff. Use date-qualified web searches (`"<topic>" "<current month> <current year>"`), pull live release pages (GitHub releases, arXiv recent lists, browser/spec changelogs), cross-check 3+ independent sources before stating a version number. If a finding might be outdated, say so explicitly with the date of the source.
+- When auditing, fan out into many parallel agents covering every angle. Don't pre-decide that one phase or one front matters more than another — let the evidence rank itself.
+- When researching, never stop at "good enough." If the user reads as wanting the bleeding edge, run multiple search rounds with different query framings (technical / vendor / academic / community).
+- Never hedge with vague time language ("recent", "fairly current", "as of training"). Either cite a dated source or flag the gap.
+- Token budget, agent count, and search depth are not constraints to manage on the user's behalf. The user will tell you if they want a smaller scope.
+
+If a task could be answered superficially or thoroughly, default to thoroughly.
 
 ## Commands
 

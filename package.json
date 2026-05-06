@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "Top-level dev runner — serves the platform (index.html) and project pages (ozu-test.html) on port 8080",
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --raw \"python3 -m http.server 8080\" \"sleep 1 && open http://localhost:8080/index.html\"",
+    "dev": "concurrently --kill-others-on-fail --raw \"python3 -m http.server 8080\" \"sleep 1 && (xdg-open http://localhost:8080/index.html || open http://localhost:8080/index.html)\"",
     "dev:no-open": "python3 -m http.server 8080"
   },
   "devDependencies": {
