@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<title>laundry-test — 3D projects</title>
+<style>
+  :root {
+    --hotspot-surface: rgba(255, 255, 255, 0.92);
+    --hotspot-text-primary: #000000;
+    --hotspot-text-secondary: rgba(60, 60, 67, 0.6);
+    --hotspot-separator: rgba(60, 60, 67, 0.18);
+    --hotspot-tint: #007AFF;
+    --hotspot-scrim: rgba(0, 0, 0, 0.4);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --hotspot-surface: rgba(28, 28, 30, 0.92);
+      --hotspot-text-primary: #ffffff;
+      --hotspot-text-secondary: rgba(235, 235, 245, 0.6);
+      --hotspot-separator: rgba(84, 84, 88, 0.65);
+      --hotspot-tint: #0A84FF;
+      --hotspot-scrim: rgba(0, 0, 0, 0.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #back-link {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: rgba(28,28,30,0.78);
+    color: #fff; text-decoration: none;
+    font-size: 20px; line-height: 1;
+    border: 1px solid rgba(255,255,255,0.16);
+    z-index: 100;
+  }
+  #hint {
+    position: absolute;
+    left: 50%; top: calc(14px + var(--safe-top));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 120px - var(--safe-left) - var(--safe-right));
+    padding: 8px 14px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    font-size: 12px; line-height: 1.3;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    pointer-events: none;
+    z-index: 90;
+  }
+  #hotspots-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+  .hotspot {
+    position: absolute; left: 0; top: 0;
+    width: 44px; height: 44px;
+    padding: 0; border: 0; margin: 0;
+    background: transparent; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    pointer-events: auto;
+    will-change: transform;
+  }
+  .hotspot__dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--hotspot-tint);
+    box-shadow:
+      0 0 0 3px rgba(255,255,255,0.85),
+      0 2px 6px rgba(0,0,0,0.35);
+    animation: hotspot-pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes hotspot-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(0.85); opacity: 0.7; }
+  }
+  #popover-scrim {
+    position: fixed; inset: 0;
+    background: var(--hotspot-scrim);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    display: none;
+  }
+  #popover-scrim.open { display: block; }
+  #popover {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(380px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: var(--hotspot-surface);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 14px;
+    color: var(--hotspot-text-primary);
+    z-index: 210;
+    display: none;
+    padding: 18px;
+  }
+  #popover.open { display: block; }
+  #popover h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  #popover .meta { font-size: 12px; color: var(--hotspot-text-secondary); margin-bottom: 12px; }
+  #popover dl { margin: 0; }
+  #popover dt { font-size: 11px; color: var(--hotspot-text-secondary); margin-top: 8px; text-transform: none; }
+  #popover dd { margin: 2px 0 0; font-size: 13px; }
+  #popover .actions { display: flex; gap: 8px; margin-top: 16px; }
+  #popover .btn {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--hotspot-separator);
+    background: transparent;
+    color: var(--hotspot-text-primary);
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    text-align: center;
+  }
+  #popover .btn.primary {
+    background: var(--hotspot-tint);
+    color: #fff;
+    border-color: transparent;
+  }
+</style>
+</head>
+<body>
+<a id="back-link" href="index.html" aria-label="back">←</a>
+<div id="hint">click a dot · drag to orbit · wheel to zoom</div>
+<div id="app"></div>
+<div id="hotspots-layer"></div>
+<div id="popover-scrim"></div>
+<div id="popover" role="dialog" aria-modal="true">
+  <h2 id="pv-name"></h2>
+  <div class="meta" id="pv-meta"></div>
+  <dl id="pv-spec"></dl>
+  <div class="actions">
+    <a class="btn" id="pv-ref" target="_blank" rel="noopener">spec</a>
+    <button class="btn primary" id="pv-close">close</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.min.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { HDRLoader }                from './vendor/three/examples/jsm/loaders/HDRLoader.js';
+import { RoundedBoxGeometry }       from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+RectAreaLightUniformsLib.init();
+
+/* ====================================================================== */
+/* Renderer + Scene + Camera                                              */
+/* ====================================================================== */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.52;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0e10);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 50);
+camera.position.set(2.40, 1.55, 2.30);
+camera.lookAt(0.90, 0.85, 1.50);
+
+/* ====================================================================== */
+/* Inline OrbitControls — Mac-trackpad phantom-zoom guard                 */
+/* ====================================================================== */
+class OrbitControls {
+  constructor(cam, el) {
+    this.cam = cam; this.el = el;
+    this.target = new THREE.Vector3(0.90, 0.85, 1.50);
+    this.spherical = new THREE.Spherical();
+    this.minDistance = 0.40; this.maxDistance = 8.0;
+    this.minPolar = 0.10; this.maxPolar = Math.PI * 0.49;
+    this._dragging = false; this._lastMouseupAt = 0;
+    this._x0 = 0; this._y0 = 0;
+    this._update();
+    el.addEventListener('mousedown', e => this._down(e));
+    el.addEventListener('wheel', e => this._wheel(e), { passive: false });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('mousemove', e => this._move(e));
+    window.addEventListener('mouseup', () => this._up());
+    /* Touch */
+    el.addEventListener('touchstart', e => this._tdown(e), { passive: false });
+    el.addEventListener('touchmove',  e => this._tmove(e), { passive: false });
+    el.addEventListener('touchend',   () => this._tup());
+  }
+  _down(e) { this._dragging = true; this._x0 = e.clientX; this._y0 = e.clientY; }
+  _up()    { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _move(e) {
+    if (!this._dragging) return;
+    const dx = e.clientX - this._x0, dy = e.clientY - this._y0;
+    this._x0 = e.clientX; this._y0 = e.clientY;
+    this.spherical.theta -= dx * 0.005;
+    this.spherical.phi   -= dy * 0.005;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _wheel(e) {
+    /* Block wheel during drag and 400 ms post-mouseup (Mac trackpad guard) */
+    if (this._dragging) return;
+    if (performance.now() - this._lastMouseupAt < 400) return;
+    e.preventDefault();
+    const f = Math.exp(e.deltaY * 0.0015);
+    this.spherical.radius *= f;
+    this.spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.spherical.radius));
+    this._update();
+  }
+  _tdown(e) { if (e.touches.length === 1) { this._dragging = true; this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY; } }
+  _tmove(e) {
+    if (!this._dragging || e.touches.length !== 1) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - this._x0, dy = e.touches[0].clientY - this._y0;
+    this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY;
+    this.spherical.theta -= dx * 0.006;
+    this.spherical.phi   -= dy * 0.006;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _tup() { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _update() {
+    const offset = new THREE.Vector3().subVectors(this.cam.position, this.target);
+    if (this.spherical.radius === 0) {
+      this.spherical.setFromVector3(offset);
+    } else {
+      offset.setFromSpherical(this.spherical);
+    }
+    this.cam.position.copy(this.target).add(offset);
+    this.cam.lookAt(this.target);
+  }
+}
+const controls = new OrbitControls(camera, renderer.domElement);
+
+/* ====================================================================== */
+/* HDRI for IBL — kloppenheim puresky, filtered through PMREM for          */
+/* sharper / mip-mapped reflections (matches kitchen-test setup).         */
+/* ====================================================================== */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+
+new HDRLoader().load('ozu-test/hdri/kloppenheim_06_puresky_2k.hdr', (hdr) => {
+  const envMap = pmrem.fromEquirectangular(hdr).texture;
+  scene.environment = envMap;
+  hdr.dispose();
+});
+
+/* ====================================================================== */
+/* Lights — match kitchen-test patterns: hemi fill, big window RectArea + */
+/* directional sun for shadows, multiple ceiling downlights, emissive    */
+/* sky proxy outside the window.                                          */
+/* ====================================================================== */
+
+/* Hemisphere — gentle ambient lift so deep shadows don't go pure black */
+scene.add(new THREE.HemisphereLight(0xdde8f0, 0x4a4035, 0.22));
+
+/* ====================================================================== */
+/* Texture helpers                                                         */
+/* ====================================================================== */
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+function makeCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return c;
+}
+
+/* Rounded box — wraps RoundedBoxGeometry with a sensible default radius
+   that scales with the smallest dimension so we never over-round small parts. */
+function roundedBox(w, h, d, radiusOpt = null, segments = 4) {
+  const minDim = Math.min(w, h, d);
+  const r = radiusOpt !== null
+    ? Math.min(radiusOpt, minDim * 0.49)
+    : Math.min(0.004, minDim * 0.30);
+  return new RoundedBoxGeometry(w, h, d, segments, r);
+}
+
+function texFromCanvas(canvas, opts = {}) {
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (opts.repeat) t.repeat.set(opts.repeat[0], opts.repeat[1]);
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+
+function cloneTex(tex, rx, ry, ox = 0, oy = 0) {
+  const c = tex.clone();
+  c.needsUpdate = true;
+  c.repeat.set(rx, ry);
+  c.offset.set(ox, oy);
+  c.anisotropy = MAX_ANISO;
+  return c;
+}
+
+/* === Poly Haven photo PBR — reuse kitchen-test's downloaded textures === */
+const phLoader = new THREE.TextureLoader();
+function phLoad(path, sRGB) {
+  const t = phLoader.load(path);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = sRGB ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+const phWoodDiff = phLoad('kitchen-test/textures/laminate_floor_02_diff.jpg',  true);
+const phWoodNor  = phLoad('kitchen-test/textures/laminate_floor_02_nor_gl.jpg', false);
+const phWoodArm  = phLoad('kitchen-test/textures/laminate_floor_02_arm.jpg',    false);
+
+/* Sobel-based normal generator from a luminance canvas */
+function deriveNormalFromCanvas(canvas, strength = 1.0) {
+  const w = canvas.width, h = canvas.height;
+  const ctx2 = canvas.getContext('2d');
+  const src = ctx2.getImageData(0, 0, w, h).data;
+  const dst = new Uint8ClampedArray(w * h * 4);
+  const lum = (i) => 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const xL = (x - 1 + w) % w, xR = (x + 1) % w;
+      const yU = (y - 1 + h) % h, yD = (y + 1) % h;
+      const dx = (lum((y * w + xR) * 4) - lum((y * w + xL) * 4)) * strength;
+      const dy = (lum((yD * w + x) * 4) - lum((yU * w + x) * 4)) * strength;
+      const nx = -dx, ny = -dy, nz = 255;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      dst[i]     = (nx / len) * 127 + 128;
+      dst[i + 1] = (ny / len) * 127 + 128;
+      dst[i + 2] = (nz / len) * 127 + 128;
+      dst[i + 3] = 255;
+    }
+  }
+  const out = makeCanvas(w, h);
+  out.getContext('2d').putImageData(new ImageData(dst, w, h), 0, 0);
+  const t = new THREE.CanvasTexture(out);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+
+/* Taupe paint — warm grey-brown, faint stipple */
+const paintCanvas = (() => {
+  const c = makeCanvas(256, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9b948c';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1500; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    const v = 140 + Math.random() * 30;
+    ctx.fillStyle = `rgba(${v},${v - 6},${v - 12},0.06)`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  return c;
+})();
+const paintNormalTex = deriveNormalFromCanvas(paintCanvas, 0.6);
+
+/* === Drum interior — hexagonal hole pattern derived as a normal map.
+   Real drum-type washer drums have ~3 mm punched holes in a hex grid; baking
+   a normal-only representation lets light catch every hole without geometry. */
+const drumHoleCanvas = (() => {
+  const c = makeCanvas(512, 512);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#aab0b8';        /* base brushed-stainless grey */
+  ctx.fillRect(0, 0, 512, 512);
+  const r = 9;                       /* hole radius (px) */
+  const dx = 26, dy = 22;            /* hex grid spacing */
+  for (let row = 0; row < 512 / dy + 1; row++) {
+    const offset = (row % 2) * (dx / 2);
+    for (let col = 0; col < 512 / dx + 1; col++) {
+      const x = col * dx + offset;
+      const y = row * dy;
+      /* dark spot = "hole" → normal map will read as a deep dimple */
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0,   '#202428');
+      grad.addColorStop(0.7, '#404750');
+      grad.addColorStop(1,   '#aab0b8');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  return c;
+})();
+const drumHoleNormalTex = deriveNormalFromCanvas(drumHoleCanvas, 2.0);
+
+/* === SHARP logo — small canvas-rendered text, blue on transparent === */
+const sharpLogoCanvas = (() => {
+  const c = makeCanvas(256, 64);
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 256, 64);
+  ctx.fillStyle = '#1f3da6';        /* Sharp brand blue */
+  ctx.font = 'bold 38px -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SHARP', 128, 34);
+  return c;
+})();
+
+/* Brick — cool grey-white blocks with white mortar */
+const brickCanvas = (() => {
+  const c = makeCanvas(512, 512);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e3e1dc';      /* mortar */
+  ctx.fillRect(0, 0, 512, 512);
+  const bw = 64, bh = 28, mortar = 4;
+  for (let row = 0; row < 512 / bh; row++) {
+    const offset = (row % 2) * (bw / 2);
+    for (let col = -1; col <= 512 / bw; col++) {
+      const x = col * bw + offset;
+      const y = row * bh;
+      const tone = 138 + Math.floor(Math.random() * 30);
+      const r = tone, g = tone - 3, b = tone - 8;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x + mortar / 2, y + mortar / 2, bw - mortar, bh - mortar);
+      /* Speckle on each brick */
+      for (let i = 0; i < 14; i++) {
+        const sx = x + mortar / 2 + Math.random() * (bw - mortar);
+        const sy = y + mortar / 2 + Math.random() * (bh - mortar);
+        const v  = tone - 20 + Math.random() * 30;
+        ctx.fillStyle = `rgba(${v},${v - 4},${v - 8},0.4)`;
+        ctx.fillRect(sx, sy, 1, 1);
+      }
+    }
+  }
+  return c;
+})();
+const brickNormalTex = deriveNormalFromCanvas(brickCanvas, 1.5);
+
+/* (Floor uses Poly Haven photo PBR — see phWoodDiff/Nor/Arm above.) */
+
+/* ====================================================================== */
+/* Materials                                                               */
+/* ====================================================================== */
+const matWall = new THREE.MeshPhysicalMaterial({
+  map: texFromCanvas(paintCanvas, { repeat: [2, 2] }),
+  normalMap: cloneTex(paintNormalTex, 2, 2),
+  normalScale: new THREE.Vector2(0.20, 0.20),
+  roughness: 0.95, metalness: 0.0, envMapIntensity: 0.35,
+});
+
+const matBrick = new THREE.MeshPhysicalMaterial({
+  map: texFromCanvas(brickCanvas, { repeat: [2.0, 4.0] }),
+  normalMap: cloneTex(brickNormalTex, 2.0, 4.0),
+  normalScale: new THREE.Vector2(0.5, 0.5),
+  roughness: 0.85, metalness: 0.05, envMapIntensity: 0.4,
+});
+
+/* Floor — Poly Haven laminate_floor_02 (light oak), full PBR with ARM packed */
+const matFloor = (() => {
+  const map    = cloneTex(phWoodDiff, 2.0, 2.5);
+  const normal = cloneTex(phWoodNor,  2.0, 2.5);
+  const arm    = cloneTex(phWoodArm,  2.0, 2.5);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal,
+    normalScale: new THREE.Vector2(0.5, 0.5),
+    roughnessMap: arm, metalnessMap: arm,
+    color: 0xffffff,
+    roughness: 1.0, metalness: 1.0,
+    clearcoat: 0.10, clearcoatRoughness: 0.50,
+    envMapIntensity: 0.50,
+  });
+})();
+
+const matCeiling = new THREE.MeshStandardMaterial({
+  color: 0xeeeae3, roughness: 0.92, metalness: 0.0,
+});
+
+/* === Per-surface LIGHTMAPS baked on A6000 GPU 1 (Cycles "Combined":
+   Direct + Indirect + Diffuse + AO). These encode the full path-traced
+   lighting solution including color bleeding from the brick wall onto
+   the floor and walls — replaces the prior AO maps (lightmap subsumes AO).
+   See laundry-test/bake/bake_room_lightmap.py. */
+const aoLoader = new THREE.TextureLoader();
+
+function loadLightmap(slug, opts = {}) {
+  const tex = aoLoader.load(`laundry-test/textures/lightmap/${slug}.png`);
+  tex.colorSpace = THREE.SRGBColorSpace;     /* color, NOT data */
+  tex.channel = opts.channel ?? 0;            /* default uv0; pass 1 for custom uv1 overrides */
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.anisotropy = MAX_ANISO;
+  const rx = opts.flipU ? -1 : 1;
+  const ry = opts.flipV ? -1 : 1;
+  tex.repeat.set(rx, ry);
+  tex.offset.set(opts.flipU ? 1 : 0, opts.flipV ? 1 : 0);
+  return tex;
+}
+
+/* Floor — PlaneGeometry rotation reverses UV.y vs the bake.
+   With a lightmap the runtime envMap matters less — pre-baked GI dominates. */
+matFloor.lightMap = loadLightmap('floor', { flipV: true });
+matFloor.lightMapIntensity = 1.0;
+matFloor.envMapIntensity = 0.20;       /* dampen IBL — lightmap is doing the work */
+matFloor.needsUpdate = true;
+
+/* Door-wall (south) */
+const matDoorWall = matWall.clone();
+matDoorWall.lightMap = loadLightmap('door_wall');
+matDoorWall.lightMapIntensity = 1.0;
+matDoorWall.envMapIntensity = 0.15;
+matDoorWall.needsUpdate = true;
+
+/* Bath-wall (west) */
+const matBathWall = matWall.clone();
+matBathWall.lightMap = loadLightmap('bath_wall', { flipU: true });
+matBathWall.lightMapIntensity = 1.0;
+matBathWall.envMapIntensity = 0.15;
+matBathWall.needsUpdate = true;
+
+/* Vanity-wall (east, brick) */
+const matVanityWall = matBrick.clone();
+matVanityWall.lightMap = loadLightmap('vanity_wall', { flipU: true });
+matVanityWall.lightMapIntensity = 1.0;
+matVanityWall.envMapIntensity = 0.20;
+matVanityWall.needsUpdate = true;
+
+/* Ceiling — lightmap on the -Y face only (the only one visible from inside).
+   Bake mapping: UV(0,0)=(x=0, z=0), UV(1,1)=(x=ROOM_W, z=ROOM_D).
+   Uses channel 1 so the per-mesh uv1 override is what gets sampled. */
+const matCeilingLight = matCeiling.clone();
+matCeilingLight.lightMap = loadLightmap('ceiling', { channel: 1 });
+matCeilingLight.lightMapIntensity = 1.0;
+matCeilingLight.needsUpdate = true;
+
+/* Window-wall — single lightmap, four box fragments share it via per-mesh
+   uv1 override. Bake mapping: UV.U=(ROOM_W-x)/ROOM_W (mirrored X),
+   UV.V=y/ROOM_H. The window cutout sits at U[(ROOM_W-WIN_X1)/ROOM_W .. (ROOM_W-WIN_X0)/ROOM_W],
+   V[WIN_Y0/ROOM_H .. WIN_Y1/ROOM_H] and is rendered black in the bake.
+   channel: 1 routes lightMap sampling through uv1 (set by setLightmapUV1). */
+const matWindowWall = matWall.clone();
+matWindowWall.lightMap = loadLightmap('window_wall', { channel: 1 });
+matWindowWall.lightMapIntensity = 1.0;
+matWindowWall.envMapIntensity = 0.15;
+matWindowWall.needsUpdate = true;
+
+/* Washing-machine palette */
+const matWasherWhite = new THREE.MeshPhysicalMaterial({
+  color: 0xf2f3f5, roughness: 0.42, metalness: 0.18,
+  clearcoat: 0.50, clearcoatRoughness: 0.18,
+  /* Anisotropy for a subtle brushed-paint highlight — directional sheen
+     when light hits the side of the cabinet (per research brief). */
+  anisotropy: 0.20, anisotropyRotation: 0,
+  envMapIntensity: 0.70,
+});
+const matWasherWhiteSoft = new THREE.MeshPhysicalMaterial({
+  color: 0xe7e8ea, roughness: 0.55, metalness: 0.05,
+  envMapIntensity: 0.45,
+});
+const matWasherChrome = new THREE.MeshPhysicalMaterial({
+  color: 0xdde0e6, roughness: 0.18, metalness: 1.0,
+  clearcoat: 0.20, clearcoatRoughness: 0.10,
+  envMapIntensity: 1.0,
+});
+const matWasherDoorGlass = new THREE.MeshPhysicalMaterial({
+  color: 0x1d2024, roughness: 0.10, metalness: 0.10,
+  transmission: 0.30, ior: 1.50, thickness: 0.02,
+  clearcoat: 1.0, clearcoatRoughness: 0.04,
+  envMapIntensity: 0.9,
+});
+const matWasherDrumDark = new THREE.MeshPhysicalMaterial({
+  color: 0x36393f, roughness: 0.45, metalness: 0.85,
+  /* Procedural hex-hole normal map — gives the perforated drum look without geometry */
+  normalMap: cloneTex(drumHoleNormalTex, 6, 2),
+  normalScale: new THREE.Vector2(0.8, 0.8),
+  envMapIntensity: 0.8,
+});
+
+/* SHARP logo material — uses canvas-rendered text texture with alpha */
+const matWasherLogoText = new THREE.MeshBasicMaterial({
+  map: texFromCanvas(sharpLogoCanvas, { repeat: [1, 1] }),
+  transparent: true, alphaTest: 0.4,
+});
+const matWasherAgitator = new THREE.MeshPhysicalMaterial({
+  color: 0x3a3d42, roughness: 0.50, metalness: 0.35,
+  clearcoat: 0.25, clearcoatRoughness: 0.20,
+});
+const matWasherBlack = new THREE.MeshPhysicalMaterial({
+  color: 0x0e0f12, roughness: 0.45, metalness: 0.25,
+  clearcoat: 0.5, clearcoatRoughness: 0.20,
+});
+const matWasherLogo = new THREE.MeshStandardMaterial({
+  color: 0x1f3da6, roughness: 0.60, metalness: 0.0,
+});
+
+/* ====================================================================== */
+/* Room — 1.80 W (E-W) × 2.70 D (N-S) × 2.50 H                            */
+/* ====================================================================== */
+const ROOM_W = 1.80;
+const ROOM_D = 2.70;
+const ROOM_H = 2.50;
+const WALL_T = 0.05;
+
+/* Sliding window on north wall (window-wall): high, FL+1800. ~1.0 m wide × 0.4 m tall. */
+const WIN_X0 = 0.40, WIN_X1 = 1.40;
+const WIN_Y0 = 1.80, WIN_Y1 = 2.20;
+
+function wallBox(x0, x1, y0, y1, z0, z1, mat) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0),
+    mat
+  );
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+/* Override a BoxGeometry's uv1 channel so a single face — picked by its
+   outward normal — receives the lightmap with custom world→UV mapping.
+   All other face vertices clamp to (-1,-1) so the texture wraps to its
+   edge (ClampToEdgeWrapping), which contains the wall's diffuse colour. */
+function setLightmapUV1(mesh, faceAxis, faceSign, worldToUv) {
+  const pos = mesh.geometry.attributes.position;
+  const norm = mesh.geometry.attributes.normal;
+  const uv1 = new Float32Array(pos.count * 2);
+  const cx = mesh.position.x, cy = mesh.position.y, cz = mesh.position.z;
+  for (let i = 0; i < pos.count; i++) {
+    const n = (faceAxis === 'x' ? norm.getX(i)
+             : faceAxis === 'y' ? norm.getY(i)
+             :                    norm.getZ(i));
+    if (n * faceSign > 0.5) {
+      const wx = pos.getX(i) + cx;
+      const wy = pos.getY(i) + cy;
+      const wz = pos.getZ(i) + cz;
+      const [u, v] = worldToUv(wx, wy, wz);
+      uv1[i * 2]     = u;
+      uv1[i * 2 + 1] = v;
+    } else {
+      uv1[i * 2]     = -1;
+      uv1[i * 2 + 1] = -1;
+    }
+  }
+  mesh.geometry.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
+}
+
+/* Floor */
+{
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROOM_W, ROOM_D + 0.4),
+    matFloor
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(ROOM_W / 2, 0, ROOM_D / 2 - 0.2);
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+/* Ceiling — lightmap on the -Y face (visible from the room) */
+{
+  const ceil = new THREE.Mesh(
+    new THREE.BoxGeometry(ROOM_W + WALL_T * 2, WALL_T, ROOM_D),
+    matCeilingLight
+  );
+  ceil.position.set(ROOM_W / 2, ROOM_H + WALL_T / 2, ROOM_D / 2);
+  ceil.receiveShadow = true; ceil.castShadow = true;
+  setLightmapUV1(ceil, 'y', -1, (x, y, z) => [x / ROOM_W, z / ROOM_D]);
+  scene.add(ceil);
+}
+
+/* Bath-wall (west) — taupe paint with baked AO */
+scene.add(wallBox(-WALL_T, 0, 0, ROOM_H, 0, ROOM_D, matBathWall));
+
+/* Door-wall (south) — taupe paint with baked AO */
+scene.add(wallBox(0, ROOM_W, 0, ROOM_H, -WALL_T, 0, matDoorWall));
+
+/* Vanity-wall (east) — BRICK accent with baked AO */
+scene.add(wallBox(ROOM_W, ROOM_W + WALL_T, 0, ROOM_H, 0, ROOM_D, matVanityWall));
+
+/* Window-wall (north, z = ROOM_D..ROOM_D+WALL_T) — 4 fragments around the
+   cutout, all sharing matWindowWall + window_wall.png lightmap. Per-mesh
+   uv1 override maps each fragment's -Z face to its sub-region of the bake. */
+const NX0 = 0, NX1 = ROOM_W;
+const NZ0 = ROOM_D, NZ1 = ROOM_D + WALL_T;
+const winWallUv = (x, y, z) => [(ROOM_W - x) / ROOM_W, y / ROOM_H];
+const winFragments = [
+  wallBox(NX0,    NX1,    0,      WIN_Y0,  NZ0, NZ1, matWindowWall),  /* below */
+  wallBox(NX0,    NX1,    WIN_Y1, ROOM_H,  NZ0, NZ1, matWindowWall),  /* above */
+  wallBox(NX0,    WIN_X0, WIN_Y0, WIN_Y1,  NZ0, NZ1, matWindowWall),  /* left jamb */
+  wallBox(WIN_X1, NX1,    WIN_Y0, WIN_Y1,  NZ0, NZ1, matWindowWall),  /* right jamb */
+];
+for (const f of winFragments) {
+  setLightmapUV1(f, 'z', -1, winWallUv);
+  scene.add(f);
+}
+
+/* Window pane — frosted-ish glass + chrome frame */
+{
+  const winCx = (WIN_X0 + WIN_X1) / 2;
+  const winCy = (WIN_Y0 + WIN_Y1) / 2;
+  const winW = WIN_X1 - WIN_X0;
+  const winH = WIN_Y1 - WIN_Y0;
+  const glass = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW, winH),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xeef4f8, roughness: 0.5, metalness: 0,
+      transmission: 0.55, ior: 1.50, thickness: 0.005,
+      envMapIntensity: 0.6,
+    })
+  );
+  glass.position.set(winCx, winCy, NZ0 + WALL_T / 2);
+  glass.rotation.y = Math.PI;
+  scene.add(glass);
+
+  /* Slim chrome frame */
+  const frameT = 0.020, frameP = 0.012;
+  const frames = [
+    [winW + frameT * 2, frameT, frameP, winCx, WIN_Y0 - frameT / 2, NZ0 + WALL_T / 2 + frameP / 2],
+    [winW + frameT * 2, frameT, frameP, winCx, WIN_Y1 + frameT / 2, NZ0 + WALL_T / 2 + frameP / 2],
+    [frameT, winH + frameT * 2, frameP, WIN_X0 - frameT / 2, winCy, NZ0 + WALL_T / 2 + frameP / 2],
+    [frameT, winH + frameT * 2, frameP, WIN_X1 + frameT / 2, winCy, NZ0 + WALL_T / 2 + frameP / 2],
+  ];
+  for (const [w, h, d, x, y, z] of frames) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matWasherChrome);
+    f.position.set(x, y, z);
+    scene.add(f);
+  }
+}
+
+/* Outside sky proxy — bright warm rectangle slightly outside the window so
+   it reads as bright daylight regardless of the dimmed environment. */
+{
+  const winCx = (WIN_X0 + WIN_X1) / 2;
+  const winCy = (WIN_Y0 + WIN_Y1) / 2;
+  const winCz = NZ1 + 0.30;
+  const winW = WIN_X1 - WIN_X0;
+  const winH = WIN_Y1 - WIN_Y0;
+  const sky = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW * 1.6, winH * 1.6),
+    new THREE.MeshBasicMaterial({ color: 0xfff0d8 })
+  );
+  sky.position.set(winCx, winCy, winCz);
+  sky.rotation.y = Math.PI;        /* face into room */
+  scene.add(sky);
+
+  /* Window light — primary daylight RectAreaLight (warm, big) */
+  const winLight = new THREE.RectAreaLight(0xfff0d8, 11.2, winW, winH);
+  winLight.position.set(winCx, winCy, NZ0 - 0.02);
+  winLight.lookAt(winCx, winCy, NZ0 - 5);     /* face -Z (into room) */
+  scene.add(winLight);
+
+  /* Window directional — handles the cast shadows (RectAreaLight can't) */
+  const winSun = new THREE.DirectionalLight(0xfff0d8, 1.28);
+  winSun.position.set(winCx + 0.4, winCy + 0.4, NZ0 + 2.0);
+  winSun.target.position.set(winCx, 0.85, 1.20);
+  winSun.castShadow = true;
+  winSun.shadow.mapSize.set(2048, 2048);
+  winSun.shadow.camera.near = 0.5;
+  winSun.shadow.camera.far  = 8;
+  winSun.shadow.camera.left   = -2.0;
+  winSun.shadow.camera.right  =  2.0;
+  winSun.shadow.camera.top    =  2.0;
+  winSun.shadow.camera.bottom = -1.0;
+  winSun.shadow.bias       = -0.00015;
+  winSun.shadow.normalBias =  0.02;
+  winSun.shadow.radius     =  3;
+  scene.add(winSun, winSun.target);
+}
+
+/* Ceiling downlights — 3 warm recessed spots above the laundry floor */
+{
+  const downColor = 0xffe1b0;
+  const positions = [
+    [0.45, ROOM_H - 0.001, 0.70],
+    [0.90, ROOM_H - 0.001, 1.55],
+    [1.35, ROOM_H - 0.001, 0.70],
+  ];
+  for (const [x, y, z] of positions) {
+    const sl = new THREE.SpotLight(downColor, 3.0, 5.0, Math.PI / 4, 0.7, 1.4);
+    sl.position.set(x, y, z);
+    sl.target.position.set(x, 0, z);
+    sl.castShadow = true;
+    sl.shadow.mapSize.set(1024, 1024);
+    sl.shadow.bias = -0.0008;
+    sl.shadow.normalBias = 0.01;
+    scene.add(sl, sl.target);
+
+    /* Visible ceiling fixture (thin emissive disc) */
+    const fix = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.006, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xfff5e0, emissive: 0xffe1a8, emissiveIntensity: 1.0,
+        roughness: 0.4, metalness: 0.0,
+      })
+    );
+    fix.position.set(x, ROOM_H - 0.003, z);
+    scene.add(fix);
+  }
+}
+
+/* ====================================================================== */
+/* Washing machine — Sharp ES-11K1 (drum-type front-loader)               */
+/* External dims: W 595 mm × D 732 mm × H 1055 mm                         */
+/* Sits in the north alcove against the vanity-wall (east).               */
+/* ====================================================================== */
+const WASHER = {
+  w: 0.595, d: 0.732, h: 1.055,
+  /* Place against east wall (x = ROOM_W), north portion of room */
+  cx: ROOM_W - 0.732 / 2,         /* centre X — back face flush against vanity-wall */
+  cz: ROOM_D - 0.595 / 2 - 0.05,  /* centre Z — 5 cm clearance from north wall */
+};
+
+function makeWashingMachine(cx, cy, cz, w, d, h) {
+  const g = new THREE.Group();
+
+  /* Body — rounded white box (smooth corners, slight chamfer) */
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(d, h, w, 5, 0.020),
+    matWasherWhite
+  );
+  body.position.set(0, h / 2, 0);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* === High-res AO map baked on A6000 GPU 1 (Cycles + OptiX, see
+     laundry-test/bake/bake_washer_ao.py). Captures contact shadows from
+     the door bezel, drum cavity, agitator, lint hatch, and control panel.
+     Rendered on a SEPARATE thin plane sitting flush in front of the body's
+     front face — avoids fighting with RoundedBoxGeometry's corner topology
+     (3 prior UV1 override attempts leaked AO onto the side / top faces
+     because the rounded segmentation produced false-positive front
+     vertices). The plane uses PlaneGeometry's natural UVs which already
+     match the bake's mapping (z=-W/2→U=0, y=0→V=0). */
+  {
+    const aoTex = aoLoader.load('laundry-test/textures/ao/washer_front.png');
+    aoTex.colorSpace = THREE.NoColorSpace;
+    aoTex.wrapS = THREE.ClampToEdgeWrapping;
+    aoTex.wrapT = THREE.ClampToEdgeWrapping;
+    aoTex.magFilter = THREE.LinearFilter;
+    aoTex.minFilter = THREE.LinearMipmapLinearFilter;
+
+    /* Front-face material — clone of the body's white so anisotropy /
+       clearcoat / colour all match, plus the AO map. */
+    const matWasherFrontAO = matWasherWhite.clone();
+    matWasherFrontAO.aoMap = aoTex;
+    matWasherFrontAO.aoMapIntensity = 1.0;
+    matWasherFrontAO.needsUpdate = true;
+
+    const frontGeom = new THREE.PlaneGeometry(w, h);
+    /* aoMap reads uv1 (channel 1) by default; PlaneGeometry only generates
+       uv (channel 0). Mirror uv → uv1 so the AO samples cleanly. */
+    frontGeom.setAttribute('uv1', frontGeom.attributes.uv.clone());
+
+    const front = new THREE.Mesh(frontGeom, matWasherFrontAO);
+    /* PlaneGeometry default normal = +Z; rotation.y = -π/2 takes that to -X.
+       After rotation: plane local +X (UV.U axis) → world +Z, plane local +Y
+       (UV.V axis) → world +Y. So z=-w/2 → U=0, z=+w/2 → U=1, y=0 → V=0,
+       y=h → V=1 — matches the bake's UV mapping exactly, no flip needed.
+       The plane sits 0.8 mm proud of the body's front face so it wins the
+       depth test without z-fighting. */
+    front.rotation.y = -Math.PI / 2;
+    front.position.set(-d / 2 - 0.0008, h / 2, 0);
+    front.castShadow = false;
+    front.receiveShadow = true;
+    g.add(front);
+  }
+
+  /* The DOOR is on the front face. Front of the unit faces -X (west, into room).
+     +X = back (touching vanity-wall). */
+  const FRONT_X = -d / 2;
+
+  /* === Top control panel — sloped panel at the top-front, dark with display === */
+  {
+    /* Panel base — small dark sloped strip across top front */
+    const panelW = w - 0.06;
+    const panelD = 0.140;
+    const panelH = 0.025;
+    const panel = new THREE.Mesh(
+      roundedBox(panelD, panelH, panelW, 0.004, 3),
+      matWasherBlack
+    );
+    panel.position.set(FRONT_X + 0.080, h - panelH / 2 - 0.005, 0);
+    panel.rotation.z = -0.10;        /* tilt up slightly toward the user */
+    g.add(panel);
+
+    /* Display screen — slim white-blue inset on the panel left side */
+    const display = new THREE.Mesh(
+      new THREE.BoxGeometry(0.002, 0.014, 0.080),
+      new THREE.MeshStandardMaterial({
+        color: 0xc8d8e8, emissive: 0x4a5a78, emissiveIntensity: 0.6,
+        roughness: 0.4, metalness: 0.0,
+      })
+    );
+    display.position.set(FRONT_X + 0.040, h - 0.018, -panelW / 2 + 0.075);
+    display.rotation.z = -0.10;
+    g.add(display);
+
+    /* 5 round buttons across the panel right side */
+    for (let i = 0; i < 5; i++) {
+      const t = i / 4;
+      const btnZ = -0.015 + t * 0.250;
+      const btn = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.010, 0.010, 0.004, 20),
+        matWasherChrome
+      );
+      btn.rotation.x = Math.PI / 2 - 0.10;
+      btn.rotation.z = -0.10;
+      btn.position.set(FRONT_X + 0.040, h - 0.018, btnZ);
+      g.add(btn);
+    }
+  }
+
+  /* === Door — circular assembly inset on the front face === */
+  const doorR_outer = 0.230;
+  const doorR_inner = 0.205;
+  const doorR_glass = 0.180;
+  const doorY = h * 0.50;
+
+  /* Outer chrome bezel ring (torus) */
+  {
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(doorR_outer, 0.010, 18, 80),
+      matWasherChrome
+    );
+    rim.rotation.y = Math.PI / 2;
+    rim.position.set(FRONT_X - 0.004, doorY, 0);
+    g.add(rim);
+  }
+
+  /* White recessed door plate — slightly proud of the cabinet */
+  {
+    const plate = new THREE.Mesh(
+      new THREE.CylinderGeometry(doorR_outer - 0.008, doorR_outer - 0.008, 0.008, 64),
+      matWasherWhiteSoft
+    );
+    plate.rotation.z = Math.PI / 2;
+    plate.position.set(FRONT_X + 0.002, doorY, 0);
+    g.add(plate);
+  }
+
+  /* Inner chrome ring (the "step down" between plate and glass) */
+  {
+    const innerRim = new THREE.Mesh(
+      new THREE.TorusGeometry(doorR_inner, 0.005, 14, 64),
+      matWasherChrome
+    );
+    innerRim.rotation.y = Math.PI / 2;
+    innerRim.position.set(FRONT_X - 0.001, doorY, 0);
+    g.add(innerRim);
+  }
+
+  /* Door glass — flatter dome (small bulge, not a full hemisphere) */
+  {
+    const glass = new THREE.Mesh(
+      /* phi=π/2..π gives the "front cap" of the sphere */
+      new THREE.SphereGeometry(doorR_glass * 1.20, 48, 32, 0, Math.PI * 2, Math.PI * 0.42, Math.PI * 0.16),
+      matWasherDoorGlass
+    );
+    glass.rotation.z = -Math.PI / 2;
+    glass.position.set(FRONT_X + 0.020, doorY, 0);
+    g.add(glass);
+  }
+
+  /* === Drum interior (visible through glass) === */
+  /* Drum cylinder — perforated (normal map) */
+  {
+    const drum = new THREE.Mesh(
+      new THREE.CylinderGeometry(doorR_glass * 0.95, doorR_glass * 0.95, 0.26, 48, 1, true),
+      matWasherDrumDark
+    );
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(FRONT_X + 0.150, doorY, 0);
+    g.add(drum);
+
+    /* Drum back cap */
+    const drumBack = new THREE.Mesh(
+      new THREE.CircleGeometry(doorR_glass * 0.95, 48),
+      matWasherDrumDark
+    );
+    drumBack.rotation.y = -Math.PI / 2;
+    drumBack.position.set(FRONT_X + 0.280, doorY, 0);
+    g.add(drumBack);
+  }
+
+  /* === 3-arm Y-shape agitator === Real Sharp drums have 3 curved paddles
+     (not straight bars) radiating from a centre hub, with each paddle
+     shaped like a curved triangle. We approximate with 3 ExtrudeGeometry
+     arcs, each twisted slightly. */
+  {
+    const agX = FRONT_X + 0.105;
+    const matAg = matWasherAgitator;
+    const armLen = doorR_glass * 0.88;
+    const armW   = 0.034;
+    const armT   = 0.028;
+    for (let i = 0; i < 3; i++) {
+      const ang = (i / 3) * Math.PI * 2;
+      const arm = new THREE.Mesh(
+        new THREE.BoxGeometry(armW, armT, armLen),
+        matAg
+      );
+      /* Position each arm along its angle around the drum axis */
+      const r = armLen / 2 + 0.012;
+      arm.position.set(
+        agX,
+        doorY + Math.sin(ang) * (r * 0.40),
+        Math.cos(ang) * (r * 0.40)
+      );
+      /* Rotate to point along the radial direction */
+      arm.rotation.set(0, 0, 0);
+      arm.rotation.x = ang;
+      arm.rotation.y = -0.18;            /* slight curve / sweep */
+      g.add(arm);
+
+      /* Each arm has 3 raised parallel ridges along its length */
+      for (let r2 = 0; r2 < 3; r2++) {
+        const ridge = new THREE.Mesh(
+          new THREE.BoxGeometry(0.004, 0.005, armLen * 0.92),
+          matWasherChrome
+        );
+        const offY = (r2 - 1) * 0.010;
+        ridge.position.set(
+          agX,
+          doorY + Math.sin(ang) * (r * 0.40) + offY * Math.cos(ang),
+          Math.cos(ang) * (r * 0.40) - offY * Math.sin(ang)
+        );
+        ridge.rotation.x = ang;
+        ridge.rotation.y = -0.18;
+        g.add(ridge);
+      }
+    }
+    /* Centre hub */
+    const hub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.030, 0.030, 0.040, 32),
+      matWasherChrome
+    );
+    hub.rotation.z = Math.PI / 2;
+    hub.position.set(agX, doorY, 0);
+    g.add(hub);
+  }
+
+  /* === Door hinge nub on the LEFT side (right-opening variant per Sharp ES-11K1-WR) === */
+  {
+    const hinge = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.014, 0.050, 18),
+      matWasherChrome
+    );
+    hinge.rotation.z = Math.PI / 2;
+    hinge.position.set(FRONT_X - 0.012, doorY, -doorR_outer - 0.012);
+    g.add(hinge);
+  }
+
+  /* === Two thin grip slots on the RIGHT side of the door (handle area) === */
+  {
+    for (const sy of [-0.020, +0.020]) {
+      const slot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.006, 0.005, 0.030),
+        matWasherBlack
+      );
+      slot.position.set(FRONT_X - 0.010, doorY + sy, doorR_outer - 0.025);
+      g.add(slot);
+    }
+  }
+
+  /* === Bottom-right lint-filter access hatch === */
+  {
+    const hatchW = 0.030, hatchH = 0.150, hatchD_proud = 0.005;
+    const hatch = new THREE.Mesh(
+      new THREE.BoxGeometry(hatchD_proud, hatchH, hatchW),
+      matWasherWhiteSoft
+    );
+    hatch.position.set(FRONT_X - hatchD_proud / 2, 0.105, w / 2 - 0.080);
+    g.add(hatch);
+    /* Grip slot */
+    const slot = new THREE.Mesh(
+      new THREE.BoxGeometry(0.005, 0.006, 0.045),
+      matWasherBlack
+    );
+    slot.position.set(FRONT_X - hatchD_proud, 0.150, w / 2 - 0.080);
+    g.add(slot);
+  }
+
+  /* === SHARP logo — canvas text, top-left of the front face === */
+  {
+    const logo = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.090, 0.022),
+      matWasherLogoText
+    );
+    logo.rotation.y = -Math.PI / 2;          /* face -X */
+    logo.position.set(FRONT_X - 0.001, h - 0.085, -w / 2 + 0.090);
+    g.add(logo);
+  }
+
+  /* === Visible cabinet seam line where the front face meets the side panels === */
+  {
+    const matSeam = new THREE.MeshStandardMaterial({ color: 0xb8b9bb, roughness: 0.6 });
+    /* Vertical seams on either side of the front face */
+    for (const sz of [-w / 2 + 0.001, +w / 2 - 0.001]) {
+      const seam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.001, h - 0.060, 0.001),
+        matSeam
+      );
+      seam.position.set(FRONT_X + 0.001, h / 2, sz);
+      g.add(seam);
+    }
+  }
+
+  /* === 4 leveling feet at bottom corners === */
+  {
+    const matFoot = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.85 });
+    const fr = 0.020, fh = 0.014;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const foot = new THREE.Mesh(
+        new THREE.CylinderGeometry(fr, fr, fh, 18),
+        matFoot
+      );
+      foot.position.set(
+        sx * (d / 2 - 0.040),
+        fh / 2,
+        sz * (w / 2 - 0.040)
+      );
+      g.add(foot);
+    }
+  }
+
+  g.position.set(cx, cy, cz);
+  return g;
+}
+
+const washer = makeWashingMachine(WASHER.cx, 0, WASHER.cz, WASHER.w, WASHER.d, WASHER.h);
+scene.add(washer);
+
+/* ====================================================================== */
+/* Hotspots                                                                */
+/* ====================================================================== */
+const PRODUCTS = {
+  'washer-001': {
+    name: 'Sharp ES-11K1 drum-type washer-dryer',
+    meta: 'wash 11 kg / dry 6 kg · released 2025-09-18',
+    spec: [
+      ['Body width',     '595 mm (645 mm including drain hose)'],
+      ['Depth',          '732 mm'],
+      ['Body height',    '1,055 mm'],
+      ['Weight',         '~71 kg'],
+      ['Door swing',     '~100°, right- or left-opening variants'],
+      ['Power, dry',     '1,140 W'],
+      ['Wash cycle',     '~45 min for 11 kg'],
+      ['Wash + dry',     '~150 min for 6 kg dry load'],
+    ],
+    refUrl: 'https://jp.sharp/sentaku/products/es11k1/spec/',
+    /* World position for the dot — centred slightly above the door */
+    pos: [WASHER.cx - WASHER.d / 2 + 0.010, WASHER.h * 0.50, WASHER.cz - 0.10],
+  },
+};
+
+const hotspotsLayer = document.getElementById('hotspots-layer');
+const hotspots = [];
+for (const [id, p] of Object.entries(PRODUCTS)) {
+  const btn = document.createElement('button');
+  btn.className = 'hotspot';
+  btn.setAttribute('data-id', id);
+  btn.innerHTML = '<span class="hotspot__dot" aria-hidden="true"></span>';
+  btn.addEventListener('click', () => openPopover(id));
+  hotspotsLayer.appendChild(btn);
+  hotspots.push({ id, btn, world: new THREE.Vector3().fromArray(p.pos) });
+}
+
+const popover = document.getElementById('popover');
+const popoverScrim = document.getElementById('popover-scrim');
+const pvName = document.getElementById('pv-name');
+const pvMeta = document.getElementById('pv-meta');
+const pvSpec = document.getElementById('pv-spec');
+const pvRef  = document.getElementById('pv-ref');
+const pvClose = document.getElementById('pv-close');
+
+function openPopover(id) {
+  const p = PRODUCTS[id];
+  if (!p) return;
+  pvName.textContent = p.name;
+  pvMeta.textContent = p.meta;
+  pvSpec.innerHTML = '';
+  for (const [k, v] of p.spec) {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;
+    pvSpec.append(dt, dd);
+  }
+  pvRef.href = p.refUrl;
+  popover.classList.add('open');
+  popoverScrim.classList.add('open');
+}
+function closePopover() {
+  popover.classList.remove('open');
+  popoverScrim.classList.remove('open');
+}
+pvClose.addEventListener('click', closePopover);
+popoverScrim.addEventListener('click', closePopover);
+
+/* ====================================================================== */
+/* Render loop                                                             */
+/* ====================================================================== */
+function projectHotspots() {
+  for (const h of hotspots) {
+    const v = h.world.clone().project(camera);
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    const visible = v.z < 1 && v.x > -1 && v.x < 1 && v.y > -1 && v.y < 1;
+    h.btn.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+    h.btn.style.display = visible ? 'inline-flex' : 'none';
+  }
+}
+
+function tick() {
+  renderer.render(scene, camera);
+  projectHotspots();
+  requestAnimationFrame(tick);
+}
+tick();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

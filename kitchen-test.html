@@ -1,0 +1,3037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>kitchen-test — 3D projects</title>
+<style>
+  /* === Apple HIG color tokens === */
+  :root {
+    --hotspot-surface: rgba(255, 255, 255, 0.92);
+    --hotspot-text-primary: #000000;
+    --hotspot-text-secondary: rgba(60, 60, 67, 0.6);
+    --hotspot-separator: rgba(60, 60, 67, 0.18);
+    --hotspot-tint: #007AFF;
+    --hotspot-scrim: rgba(0, 0, 0, 0.4);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --hotspot-surface: rgba(28, 28, 30, 0.92);
+      --hotspot-text-primary: #ffffff;
+      --hotspot-text-secondary: rgba(235, 235, 245, 0.6);
+      --hotspot-separator: rgba(84, 84, 88, 0.65);
+      --hotspot-tint: #0A84FF;
+      --hotspot-scrim: rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  #back-link {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: rgba(28,28,30,0.78);
+    color: #fff; text-decoration: none;
+    font-size: 20px; line-height: 1;
+    border: 1px solid rgba(255,255,255,0.16);
+    z-index: 100;
+    transition: background 0.18s ease, transform 0.12s ease;
+  }
+  #back-link:hover { background: rgba(44,44,46,0.85); }
+  #back-link:active { transform: scale(0.96); }
+
+  #hint {
+    position: absolute;
+    left: 50%; top: calc(14px + var(--safe-top));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 120px - var(--safe-left) - var(--safe-right));
+    padding: 8px 14px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    font-size: 12px; line-height: 1.3;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  #hotspots-layer {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .hotspot {
+    position: absolute; left: 0; top: 0;
+    width: 44px; height: 44px;
+    padding: 0; border: 0; margin: 0;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    pointer-events: auto;
+    will-change: transform;
+  }
+  .hotspot__dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--hotspot-tint);
+    box-shadow:
+      0 0 0 3px rgba(255,255,255,0.85),
+      0 2px 6px rgba(0,0,0,0.35);
+    animation: hotspot-pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes hotspot-pulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50%      { opacity: 1.0; transform: scale(1.15); }
+  }
+  .hotspot:focus-visible {
+    outline: 2px solid var(--hotspot-tint);
+    outline-offset: 2px;
+    border-radius: 50%;
+  }
+
+  #scrim {
+    position: fixed; inset: 0;
+    background: var(--hotspot-scrim);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  #scrim.open { opacity: 1; }
+  @media (min-width: 768px) {
+    #scrim { display: none !important; }
+  }
+
+  #popover {
+    position: fixed;
+    background: var(--hotspot-surface);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.1);
+    color: var(--hotspot-text-primary);
+    z-index: 300;
+    opacity: 0;
+    transition: opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1),
+                transform 250ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  #popover.open { opacity: 1; }
+
+  @media (max-width: 767px) {
+    #popover {
+      left: 0; right: 0; bottom: 0;
+      width: 100%;
+      max-height: 60vh;
+      border-radius: 14px 14px 0 0;
+      padding: 28px 20px calc(24px + var(--safe-bottom));
+      transform: translateY(100%);
+      overflow-y: auto;
+    }
+    #popover.open { transform: translateY(0); }
+    .handle {
+      position: absolute; top: 12px; left: 50%;
+      transform: translateX(-50%);
+      width: 36px; height: 5px; border-radius: 2.5px;
+      background: var(--hotspot-text-secondary);
+    }
+    .arrow { display: none; }
+  }
+
+  @media (min-width: 768px) {
+    #popover {
+      width: 360px;
+      max-height: 60vh;
+      padding: 20px 20px 18px;
+      transform: translateY(8px);
+      overflow-y: auto;
+    }
+    #popover.open { transform: translateY(0); }
+    .handle { display: none; }
+    .arrow {
+      position: absolute;
+      width: 0; height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      pointer-events: none;
+    }
+    #popover .arrow {
+      bottom: -8px;
+      border-top: 8px solid var(--hotspot-surface);
+    }
+    #popover.flip-down .arrow {
+      bottom: auto; top: -8px;
+      border-top: 0;
+      border-bottom: 8px solid var(--hotspot-surface);
+    }
+  }
+  @media (min-width: 1024px) {
+    #popover {
+      width: 400px;
+      padding: 24px 24px 20px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hotspot__dot { animation: none; }
+    #popover, #scrim { transition: opacity 0s; }
+    #popover { transform: none !important; }
+  }
+
+  .close {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; background: transparent;
+    cursor: pointer;
+    color: var(--hotspot-text-secondary);
+    border-radius: 50%;
+    transition: background 250ms cubic-bezier(0.25, 0.1, 0.25, 1),
+                color 250ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  .close:hover { background: var(--hotspot-separator); color: var(--hotspot-text-primary); }
+  .close:focus-visible { outline: 2px solid var(--hotspot-tint); outline-offset: 2px; }
+  @media (max-width: 767px) {
+    .close { top: 26px; right: 12px; }
+  }
+
+  .title {
+    margin: 0 44px 4px 0;
+    font-size: 1.0625rem; font-weight: 600; line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--hotspot-text-primary);
+  }
+  .subtitle {
+    margin: 0 44px 14px 0;
+    font-size: 0.8125rem; font-weight: 400; line-height: 1.4;
+    color: var(--hotspot-text-secondary);
+  }
+  .specs {
+    list-style: none; padding: 0; margin: 0 0 16px;
+    border-top: 1px solid var(--hotspot-separator);
+  }
+  .specs li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 10px 0;
+    font-size: 0.9375rem; line-height: 1.4;
+    border-bottom: 1px solid var(--hotspot-separator);
+  }
+  .specs .k { color: var(--hotspot-text-secondary); }
+  .specs .v { color: var(--hotspot-text-primary); font-weight: 500; text-align: right; }
+  .buy {
+    display: block; width: 100%;
+    padding: 12px 16px;
+    background: var(--hotspot-tint); color: #fff;
+    border-radius: 10px;
+    text-align: center; text-decoration: none;
+    font-size: 0.9375rem; font-weight: 600;
+    transition: opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  .buy:hover { opacity: 0.9; }
+  .buy:focus-visible { outline: 2px solid var(--hotspot-tint); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="loadbox" style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9000;background:#222;color:#fff;font:14px/1.5 ui-monospace,monospace;padding:18px 22px;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">kitchen-test: loading…</div>
+<div id="errbox" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#b00020;color:#fff;font-family:ui-monospace,monospace;font-size:12px;padding:12px 16px;white-space:pre-wrap;line-height:1.5;max-height:50vh;overflow:auto;"></div>
+<script>
+  (function(){
+    var box = document.getElementById('errbox');
+    var lb  = document.getElementById('loadbox');
+    function show(msg){ box.style.display='block'; box.textContent = String(msg); }
+    window.addEventListener('error', function(e){
+      show('error: ' + (e.message || e) + '\n' + (e.filename ? e.filename + ':' + e.lineno + ':' + e.colno : '') + (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+    }, true);
+    window.addEventListener('unhandledrejection', function(e){
+      show('promise error: ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason));
+    });
+    window.__moduleStarted = false;
+    setTimeout(function(){
+      if (!window.__moduleStarted) {
+        show(
+          'the 3D module never started.\n' +
+          'this usually means one of:\n' +
+          '  • browser too old (no module / importmap support)\n' +
+          '  • mime-type problem (see browser console: press F12 → Console)\n' +
+          '  • importmap parse error\n\n' +
+          'press F12, click "Console" tab, copy any red text and paste it back.'
+        );
+        if (lb) lb.textContent = 'kitchen-test: module did not start';
+      }
+    }, 4000);
+  })();
+</script>
+<script nomodule>
+  (function(){
+    var box = document.getElementById('errbox');
+    box.style.display = 'block';
+    box.textContent = 'this browser is too old: it does not support JavaScript modules. update your browser (Chrome, Firefox, Safari, or Edge).';
+  })();
+</script>
+<a id="back-link" href="index.html" aria-label="Back to projects">&larr;</a>
+<div id="hint">click a dot · drag to orbit · wheel to zoom · alt-click any surface to log world coords</div>
+
+<div id="hotspots-layer"></div>
+
+<div id="scrim" hidden></div>
+<div id="popover" role="dialog" aria-labelledby="popover-title" hidden>
+  <div class="handle" aria-hidden="true"></div>
+  <button class="close" type="button" aria-label="Close">
+    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+  <h2 class="title" id="popover-title">—</h2>
+  <p class="subtitle" id="popover-subtitle"></p>
+  <ul class="specs" id="popover-specs"></ul>
+  <a class="buy" id="popover-buy" href="#" target="_blank" rel="noopener noreferrer">View product</a>
+  <div class="arrow" aria-hidden="true"></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.min.js" } }
+</script>
+
+<script type="module">
+window.__moduleStarted = true;
+const _loadbox = document.getElementById('loadbox');
+function step(t){ if (_loadbox) _loadbox.textContent = 'kitchen-test: ' + t; }
+step('module started');
+
+import * as THREE from 'three';
+import { HDRLoader } from './vendor/three/examples/jsm/loaders/HDRLoader.js';
+import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { EffectComposer } from './vendor/three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from './vendor/three/examples/jsm/postprocessing/RenderPass.js';
+import { GTAOPass } from './vendor/three/examples/jsm/postprocessing/GTAOPass.js';
+import { UnrealBloomPass } from './vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from './vendor/three/examples/jsm/postprocessing/SMAAPass.js';
+import { OutputPass } from './vendor/three/examples/jsm/postprocessing/OutputPass.js';
+RectAreaLightUniformsLib.init();
+step('three.js + addons imported');
+
+/* ====================================================================== */
+/* PRODUCT data — anchored to world coords, capture via alt-click + log    */
+/* ====================================================================== */
+const PRODUCTS = {
+  'fridge-001': {
+    name: 'Panasonic NR-E45RY3L-S',
+    subtitle: '450 L · 5-door refrigerator · silver',
+    specs: [
+      ['Width',         '600 mm'],
+      ['Depth',         '648 mm'],
+      ['Height',        '1,850 mm'],
+      ['Capacity',      '450 L total'],
+      ['Weight',        '91 kg'],
+      ['Annual energy', '266 kWh / year'],
+      ['Hinge side',    'Left-opening'],
+      ['Released',      'January 2026'],
+    ],
+    buyUrl:   'https://item.rakuten.co.jp/yamada-denki/3105797035/',
+    buyLabel: 'View on Rakuten',
+    hotspotPosition: { x: 0.30, y: 1.45, z: 0.66 },
+  },
+  'microwave-001': {
+    name: 'Sharp RE-TS174-B',
+    subtitle: '17 L flat-type microwave · matte black + copper',
+    specs: [
+      ['Width',          '460 mm'],
+      ['Depth',          '350 mm'],
+      ['Height',         '280 mm'],
+      ['Cavity',         '17 L (flat, no turntable)'],
+      ['Output',         '650 W (60 Hz)'],
+      ['Weight',         '~12 kg'],
+      ['Door',           'Side-opening'],
+      ['Released',       'November 2023'],
+    ],
+    buyUrl:   'https://item.rakuten.co.jp/yamada-denki/432767014/',
+    buyLabel: 'View on Rakuten',
+    hotspotPosition: { x: 0.90, y: 1.04, z: 0.42 },
+  },
+  'sink-001': {
+    name: 'Cleanup STEDIA SK super-silent sink',
+    subtitle: 'Stainless · embossed dot pattern · e-coat',
+    specs: [
+      ['Width',         '820 mm'],
+      ['Depth',         '485 mm'],
+      ['Height',        '183 mm'],
+      ['Material',      'NSSC FW1 stainless'],
+      ['Coating',       'Hydrophilic ceramic e-coat'],
+      ['Sound damping', 'Built-in'],
+      ['Drain',         'Off-centre with debris flow channel'],
+      ['Module width',  '900 mm cabinet'],
+    ],
+    buyUrl:   'https://www.cleanup-tw.tw/stedia-sink/',
+    buyLabel: 'Cleanup STEDIA sink page',
+    hotspotPosition: { x: 3.00, y: 0.93, z: 0.32 },
+  },
+  'dish-dryer-001': {
+    name: 'Cleanup STEDIA electric lift dryer',
+    subtitle: 'Wall cabinet · motorised drop · 30/60/90 min cycles',
+    specs: [
+      ['Width',         '900 mm'],
+      ['Depth',         '375 mm'],
+      ['Height',        '700 mm'],
+      ['Cycles',        '30 / 60 / 90 min'],
+      ['Capacity',      '~6 place settings'],
+      ['Operation',     'Single-button motorised drop'],
+      ['Racks',         'Stainless wire, 2 tiers'],
+      ['Position',      'Above sink, retracted'],
+    ],
+    buyUrl:   'https://www.cleanup-tw.tw/stedia-equip/',
+    buyLabel: 'Cleanup STEDIA equipment page',
+    hotspotPosition: { x: 3.00, y: 1.85, z: 0.39 },
+  },
+  'cabinet-001': {
+    name: 'Cleanup STEDIA base cabinet',
+    subtitle: 'NSSC FW1 stainless body · oak Beaute door',
+    specs: [
+      ['Module widths', '30 / 45 / 60 / 75 / 90 cm'],
+      ['Depth',         '650 mm'],
+      ['Counter height','850 mm'],
+      ['Door tier',     'Beaute series (mirror finish)'],
+      ['Drawer runners','Austrian Blum'],
+      ['Drawer load',   '20 kg / 40 kg heavy-duty'],
+      ['Top edge',      'Silver ABS cap (handle)'],
+      ['Made in',       'Japan'],
+    ],
+    buyUrl:   'https://www.cleanup-tw.tw/stedia-cabinet/',
+    buyLabel: 'Cleanup STEDIA storage page',
+    hotspotPosition: { x: 1.65, y: 0.55, z: 0.63 },
+  },
+};
+
+/* ====================================================================== */
+/* Renderer — push the GPU                                                */
+/* ====================================================================== */
+const container = document.getElementById('app');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.52;
+container.appendChild(renderer.domElement);
+
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0c10);
+/* Dim the HDRI's contribution since it's now indoor — walls block the sky and we
+   want the window + downlights to drive most of the light. */
+scene.environmentIntensity = 0.55;
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 80);
+camera.position.set(2.6, 1.55, 2.9);
+
+step('renderer ready');
+
+/* ====================================================================== */
+/* HDRI environment (kloppenheim sky) — drives reflections                */
+/* ====================================================================== */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+
+new HDRLoader().load(
+  'ozu-test/hdri/kloppenheim_06_puresky_2k.hdr',
+  (hdrTex) => {
+    const envMap = pmrem.fromEquirectangular(hdrTex).texture;
+    scene.environment = envMap;
+    hdrTex.dispose();
+    step('HDRI environment loaded');
+  },
+  undefined,
+  (err) => {
+    console.warn('HDRI failed, falling back to procedural', err);
+    /* Procedural fallback — soft sky cube */
+    const envScene = new THREE.Scene();
+    const r = 5;
+    const mk = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide });
+    const mats = [mk(0xc8d4e0), mk(0xc8d4e0), mk(0xb8d0e8), mk(0x8a8478), mk(0xc8d4e0), mk(0xc8d4e0)];
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(r*2, r*2, r*2), mats);
+    envScene.add(cube);
+    scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+  }
+);
+
+/* ====================================================================== */
+/* Lighting — interior kitchen: window daylight + ceiling downlights      */
+/* ====================================================================== */
+
+/* Hemisphere — gentle ambient lift so deep shadows don't go pure black */
+const hemi = new THREE.HemisphereLight(0xdde8f0, 0x4a4035, 0.22);
+scene.add(hemi);
+
+/* Counter task strip — under-cabinet warm fluorescent */
+const taskLight = new THREE.RectAreaLight(0xffe6c0, 0.9, 3.9, 0.05);
+taskLight.position.set(2.25, 1.49, 0.20);
+taskLight.lookAt(2.25, 0.88, 0.20);
+scene.add(taskLight);
+
+step('base lights set (window + downlights placed after room)');
+
+/* ====================================================================== */
+/* Procedural texture helpers — canvas-backed PBR maps                    */
+/* ====================================================================== */
+function seedRng(seed) {
+  let s = (seed | 0) || 1;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+/* Rounded box helper — uses RoundedBoxGeometry with a sensible default radius
+   that scales with the smallest dimension so we never over-round small parts. */
+function roundedBox(w, h, d, radiusOpt = null, segments = 4) {
+  const minDim = Math.min(w, h, d);
+  const r = radiusOpt !== null
+    ? Math.min(radiusOpt, minDim * 0.49)
+    : Math.min(0.004, minDim * 0.30);
+  return new RoundedBoxGeometry(w, h, d, segments, r);
+}
+
+/* Derive a tangent-space normal map from a luminance canvas via Sobel.
+   strength: how steep the gradient is (1 = subtle, 4 = aggressive).
+   Returns a CanvasTexture in linear color space. */
+function deriveNormalFromCanvas(canvas, strength = 2.5) {
+  const w = canvas.width, h = canvas.height;
+  const sctx = canvas.getContext('2d');
+  const src = sctx.getImageData(0, 0, w, h).data;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const dctx = out.getContext('2d');
+  const dst = dctx.createImageData(w, h);
+
+  /* Pre-compute luminance buffer */
+  const lum = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < src.length; i += 4, p++) {
+    lum[p] = (0.299 * src[i] + 0.587 * src[i+1] + 0.114 * src[i+2]) / 255;
+  }
+
+  const ix = (x, y) => Math.max(0, Math.min(w - 1, x)) + Math.max(0, Math.min(h - 1, y)) * w;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      /* Sobel */
+      const gx =
+        -lum[ix(x-1, y-1)] - 2*lum[ix(x-1, y)] - lum[ix(x-1, y+1)]
+        +lum[ix(x+1, y-1)] + 2*lum[ix(x+1, y)] + lum[ix(x+1, y+1)];
+      const gy =
+        -lum[ix(x-1, y-1)] - 2*lum[ix(x, y-1)] - lum[ix(x+1, y-1)]
+        +lum[ix(x-1, y+1)] + 2*lum[ix(x, y+1)] + lum[ix(x+1, y+1)];
+      let nx = -gx * strength;
+      let ny =  gy * strength;
+      let nz = 1.0;
+      const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+      const i = (x + y * w) * 4;
+      dst.data[i]   = (nx * 0.5 + 0.5) * 255 | 0;
+      dst.data[i+1] = (ny * 0.5 + 0.5) * 255 | 0;
+      dst.data[i+2] = (nz * 0.5 + 0.5) * 255 | 0;
+      dst.data[i+3] = 255;
+    }
+  }
+  dctx.putImageData(dst, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = MAX_ANISO;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/* Light oak wood grain — horizontal streaks + occasional knot */
+function makeWoodTexture(w = 2048, h = 1024, seed = 1) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const rng = seedRng(seed);
+
+  /* Base gradient (subtle vertical band) */
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0,   '#d6b886');
+  grad.addColorStop(0.5, '#caa873');
+  grad.addColorStop(1,   '#bf9d68');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  /* Long horizontal grain streaks */
+  for (let i = 0; i < 1400; i++) {
+    const y = rng() * h;
+    const len = 200 + rng() * (w * 0.9);
+    const x = -100 + rng() * w;
+    const a = rng() * 0.28;
+    const r = 80 + rng() * 30 | 0;
+    const g = 50 + rng() * 25 | 0;
+    const b = 22 + rng() * 18 | 0;
+    ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
+    ctx.lineWidth = 0.4 + rng() * 1.6;
+    ctx.beginPath();
+    let cx = x, cy = y;
+    ctx.moveTo(cx, cy);
+    const segs = 8;
+    for (let s = 0; s < segs; s++) {
+      cx += len / segs;
+      cy += (rng() - 0.5) * 1.4;
+      ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+  }
+
+  /* Knots and arches */
+  for (let i = 0; i < 5; i++) {
+    const x = rng() * w, y = rng() * h;
+    const rOuter = 8 + rng() * 30;
+    const g2 = ctx.createRadialGradient(x, y, 0, x, y, rOuter);
+    g2.addColorStop(0,   'rgba(60, 35, 12, 0.85)');
+    g2.addColorStop(0.5, 'rgba(90, 55, 25, 0.35)');
+    g2.addColorStop(1,   'rgba(90, 55, 25, 0)');
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.arc(x, y, rOuter, 0, Math.PI * 2); ctx.fill();
+  }
+
+  /* Subtle warm highlight pass */
+  for (let i = 0; i < 200; i++) {
+    const x = rng() * w, y = rng() * h;
+    const r = 30 + rng() * 80;
+    const g3 = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g3.addColorStop(0, 'rgba(255, 230, 180, 0.05)');
+    g3.addColorStop(1, 'rgba(255, 230, 180, 0)');
+    ctx.fillStyle = g3;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  return c;
+}
+
+/* Roughness map derived from wood: where it's darker, slightly rougher */
+function deriveRoughnessFromWood(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const sctx = canvas.getContext('2d');
+  const dctx = out.getContext('2d');
+  const src = sctx.getImageData(0, 0, w, h);
+  const dst = dctx.createImageData(w, h);
+  for (let i = 0; i < src.data.length; i += 4) {
+    /* darker = rougher (dark grain absorbs more), so invert luminance */
+    const lum = 0.299 * src.data[i] + 0.587 * src.data[i+1] + 0.114 * src.data[i+2];
+    const r = Math.max(120, 220 - (lum - 130) * 0.6) | 0;
+    dst.data[i] = dst.data[i+1] = dst.data[i+2] = r;
+    dst.data[i+3] = 255;
+  }
+  dctx.putImageData(dst, 0, 0);
+  return out;
+}
+
+/* Engineered-stone counter — warm cream with subtle veining + speckle */
+function makeStoneTexture(w = 1024, h = 1024, seed = 11) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const rng = seedRng(seed);
+
+  ctx.fillStyle = '#efeae0';
+  ctx.fillRect(0, 0, w, h);
+
+  /* Soft cloud variation */
+  for (let i = 0; i < 60; i++) {
+    const x = rng() * w, y = rng() * h;
+    const r = 60 + rng() * 200;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const base = 230 + (rng() - 0.5) * 25;
+    g.addColorStop(0, `rgba(${base},${base-5},${base-15}, ${0.15 + rng()*0.2})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  }
+
+  /* Faint veins */
+  for (let i = 0; i < 12; i++) {
+    ctx.strokeStyle = `rgba(170, 160, 140, ${0.08 + rng() * 0.12})`;
+    ctx.lineWidth = 0.6 + rng() * 1.2;
+    ctx.beginPath();
+    let x = rng() * w, y = rng() * h;
+    ctx.moveTo(x, y);
+    for (let j = 0; j < 40; j++) {
+      x += -50 + rng() * 100;
+      y += -25 + rng() * 50;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  /* Speckle */
+  for (let i = 0; i < 4000; i++) {
+    const x = rng() * w, y = rng() * h;
+    const v = 90 + rng() * 110 | 0;
+    ctx.fillStyle = `rgba(${v},${v-10},${v-22}, ${rng() * 0.18})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
+
+/* Polished concrete floor — light warm grey with subtle splotches */
+function makeConcreteTexture(w = 1024, h = 1024, seed = 7) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const rng = seedRng(seed);
+
+  ctx.fillStyle = '#d8d2c6';
+  ctx.fillRect(0, 0, w, h);
+
+  /* Big lighter / darker patches */
+  for (let i = 0; i < 80; i++) {
+    const x = rng() * w, y = rng() * h;
+    const r = 40 + rng() * 180;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const dark = rng() < 0.5;
+    if (dark) {
+      g.addColorStop(0, `rgba(180, 175, 165, ${0.18 + rng()*0.18})`);
+    } else {
+      g.addColorStop(0, `rgba(245, 240, 232, ${0.10 + rng()*0.12})`);
+    }
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  }
+
+  /* Salt speckle */
+  for (let i = 0; i < 22000; i++) {
+    const x = rng() * w, y = rng() * h;
+    const v = 200 + rng() * 50 | 0;
+    ctx.fillStyle = `rgba(${v},${v-3},${v-12}, ${rng() * 0.4})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
+
+/* Stainless dot embossing — used as bumpmap on sink basin */
+function makeStainlessDotBump(w = 512, h = 512) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#7f7f7f';
+  ctx.fillRect(0, 0, w, h);
+  /* Hex-ish dot grid */
+  ctx.fillStyle = '#a0a0a0';
+  for (let y = 0; y < h; y += 12) {
+    const off = ((y / 12) | 0) % 2 === 0 ? 0 : 6;
+    for (let x = off; x < w; x += 12) {
+      ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  /* Brushed horizontal streaks */
+  const rng = seedRng(99);
+  for (let i = 0; i < 600; i++) {
+    const y = rng() * h;
+    const len = 60 + rng() * 200;
+    const x = rng() * w;
+    ctx.strokeStyle = `rgba(180,180,180, ${rng() * 0.28})`;
+    ctx.lineWidth = 0.4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y); ctx.stroke();
+  }
+  return c;
+}
+
+/* Brushed-stainless map for hood/cabinet caps */
+function makeBrushedStainless(w = 1024, h = 256, seed = 17) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const rng = seedRng(seed);
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0,   '#c8ccd2');
+  grad.addColorStop(0.5, '#b6bac0');
+  grad.addColorStop(1,   '#c8ccd2');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 4500; i++) {
+    const y = rng() * h;
+    const len = 80 + rng() * 350;
+    const x = -50 + rng() * w;
+    const lum = 100 + rng() * 110 | 0;
+    ctx.strokeStyle = `rgba(${lum},${lum},${lum}, ${rng() * 0.35})`;
+    ctx.lineWidth = 0.4 + rng() * 0.4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y); ctx.stroke();
+  }
+  return c;
+}
+
+/* Stone backsplash — large-format warm grey */
+function makeBacksplashTexture(w = 1024, h = 512, seed = 23) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const rng = seedRng(seed);
+  ctx.fillStyle = '#d9d0bf';
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 250; i++) {
+    const x = rng() * w, y = rng() * h;
+    const r = 30 + rng() * 100;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${190+rng()*30|0},${175+rng()*30|0},${150+rng()*30|0}, ${rng()*0.25})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  }
+  for (let i = 0; i < 8000; i++) {
+    const x = rng() * w, y = rng() * h;
+    const v = 130 + rng() * 100 | 0;
+    ctx.fillStyle = `rgba(${v},${v-8},${v-22}, ${rng()*0.25})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  /* faint horizontal mortar lines simulating large slabs */
+  ctx.strokeStyle = 'rgba(110,100,82,0.18)';
+  ctx.lineWidth = 1.2;
+  for (let y = h * 0.5; y < h; y += h * 0.5) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  return c;
+}
+
+/* Wall paint — warm off-white with subtle drywall texture */
+function makeWallTexture(w = 1024, h = 1024, seed = 31) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const rng = seedRng(seed);
+  ctx.fillStyle = '#f1ece2';
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 12000; i++) {
+    const x = rng() * w, y = rng() * h;
+    const v = 235 + rng() * 20 | 0;
+    ctx.fillStyle = `rgba(${v},${v-3},${v-9}, ${rng() * 0.22})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
+
+/* Microwave door grill — fine perforated mesh */
+function makeMicrowaveGrillTexture(w = 256, h = 256) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#1f1f1f';
+  for (let y = 4; y < h; y += 6) {
+    for (let x = 4; x < w; x += 6) {
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+  return c;
+}
+
+/* Convert a canvas-backed albedo into a CanvasTexture with our defaults */
+function texFromCanvas(canvas, { repeat = [1, 1], colorSpace = THREE.SRGBColorSpace } = {}) {
+  const t = new THREE.CanvasTexture(canvas);
+  t.colorSpace = colorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = MAX_ANISO;
+  t.repeat.set(repeat[0], repeat[1]);
+  t.needsUpdate = true;
+  return t;
+}
+
+/* ====================================================================== */
+/* Material library                                                        */
+/* ====================================================================== */
+const woodCanvas = makeWoodTexture(2048, 1024, 1);
+const woodRoughCanvas = deriveRoughnessFromWood(woodCanvas);
+const stoneCanvas = makeStoneTexture(1024, 1024, 11);
+const concreteCanvas = makeConcreteTexture(1024, 1024, 7);
+const stainlessBumpCanvas = makeStainlessDotBump(512, 512);
+const brushedStainlessCanvas = makeBrushedStainless(1024, 256, 17);
+const backsplashCanvas = makeBacksplashTexture(1024, 512, 23);
+const wallCanvas = makeWallTexture(1024, 1024, 31);
+const grillCanvas = makeMicrowaveGrillTexture(256, 256);
+
+step('canvas albedo built');
+
+/* Poly Haven photo PBR — diff (sRGB) + nor_gl (linear) + arm (linear, R=AO G=Rough B=Metal).
+   Async loads return Texture objects immediately; image fills in when loaded and
+   three.js auto-uploads to GPU. Materials show base color until then. */
+const phLoader = new THREE.TextureLoader();
+function phLoad(path, srgb = false) {
+  const t = phLoader.load(path);
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+const phWoodDiff   = phLoad('kitchen-test/textures/laminate_floor_02_diff.jpg', true);
+const phWoodNor    = phLoad('kitchen-test/textures/laminate_floor_02_nor_gl.jpg', false);
+const phWoodArm    = phLoad('kitchen-test/textures/laminate_floor_02_arm.jpg', false);
+const phStoneDiff  = phLoad('kitchen-test/textures/marble_01_diff.jpg', true);
+const phStoneNor   = phLoad('kitchen-test/textures/marble_01_nor_gl.jpg', false);
+const phStoneArm   = phLoad('kitchen-test/textures/marble_01_arm.jpg', false);
+const phFloorDiff  = phLoad('kitchen-test/textures/concrete_floor_03_diff.jpg', true);
+const phFloorNor   = phLoad('kitchen-test/textures/concrete_floor_03_nor_gl.jpg', false);
+const phFloorArm   = phLoad('kitchen-test/textures/concrete_floor_03_arm.jpg', false);
+
+step('Poly Haven loads triggered');
+
+/* Procedural normal maps for surfaces that aren't Poly Haven (stainless, sink dot,
+   backsplash, wall, microwave grill). Wood/stone/concrete normals come from Poly Haven. */
+const brushedNormalTex   = deriveNormalFromCanvas(brushedStainlessCanvas, 0.6);
+const sinkDotNormalTex   = deriveNormalFromCanvas(stainlessBumpCanvas, 2.0);
+const backsplashNormalTex= deriveNormalFromCanvas(backsplashCanvas, 1.2);
+const wallNormalTex      = deriveNormalFromCanvas(wallCanvas, 0.5);
+const grillNormalTex     = deriveNormalFromCanvas(grillCanvas, 3.0);
+
+step('normal maps derived');
+
+/* Helper: clone a texture with per-instance offset/repeat (so panels can vary
+   without sharing transform state on the underlying GPU texture). */
+function cloneTex(tex, repeatX, repeatY, offsetX = 0, offsetY = 0) {
+  const t = tex.clone();
+  t.needsUpdate = true;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeatX, repeatY);
+  t.offset.set(offsetX, offsetY);
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+
+/* Wood door — Poly Haven laminate_floor_02 (light oak), with factory clearcoat */
+function makeWoodMaterial({ repeatX = 0.6, repeatY = 0.4, offsetX = 0, offsetY = 0 } = {}) {
+  const map = cloneTex(phWoodDiff, repeatX, repeatY, offsetX, offsetY);
+  const normal = cloneTex(phWoodNor, repeatX, repeatY, offsetX, offsetY);
+  const arm = cloneTex(phWoodArm, repeatX, repeatY, offsetX, offsetY);
+  return new THREE.MeshPhysicalMaterial({
+    map,
+    normalMap: normal,
+    normalScale: new THREE.Vector2(0.7, 0.7),
+    roughnessMap: arm,
+    metalnessMap: arm,
+    roughness: 1.0,
+    metalness: 1.0,
+    color: 0xffffff,
+    clearcoat: 0.20,
+    clearcoatRoughness: 0.30,
+    envMapIntensity: 0.60,
+  });
+}
+
+const matCounter = (() => {
+  const map = cloneTex(phStoneDiff, 3, 1.5);
+  const normal = cloneTex(phStoneNor, 3, 1.5);
+  const arm = cloneTex(phStoneArm, 3, 1.5);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal,
+    normalScale: new THREE.Vector2(0.5, 0.5),
+    roughnessMap: arm,
+    metalnessMap: arm,
+    color: 0xffffff,
+    roughness: 1.0, metalness: 1.0,
+    clearcoat: 0.30, clearcoatRoughness: 0.18,
+    envMapIntensity: 0.60,
+  });
+})();
+
+const matBacksplash = (() => {
+  const map = texFromCanvas(backsplashCanvas, { repeat: [2.5, 1] });
+  const normal = cloneTex(backsplashNormalTex, 2.5, 1);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7),
+    roughness: 0.65, metalness: 0.02,
+    clearcoat: 0.05, clearcoatRoughness: 0.5,
+    envMapIntensity: 0.50,
+  });
+})();
+
+const matFloor = (() => {
+  const map = cloneTex(phFloorDiff, 4, 4);
+  const normal = cloneTex(phFloorNor, 4, 4);
+  const arm = cloneTex(phFloorArm, 4, 4);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal,
+    normalScale: new THREE.Vector2(0.6, 0.6),
+    roughnessMap: arm,
+    metalnessMap: arm,
+    color: 0xffffff,
+    roughness: 1.0, metalness: 1.0,
+    clearcoat: 0.10, clearcoatRoughness: 0.55,
+    envMapIntensity: 0.45,
+  });
+})();
+
+const matWall = (() => {
+  const map = texFromCanvas(wallCanvas, { repeat: [2, 1.5] });
+  const normal = cloneTex(wallNormalTex, 2, 1.5);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal, normalScale: new THREE.Vector2(0.25, 0.25),
+    roughness: 0.95, metalness: 0.0, envMapIntensity: 0.35,
+  });
+})();
+
+/* === AO maps baked on A6000 GPU 1 (Cycles + OptiX, see kitchen-test/bake/) ===
+   Loads grayscale PNGs that encode contact-shadow + corner darkening from the
+   appliance/cabinet occluders, applies them as `aoMap` on per-surface clones
+   of the shared wall material. */
+const aoLoader = new THREE.TextureLoader();
+function loadAOTex(slug, opts = {}) {
+  const tex = aoLoader.load(`kitchen-test/textures/ao/${slug}.png`);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.channel = 0;                                   /* sample uv0 (the standard UV) */
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  const rx = opts.flipU ? -1 : 1;
+  const ry = opts.flipV ? -1 : 1;
+  tex.repeat.set(rx, ry);
+  tex.offset.set(opts.flipU ? 1 : 0, opts.flipV ? 1 : 0);
+  return tex;
+}
+
+/* Floor — PlaneGeometry rotated -π/2; its UV.y is reversed vs the bake. */
+matFloor.aoMap = loadAOTex('floor', { flipV: true });
+matFloor.aoMapIntensity = 1.0;
+matFloor.needsUpdate = true;
+
+/* Back wall + left wall — separate material clones so each carries its own AO.
+   Right wall + ceiling deferred (right wall is split across 4 boxes around
+   the window cutout, ceiling AO is subtle — phase 2). */
+const matWallBack = matWall.clone();
+matWallBack.aoMap = loadAOTex('back_wall');
+matWallBack.aoMapIntensity = 1.0;
+matWallBack.needsUpdate = true;
+
+const matWallLeft = matWall.clone();
+/* Left wall — BoxGeometry's +X face (room-facing) has UV.x running back→front;
+   bake has UV.x running front→back. Flip U. */
+matWallLeft.aoMap = loadAOTex('left_wall', { flipU: true });
+matWallLeft.aoMapIntensity = 1.0;
+matWallLeft.needsUpdate = true;
+
+/* Brushed stainless — matte-brushed aluminium look (was: too polished, read as LED strips) */
+const matStainlessBrushed = (() => {
+  const map = texFromCanvas(brushedStainlessCanvas, { repeat: [4, 1] });
+  const normal = cloneTex(brushedNormalTex, 4, 1);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal, normalScale: new THREE.Vector2(0.40, 0.40),
+    color: 0xa8acb2, roughness: 0.62, metalness: 0.65,
+    anisotropy: 0.20, anisotropyRotation: 0,
+    envMapIntensity: 0.55,
+  });
+})();
+
+/* Sink basin — embossed dot pattern as fine normal, anisotropic specular */
+const matStainlessSink = new THREE.MeshPhysicalMaterial({
+  color: 0xc8ccd2, roughness: 0.30, metalness: 0.92,
+  normalMap: cloneTex(sinkDotNormalTex, 2, 1.4),
+  normalScale: new THREE.Vector2(0.10, 0.10),
+  anisotropy: 0.6, anisotropyRotation: 0,
+  envMapIntensity: 0.90,
+});
+
+const matStainlessPolished = new THREE.MeshPhysicalMaterial({
+  color: 0xc4c8cf, roughness: 0.30, metalness: 0.93,
+  anisotropy: 0.4,
+  envMapIntensity: 0.80,
+});
+
+const matChrome = new THREE.MeshPhysicalMaterial({
+  color: 0xdde0e6, roughness: 0.10, metalness: 1.0,
+  clearcoat: 0.25, clearcoatRoughness: 0.10,
+  envMapIntensity: 1.0,
+});
+
+/* Cooktop glass — true glass with clearcoat and a hint of transmission */
+const matCooktopGlass = new THREE.MeshPhysicalMaterial({
+  color: 0x06070a, roughness: 0.04, metalness: 0.05,
+  clearcoat: 1.0, clearcoatRoughness: 0.02,
+  ior: 1.52,
+  envMapIntensity: 1.6,
+});
+
+const matBurnerRing = new THREE.MeshPhysicalMaterial({
+  color: 0x1a1a1c, roughness: 0.55, metalness: 0.30,
+});
+
+const matBurnerInner = new THREE.MeshPhysicalMaterial({
+  color: 0x2a2a2c, roughness: 0.85, metalness: 0.15,
+});
+
+/* Fridge panels — physical with subtle iridescence so silver picks up the
+   blue-purple sheen real anodised/lacquered metal shows */
+function fridgePanel(color, rough = 0.32, irid = 0.20) {
+  return new THREE.MeshPhysicalMaterial({
+    color, roughness: rough, metalness: 0.85,
+    iridescence: irid, iridescenceIOR: 1.30,
+    iridescenceThicknessRange: [120, 360],
+    anisotropy: 0.25, anisotropyRotation: Math.PI / 2,
+    envMapIntensity: 1.45,
+  });
+}
+const fridgePanelMats = {
+  topLight:    fridgePanel(0xc8ccd2, 0.30, 0.25),
+  upperMid:    fridgePanel(0xa9adb2, 0.34, 0.20),
+  midDrawer:   fridgePanel(0x8d9197, 0.36, 0.18),
+  bottomDeep:  fridgePanel(0x6d7177, 0.40, 0.15),
+  seamShadow:  new THREE.MeshPhysicalMaterial({ color: 0x2a2c30, roughness: 0.6,  metalness: 0.15 }),
+  fridgePlinth: new THREE.MeshPhysicalMaterial({ color: 0x1c1d20, roughness: 0.7, metalness: 0.2 }),
+};
+
+/* Microwave palette */
+const matMicrowaveBlack = new THREE.MeshPhysicalMaterial({
+  color: 0x14141a, roughness: 0.42, metalness: 0.18, envMapIntensity: 1.0,
+});
+const matMicrowaveBlackGloss = new THREE.MeshPhysicalMaterial({
+  color: 0x0c0c10, roughness: 0.16, metalness: 0.08,
+  clearcoat: 1.0, clearcoatRoughness: 0.05,
+  envMapIntensity: 1.3,
+});
+/* Real glass for the microwave door — transmission gives genuine refraction */
+const matMicrowaveGlass = new THREE.MeshPhysicalMaterial({
+  color: 0xd8e0e6,
+  roughness: 0.04, metalness: 0.0,
+  transmission: 0.92, ior: 1.52, thickness: 0.005,
+  attenuationColor: 0x0a0a0a, attenuationDistance: 0.6,
+  clearcoat: 0.9, clearcoatRoughness: 0.05,
+  envMapIntensity: 1.4,
+});
+const matCopper = new THREE.MeshPhysicalMaterial({
+  color: 0xc88a5e, roughness: 0.30, metalness: 0.95,
+  clearcoat: 0.6, clearcoatRoughness: 0.10,
+  anisotropy: 0.4, anisotropyRotation: Math.PI / 2,
+  envMapIntensity: 1.4,
+});
+const matCopperLogo = new THREE.MeshPhysicalMaterial({
+  color: 0xd09467, roughness: 0.42, metalness: 0.85,
+  envMapIntensity: 1.2,
+});
+const matMicrowaveGrill = (() => {
+  const map = texFromCanvas(grillCanvas, { repeat: [3, 2] });
+  const normal = cloneTex(grillNormalTex, 3, 2);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal, normalScale: new THREE.Vector2(0.8, 0.8),
+    color: 0x101014, roughness: 0.7, metalness: 0.4, envMapIntensity: 0.6,
+  });
+})();
+/* LCD — strong emissive so bloom picks it up */
+const matLcdScreen = new THREE.MeshStandardMaterial({
+  color: 0x76b6a0, roughness: 0.3, metalness: 0.0,
+  emissive: 0x9be3c8, emissiveIntensity: 1.6,
+});
+
+/* Range hood */
+const matHoodBody = new THREE.MeshPhysicalMaterial({
+  color: 0xeae6df, roughness: 0.55, metalness: 0.08,
+  clearcoat: 0.4, clearcoatRoughness: 0.18,
+  envMapIntensity: 0.85,
+});
+const matHoodFilter = new THREE.MeshPhysicalMaterial({
+  color: 0x3a3c40, roughness: 0.55, metalness: 0.4, envMapIntensity: 0.6,
+});
+
+/* Dish dryer (electric lift) — closed state */
+const matDryerBody = matHoodBody;
+const matDryerPanelStrip = new THREE.MeshPhysicalMaterial({
+  color: 0x9099a0, roughness: 0.30, metalness: 0.92,
+  anisotropy: 0.7, anisotropyRotation: 0,
+  envMapIntensity: 1.3,
+});
+const matDryerLcdBlack = new THREE.MeshPhysicalMaterial({
+  color: 0x0e0e12, roughness: 0.32, metalness: 0.2,
+  clearcoat: 0.6, clearcoatRoughness: 0.1,
+});
+
+/* Toe-kick plinth — matte brushed aluminium */
+const matPlinth = new THREE.MeshPhysicalMaterial({
+  color: 0x9ea2a8, roughness: 0.65, metalness: 0.55,
+  normalMap: cloneTex(brushedNormalTex, 6, 1),
+  normalScale: new THREE.Vector2(0.30, 0.30),
+  anisotropy: 0.15, anisotropyRotation: 0,
+  envMapIntensity: 0.5,
+});
+
+step('materials built');
+
+/* ====================================================================== */
+/* Room — fully enclosed (back + left + right + ceiling), front open       */
+/* for camera. Right wall has a single window cutout.                      */
+/* ====================================================================== */
+const ROOM_W = 4.80;
+const ROOM_D = 3.50;
+const ROOM_H = 2.50;
+const WALL_T = 0.05;
+
+/* Window dimensions — sits on the right wall, above counter line */
+const WIN_Z0 = 0.70;     // along wall length
+const WIN_Z1 = 1.95;     // → 1.25 m wide
+const WIN_Y0 = 1.10;     // sill height (just above counter at 0.88)
+const WIN_Y1 = 1.95;     // → 0.85 m tall
+
+/* Helper for placing axis-aligned wall boxes by min/max bounds */
+function wallBox(x0, x1, y0, y1, z0, z1, mat) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0),
+    mat
+  );
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+/* Floor */
+{
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROOM_W, ROOM_D + 0.5),
+    matFloor
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(ROOM_W / 2, 0, ROOM_D / 2 - 0.25);
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+/* Back wall — uses matWallBack (carries baked AO map) */
+scene.add(wallBox(0, ROOM_W, 0, ROOM_H, -WALL_T, 0, matWallBack));
+
+/* Left wall — uses matWallLeft (carries baked AO map for fridge contact) */
+scene.add(wallBox(-WALL_T, 0, 0, ROOM_H, 0, ROOM_D, matWallLeft));
+
+/* Right wall — built from 4 boxes around the window cutout */
+const RX0 = ROOM_W, RX1 = ROOM_W + WALL_T;
+scene.add(wallBox(RX0, RX1, 0,      WIN_Y0,  0,       ROOM_D,  matWall));   // below window
+scene.add(wallBox(RX0, RX1, WIN_Y1, ROOM_H,  0,       ROOM_D,  matWall));   // above window
+scene.add(wallBox(RX0, RX1, WIN_Y0, WIN_Y1,  0,       WIN_Z0,  matWall));   // sill side (z low)
+scene.add(wallBox(RX0, RX1, WIN_Y0, WIN_Y1,  WIN_Z1,  ROOM_D,  matWall));   // sill side (z high)
+
+/* Ceiling — full coverage */
+{
+  const ceil = new THREE.Mesh(
+    new THREE.BoxGeometry(ROOM_W + WALL_T * 2, WALL_T, ROOM_D),
+    matWall
+  );
+  ceil.position.set(ROOM_W / 2, ROOM_H + WALL_T / 2, ROOM_D / 2);
+  ceil.receiveShadow = true; ceil.castShadow = true;
+  scene.add(ceil);
+}
+
+/* Window — chrome frame, glass pane, "outside" warm sky proxy behind it */
+{
+  const winCx = RX0 + WALL_T / 2;
+  const winCy = (WIN_Y0 + WIN_Y1) / 2;
+  const winCz = (WIN_Z0 + WIN_Z1) / 2;
+  const winW  = WIN_Z1 - WIN_Z0;
+  const winH  = WIN_Y1 - WIN_Y0;
+
+  /* Glass pane — true transmission */
+  const glass = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW, winH),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xeef4f8,
+      roughness: 0.04, metalness: 0,
+      transmission: 0.96, ior: 1.52, thickness: 0.006,
+      clearcoat: 0.6, clearcoatRoughness: 0.06,
+      envMapIntensity: 0.7,
+    })
+  );
+  glass.rotation.y = -Math.PI / 2;
+  glass.position.set(winCx, winCy, winCz);
+  scene.add(glass);
+
+  /* Slim aluminium frame around the opening (4 thin bars) */
+  const frameMat = new THREE.MeshPhysicalMaterial({
+    color: 0xc8ccd2, roughness: 0.32, metalness: 0.92,
+    envMapIntensity: 0.9,
+  });
+  const fT = 0.018;
+  /* top */
+  scene.add((() => { const m = new THREE.Mesh(roundedBox(WALL_T + 0.01, fT, winW + fT * 2, 0.003, 3), frameMat); m.position.set(winCx, WIN_Y1 + fT / 2, winCz); return m; })());
+  /* bottom */
+  scene.add((() => { const m = new THREE.Mesh(roundedBox(WALL_T + 0.01, fT, winW + fT * 2, 0.003, 3), frameMat); m.position.set(winCx, WIN_Y0 - fT / 2, winCz); return m; })());
+  /* z-low side */
+  scene.add((() => { const m = new THREE.Mesh(roundedBox(WALL_T + 0.01, winH, fT, 0.003, 3), frameMat); m.position.set(winCx, winCy, WIN_Z0 - fT / 2); return m; })());
+  /* z-high side */
+  scene.add((() => { const m = new THREE.Mesh(roundedBox(WALL_T + 0.01, winH, fT, 0.003, 3), frameMat); m.position.set(winCx, winCy, WIN_Z1 + fT / 2); return m; })());
+  /* center horizontal mullion */
+  scene.add((() => { const m = new THREE.Mesh(roundedBox(WALL_T + 0.005, fT * 0.6, winW, 0.002, 3), frameMat); m.position.set(winCx, winCy, winCz); return m; })());
+
+  /* Outside sky proxy — a bright warm rectangle slightly outside the window,
+     emissive so it shows as daylight regardless of the dimmed environment. */
+  const sky = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW * 1.6, winH * 1.6),
+    new THREE.MeshBasicMaterial({ color: 0xfff0d8 })
+  );
+  sky.rotation.y = -Math.PI / 2;
+  sky.position.set(RX1 + 0.30, winCy, winCz);
+  scene.add(sky);
+
+  /* Window light — primary daylight source, big and warm */
+  const winLight = new THREE.RectAreaLight(0xfff0d8, 11.2, winW, winH);
+  winLight.position.set(winCx - 0.02, winCy, winCz);
+  winLight.lookAt(winCx - 5, winCy, winCz);
+  scene.add(winLight);
+
+  /* Window directional — handles the cast shadows (RectAreaLight can't) */
+  const winSun = new THREE.DirectionalLight(0xfff0d8, 1.28);
+  winSun.position.set(RX1 + 2.0, winCy + 0.4, winCz);
+  winSun.target.position.set(2.0, 0.85, 0.40);
+  winSun.castShadow = true;
+  winSun.shadow.mapSize.set(2048, 2048);
+  winSun.shadow.camera.near = 0.5;
+  winSun.shadow.camera.far = 12;
+  winSun.shadow.camera.left = -3.5;
+  winSun.shadow.camera.right = 3.5;
+  winSun.shadow.camera.top = 2.5;
+  winSun.shadow.camera.bottom = -1;
+  winSun.shadow.bias = -0.00015;
+  winSun.shadow.normalBias = 0.02;
+  winSun.shadow.radius = 3;
+  scene.add(winSun); scene.add(winSun.target);
+}
+
+/* Ceiling downlights — 4 warm recessed spots above the kitchen run */
+{
+  const downColor = 0xffe1b0;
+  const positions = [
+    [0.85, ROOM_H - 0.001, 0.95],
+    [1.95, ROOM_H - 0.001, 0.95],
+    [3.05, ROOM_H - 0.001, 0.95],
+    [4.15, ROOM_H - 0.001, 0.95],
+  ];
+  for (const [x, y, z] of positions) {
+    /* Wide soft spot — fill, not key. Window is doing most of the work. */
+    const sl = new THREE.SpotLight(downColor, 3.0, 5.0, Math.PI / 4, 0.7, 1.4);
+    sl.position.set(x, y, z);
+    sl.target.position.set(x, 0, z);
+    sl.castShadow = true;
+    sl.shadow.mapSize.set(1024, 1024);
+    sl.shadow.bias = -0.0008;
+    sl.shadow.normalBias = 0.01;
+    scene.add(sl); scene.add(sl.target);
+
+    /* Visible ceiling fixture (thin disc) */
+    const fix = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.006, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xfff5e0, emissive: 0xffe1a8, emissiveIntensity: 1.0,
+      })
+    );
+    fix.position.set(x, ROOM_H - 0.003, z);
+    scene.add(fix);
+  }
+}
+
+step('room shell built (enclosed + window + downlights)');
+
+/* ====================================================================== */
+/* Layout constants                                                        */
+/* ====================================================================== */
+const TOE_H = 0.10;          // toe-kick recess height
+const TOE_INSET = 0.05;      // toe-kick depth inset from cabinet front
+const BASE_TOP_Y = 0.85;     // top of cabinet body
+const COUNTER_T = 0.030;     // counter top thickness
+const COUNTER_TOP_Y = BASE_TOP_Y + COUNTER_T;  // 0.88
+const COUNTER_FRONT_Z = 0.65;
+const COUNTER_BACK_Z = -0.01;
+const CABINET_FRONT_Z = 0.62;
+const CABINET_BACK_Z = 0.0;
+const WALL_CAB_BOTTOM_Y = 1.50;
+const WALL_CAB_TOP_Y = 2.20;
+const WALL_CAB_FRONT_Z = 0.375;
+const ABS_CAP_T = 0.012;     // top edge stainless cap thickness
+
+/* ====================================================================== */
+/* Generic cabinet builders                                                */
+/* ====================================================================== */
+const SEAM = 0.005;
+
+/* Drawer cabinet module:
+   x0 .. x0+w wide. Body at z=[CABINET_BACK_Z, CABINET_FRONT_Z]
+   front face is split into N stacked drawers; ABS cap strip across the top of each.
+*/
+function makeBaseCabinet(x0, w, drawerCount = 3, materialSeed = 1) {
+  const g = new THREE.Group();
+  const x1 = x0 + w;
+  const cx = (x0 + x1) / 2;
+  const bodyDepth = CABINET_FRONT_Z - CABINET_BACK_Z;
+
+  /* Toe-kick: stainless plinth, recessed by TOE_INSET */
+  const toe = new THREE.Mesh(
+    roundedBox(w - SEAM, TOE_H, bodyDepth - TOE_INSET, 0.003, 3),
+    matPlinth
+  );
+  toe.position.set(cx, TOE_H / 2, (CABINET_BACK_Z + CABINET_FRONT_Z) / 2 - TOE_INSET / 2);
+  toe.castShadow = true; toe.receiveShadow = true;
+  g.add(toe);
+
+  /* Cabinet body box — stainless, slightly shallower than drawer-front plane to avoid z-fighting */
+  const bodyD = bodyDepth - 0.012;
+  const body = new THREE.Mesh(
+    roundedBox(w - SEAM, BASE_TOP_Y - TOE_H, bodyD, 0.003, 3),
+    matStainlessBrushed
+  );
+  body.position.set(cx, (TOE_H + BASE_TOP_Y) / 2, CABINET_BACK_Z + bodyD / 2);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  const drawerYStart = TOE_H;
+  const drawerStack = BASE_TOP_Y - TOE_H;            // 0.75
+  const dh = drawerStack / drawerCount;
+
+  for (let i = 0; i < drawerCount; i++) {
+    const yBot = drawerYStart + i * dh;
+    const yTop = yBot + dh;
+
+    const woodMat = makeWoodMaterial({
+      repeatX: w / 1.4,
+      repeatY: dh / 0.6,
+      offsetX: (materialSeed * 0.13 + i * 0.07) % 1,
+      offsetY: (materialSeed * 0.21 + i * 0.11) % 1,
+    });
+
+    const drawer = new THREE.Mesh(
+      roundedBox(w - SEAM, dh - SEAM, 0.022, 0.002, 3),
+      woodMat
+    );
+    drawer.position.set(cx, (yBot + yTop) / 2, CABINET_FRONT_Z + 0.011);
+    drawer.castShadow = true; drawer.receiveShadow = true;
+    g.add(drawer);
+
+    /* STEDIA-style top edge ABS cap = the handle */
+    const cap = new THREE.Mesh(
+      roundedBox(w - SEAM - 0.01, ABS_CAP_T, 0.018, 0.002, 3),
+      matStainlessBrushed
+    );
+    cap.position.set(cx, yTop - ABS_CAP_T / 2 - 0.001, CABINET_FRONT_Z + 0.018);
+    cap.castShadow = true;
+    g.add(cap);
+
+    /* Subtle dark seam line between drawers */
+    if (i < drawerCount - 1) {
+      const seam = new THREE.Mesh(
+        new THREE.BoxGeometry(w - SEAM, 0.003, 0.002),
+        new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 })
+      );
+      seam.position.set(cx, yTop, CABINET_FRONT_Z + 0.024);
+      g.add(seam);
+    }
+  }
+
+  /* End caps (vertical seams between cabinet modules) */
+  const sideMat = matStainlessBrushed;
+  const leftSide = new THREE.Mesh(
+    new THREE.BoxGeometry(0.004, BASE_TOP_Y - TOE_H, 0.022),
+    sideMat
+  );
+  leftSide.position.set(x0, (TOE_H + BASE_TOP_Y) / 2, CABINET_FRONT_Z + 0.011);
+  g.add(leftSide);
+  const rightSide = leftSide.clone();
+  rightSide.position.x = x1;
+  g.add(rightSide);
+
+  return g;
+}
+
+/* Wall cabinet module (37.5cm deep) — closed door style with horizontal grain */
+function makeWallCabinet(x0, w, materialSeed = 1) {
+  const g = new THREE.Group();
+  const x1 = x0 + w;
+  const cx = (x0 + x1) / 2;
+  const cy = (WALL_CAB_BOTTOM_Y + WALL_CAB_TOP_Y) / 2;
+  const cz = WALL_CAB_FRONT_Z / 2;
+  const ch = WALL_CAB_TOP_Y - WALL_CAB_BOTTOM_Y;
+
+  /* Body shell (visible bottom + sides) */
+  const body = new THREE.Mesh(
+    roundedBox(w - SEAM, ch, WALL_CAB_FRONT_Z, 0.004, 3),
+    matStainlessBrushed
+  );
+  body.position.set(cx, cy, cz);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* Door panel split into 2 horizontal panels */
+  const door1Mat = makeWoodMaterial({
+    repeatX: w / 1.4, repeatY: ch / 1.4,
+    offsetX: (materialSeed * 0.17) % 1,
+    offsetY: (materialSeed * 0.29) % 1,
+  });
+  const door = new THREE.Mesh(
+    roundedBox(w - SEAM, ch - 0.005, 0.022, 0.0025, 3),
+    door1Mat
+  );
+  door.position.set(cx, cy, WALL_CAB_FRONT_Z + 0.011);
+  door.castShadow = true; door.receiveShadow = true;
+  g.add(door);
+
+  /* Bottom edge cap (handle strip) */
+  const bottomCap = new THREE.Mesh(
+    roundedBox(w - SEAM - 0.01, ABS_CAP_T, 0.018, 0.002, 3),
+    matStainlessBrushed
+  );
+  bottomCap.position.set(cx, WALL_CAB_BOTTOM_Y + ABS_CAP_T / 2 + 0.001, WALL_CAB_FRONT_Z + 0.018);
+  g.add(bottomCap);
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Counter top + backsplash                                                */
+/* ====================================================================== */
+function makeCounterRun(xStart, xEnd, opts = {}) {
+  const g = new THREE.Group();
+  const w = xEnd - xStart;
+  const d = COUNTER_FRONT_Z - COUNTER_BACK_Z;
+  const cx = (xStart + xEnd) / 2;
+  const cz = (COUNTER_BACK_Z + COUNTER_FRONT_Z) / 2;
+
+  function roundedRectOnTarget(target, rectW, rectH, r, ox = 0, oy = 0) {
+    const sx = rectW / 2, sy = rectH / 2;
+    target.moveTo(ox - sx + r, oy - sy);
+    target.lineTo(ox + sx - r, oy - sy);
+    target.quadraticCurveTo(ox + sx, oy - sy, ox + sx, oy - sy + r);
+    target.lineTo(ox + sx, oy + sy - r);
+    target.quadraticCurveTo(ox + sx, oy + sy, ox + sx - r, oy + sy);
+    target.lineTo(ox - sx + r, oy + sy);
+    target.quadraticCurveTo(ox - sx, oy + sy, ox - sx, oy + sy - r);
+    target.lineTo(ox - sx, oy - sy + r);
+    target.quadraticCurveTo(ox - sx, oy - sy, ox - sx + r, oy - sy);
+  }
+
+  /* Counter top — ExtrudeGeometry with optional sink/cooktop cutouts.
+     Modelled in local XY (counter footprint), rotated so extrusion goes +Y. */
+  const outer = new THREE.Shape();
+  roundedRectOnTarget(outer, w, d, 0.004);
+
+  if (opts.cutouts) {
+    for (const c of opts.cutouts) {
+      const hole = new THREE.Path();
+      roundedRectOnTarget(hole, c.w, c.d, c.r, c.x - cx, c.z - cz);
+      outer.holes.push(hole);
+    }
+  }
+
+  const counterGeom = new THREE.ExtrudeGeometry(outer, {
+    depth: COUNTER_T,
+    bevelEnabled: true,
+    bevelSize: 0.003,
+    bevelThickness: 0.002,
+    bevelSegments: 3,
+    curveSegments: 24,
+  });
+  const counter = new THREE.Mesh(counterGeom, matCounter);
+  counter.rotation.x = -Math.PI / 2;
+  /* After rotation.x = -π/2: extrusion +Z becomes +Y. Position bottom of slab at BASE_TOP_Y. */
+  counter.position.set(cx, BASE_TOP_Y, cz);
+  counter.castShadow = true; counter.receiveShadow = true;
+  g.add(counter);
+
+  /* Backsplash */
+  if (!opts.noBacksplash) {
+    const backsplash = new THREE.Mesh(
+      new THREE.BoxGeometry(w, WALL_CAB_BOTTOM_Y - COUNTER_TOP_Y, 0.012),
+      matBacksplash
+    );
+    backsplash.position.set(cx, (COUNTER_TOP_Y + WALL_CAB_BOTTOM_Y) / 2, 0.006);
+    backsplash.castShadow = false; backsplash.receiveShadow = true;
+    g.add(backsplash);
+  }
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Sink (Cleanup STEDIA SK super-silent)                                  */
+/* ====================================================================== */
+function makeSink(xCenter) {
+  const g = new THREE.Group();
+
+  const sinkW = 0.78;          // 820 mm exterior, 760 mm interior usable
+  const sinkD = 0.46;
+  const sinkH = 0.18;          // depth of basin
+  const sinkX0 = xCenter - sinkW / 2;
+  const sinkX1 = xCenter + sinkW / 2;
+  const sinkZ0 = 0.07;
+  const sinkZ1 = sinkZ0 + sinkD;
+  const lipThick = 0.006;
+  const wallT = 0.006;
+  const cornerR = 0.030;       // STEDIA-style 30 mm inside corner radius
+  const innerY = COUNTER_TOP_Y - sinkH;
+
+  /* Helper: traces a rounded rectangle into a Shape/Path centred on (0,0) */
+  function roundedRect(target, w, h, r) {
+    const sx = w / 2, sy = h / 2;
+    target.moveTo(-sx + r, -sy);
+    target.lineTo(sx - r, -sy);
+    target.quadraticCurveTo(sx, -sy, sx, -sy + r);
+    target.lineTo(sx, sy - r);
+    target.quadraticCurveTo(sx, sy, sx - r, sy);
+    target.lineTo(-sx + r, sy);
+    target.quadraticCurveTo(-sx, sy, -sx, sy - r);
+    target.lineTo(-sx, -sy + r);
+    target.quadraticCurveTo(-sx, -sy, -sx + r, -sy);
+  }
+
+  /* Walls: extrude a rounded-rectangular FRAME (outer rect + inner rect hole)
+     downward from the counter line. This gives smooth wall-to-wall corners. */
+  const outer = new THREE.Shape();
+  roundedRect(outer, sinkW, sinkD, cornerR);
+  const inner = new THREE.Path();
+  roundedRect(inner, sinkW - wallT * 2, sinkD - wallT * 2, Math.max(0.001, cornerR - wallT));
+  outer.holes.push(inner);
+
+  const wallGeom = new THREE.ExtrudeGeometry(outer, {
+    depth: sinkH,
+    bevelEnabled: true,
+    bevelSize: 0.004,
+    bevelThickness: 0.003,
+    bevelSegments: 4,
+    curveSegments: 32,
+  });
+  const wall = new THREE.Mesh(wallGeom, matStainlessSink);
+  wall.rotation.x = Math.PI / 2;
+  /* After rotation.x = +π/2, the +Z extrude becomes -Y, but we want walls to drop
+     from counter level downward. So: position the wall with its TOP at COUNTER_TOP_Y. */
+  wall.position.set(xCenter, COUNTER_TOP_Y, (sinkZ0 + sinkZ1) / 2);
+  wall.castShadow = true; wall.receiveShadow = true;
+  g.add(wall);
+
+  /* Drain location — back-center of basin (centred on X, near the back wall on Z),
+     per sink-3 / sink-4 STEDIA reference photos. */
+  const drainWorldX = xCenter;
+  const drainWorldZ = sinkZ1 - 0.10;
+  const drainHoleR = 0.028;          // 56 mm strainer hole
+  const drainStrainerR = 0.040;      // 80 mm chrome ring around it
+
+  /* Convert world drain position to bottom-plate local shape coordinates.
+     Bottom plate origin = (xCenter, innerY+0.002, sinkZcenter). After rotation.x = -π/2,
+     shape's local +Y maps to world -Z. So:
+       shapeX = drainX - origin.x
+       shapeY = -(drainZ - origin.z)
+  */
+  const sinkZcenter = (sinkZ0 + sinkZ1) / 2;
+  const drainShapeX = drainWorldX - xCenter;
+  const drainShapeY = -(drainWorldZ - sinkZcenter);
+
+  /* Bottom plate — rounded rectangle WITH a circular hole at the drain location */
+  const bottomShape = new THREE.Shape();
+  const bottomR = Math.max(0.005, cornerR - wallT - 0.005);
+  roundedRect(bottomShape, sinkW - wallT * 2 - 0.002, sinkD - wallT * 2 - 0.002, bottomR);
+  const drainCutout = new THREE.Path();
+  drainCutout.absarc(drainShapeX, drainShapeY, drainHoleR, 0, Math.PI * 2, false);
+  bottomShape.holes.push(drainCutout);
+
+  const bottomGeom = new THREE.ExtrudeGeometry(bottomShape, {
+    depth: 0.004,
+    bevelEnabled: true,
+    bevelSize: 0.010,
+    bevelThickness: 0.006,
+    bevelSegments: 5,
+    curveSegments: 48,
+  });
+  const bottom = new THREE.Mesh(bottomGeom, matStainlessSink);
+  bottom.rotation.x = -Math.PI / 2;
+  bottom.position.set(xCenter, innerY + 0.002, sinkZcenter);
+  bottom.receiveShadow = true; bottom.castShadow = true;
+  g.add(bottom);
+
+  /* The basin wall's beveled top edge IS the lip — sits flush in the counter cutout. */
+
+  /* === STEDIA flow channel (導流槽) ===
+     Right-triangle raised shelf in the back-left corner of the basin, two
+     legs flush against the back + left basin walls, hypotenuse forming the
+     visible diagonal interior wall. Brushed stainless, ~4.5 cm tall plateau.
+     Per sink-1 / sink-3 / sink-4 STEDIA reference photos. */
+  {
+    const fcShape = new THREE.Shape();
+    const fcW = (sinkW - wallT * 2) * 0.40;   /* back leg length (along back wall) */
+    const fcD = (sinkD - wallT * 2) * 0.55;   /* left leg length (along left wall) */
+    /* CCW shape: back-left corner → forward into basin → right along back wall.
+       After rotation.x = -π/2, shape +X → world +X (right),
+       shape -Y → world +Z (forward into basin). */
+    fcShape.moveTo(0, 0);
+    fcShape.lineTo(0, -fcD);
+    fcShape.lineTo(fcW, 0);
+    fcShape.lineTo(0, 0);
+    const fcGeom = new THREE.ExtrudeGeometry(fcShape, {
+      depth: 0.045,                /* plateau height = 4.5 cm above basin floor */
+      bevelEnabled: true,
+      bevelSize: 0.003,
+      bevelThickness: 0.002,
+      bevelSegments: 3,
+      curveSegments: 8,
+    });
+    const fc = new THREE.Mesh(fcGeom, matStainlessSink);
+    fc.rotation.x = -Math.PI / 2;
+    fc.position.set(
+      xCenter - (sinkW - wallT * 2) / 2,   /* x = left inner edge */
+      innerY + 0.006,                       /* sits on bottom plate (top at innerY+0.006) */
+      sinkZ0 + wallT                        /* z = back inner edge */
+    );
+    fc.castShadow = true; fc.receiveShadow = true;
+    g.add(fc);
+  }
+
+  /* Strainer ring — chrome rim that sits on the basin floor around the hole */
+  const strainerRing = new THREE.Mesh(
+    new THREE.RingGeometry(drainHoleR + 0.002, drainStrainerR, 64),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xc8ccd2, roughness: 0.20, metalness: 0.95,
+      clearcoat: 0.5, clearcoatRoughness: 0.1, side: THREE.DoubleSide,
+    })
+  );
+  strainerRing.rotation.x = -Math.PI / 2;
+  strainerRing.position.set(drainWorldX, innerY + 0.0065, drainWorldZ);
+  g.add(strainerRing);
+
+  /* Drain pipe stub — visible looking down through the hole */
+  const drainPipe = new THREE.Mesh(
+    new THREE.CylinderGeometry(drainHoleR - 0.001, drainHoleR - 0.001, 0.05, 48, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x1a1a1c, roughness: 0.55, metalness: 0.4, side: THREE.DoubleSide,
+    })
+  );
+  drainPipe.position.set(drainWorldX, innerY - 0.020, drainWorldZ);
+  g.add(drainPipe);
+
+  /* Drain bottom plate — sealed bottom of the visible drain pipe */
+  const drainBottom = new THREE.Mesh(
+    new THREE.CircleGeometry(drainHoleR - 0.001, 48),
+    new THREE.MeshStandardMaterial({ color: 0x070708, roughness: 0.9 })
+  );
+  drainBottom.rotation.x = -Math.PI / 2;
+  drainBottom.position.set(drainWorldX, innerY - 0.045, drainWorldZ);
+  g.add(drainBottom);
+
+  /* Strainer crosshair grate (3 chrome bars across the opening) */
+  for (let i = 0; i < 3; i++) {
+    const rib = new THREE.Mesh(
+      new THREE.BoxGeometry(drainHoleR * 2 + 0.004, 0.0035, 0.005),
+      new THREE.MeshPhysicalMaterial({ color: 0xc8ccd2, roughness: 0.22, metalness: 0.95 })
+    );
+    rib.position.set(drainWorldX, innerY + 0.005, drainWorldZ);
+    rib.rotation.y = (i / 3) * Math.PI;
+    g.add(rib);
+  }
+
+  /* Wire-rack rails — two parallel chrome rails spanning FRONT-TO-BACK on
+     the right side of the basin top, in the back portion. Basket hooks over
+     them. Per sink-1 / sink-3 STEDIA reference. */
+  const railY = COUNTER_TOP_Y - 0.005;
+  const railLen = 0.22;
+  const railXc = xCenter + (sinkW / 2) - 0.085;   /* 8.5 cm in from right basin wall */
+  const railZc = sinkZ0 + 0.025 + railLen / 2;     /* back portion of basin */
+  const railGap = 0.060;                            /* spacing between the two rails */
+  for (const dx of [-railGap / 2, +railGap / 2]) {
+    const rail = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0025, 0.0025, railLen, 12),
+      matChrome
+    );
+    rail.rotation.x = Math.PI / 2;                  /* cylinder along Z axis */
+    rail.position.set(railXc + dx, railY, railZc);
+    g.add(rail);
+  }
+
+  /* Wire basket sitting on the rails — chrome wire grid hangs at back-right
+     of basin. Long axis (Z = depth) along the rails. */
+  {
+    const basketG = new THREE.Group();
+    const bW = 0.075;            /* X width (fits between the two rails) */
+    const bD = 0.180;            /* Z depth (along rails) */
+    const bH = 0.075;            /* drop below counter */
+    const bx0 = -bW / 2, bx1 = bW / 2;
+    const bz0 = -bD / 2, bz1 = bD / 2;
+    const wireR = 0.0018;
+
+    /* 4 vertical posts */
+    for (const [x, z] of [[bx0, bz0], [bx1, bz0], [bx0, bz1], [bx1, bz1]]) {
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(wireR, wireR, bH, 8),
+        matChrome
+      );
+      post.position.set(x, bH / 2, z);
+      basketG.add(post);
+    }
+    /* Top + bottom rim wires (4 each side) */
+    for (const y of [0.001, bH - 0.001]) {
+      for (const z of [bz0, bz1]) {
+        const w = new THREE.Mesh(
+          new THREE.CylinderGeometry(wireR, wireR, bW, 8),
+          matChrome
+        );
+        w.rotation.z = Math.PI / 2;
+        w.position.set(0, y, z);
+        basketG.add(w);
+      }
+      for (const x of [bx0, bx1]) {
+        const w = new THREE.Mesh(
+          new THREE.CylinderGeometry(wireR, wireR, bD, 8),
+          matChrome
+        );
+        w.rotation.x = Math.PI / 2;
+        w.position.set(x, y, 0);
+        basketG.add(w);
+      }
+    }
+    /* Bottom mesh — 7 cross wires along Z */
+    for (let i = 0; i < 7; i++) {
+      const t = (i + 0.5) / 7;
+      const w = new THREE.Mesh(
+        new THREE.CylinderGeometry(wireR, wireR, bW, 8),
+        matChrome
+      );
+      w.rotation.z = Math.PI / 2;
+      w.position.set(0, 0.002, bz0 + t * bD);
+      basketG.add(w);
+    }
+    basketG.position.set(railXc, railY - bH + 0.005, railZc);
+    g.add(basketG);
+  }
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Faucet — chrome pull-out, arc spout, side handle                       */
+/* ====================================================================== */
+function makeFaucet(xCenter, zBack) {
+  const g = new THREE.Group();
+  const baseY = COUNTER_TOP_Y + 0.012;
+
+  /* Base puck on counter (deck mount) — chrome flange */
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.030, 0.034, 0.014, 48),
+    matChrome
+  );
+  base.position.set(xCenter, COUNTER_TOP_Y + 0.007, zBack);
+  base.castShadow = true; base.receiveShadow = true;
+  g.add(base);
+
+  /* Goose-neck curve: rises straight up from the base, smooth 90° arc forward
+     at the top, horizontal spout extending forward into the basin, then bends
+     down at the end so the aerator points straight down at the water target.
+     Z increases TOWARD the user (sink front). */
+  const FZ = 1;     // forward = +Z (into sink)
+  const c0 = baseY;
+  const NECK_H = 0.230;
+  const ARC_R  = 0.090;
+  const REACH  = 0.270;   // total forward reach of spout
+  const DOWNTURN = 0.085; // descent at end
+
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(xCenter, c0,                    zBack),
+    new THREE.Vector3(xCenter, c0 + 0.060,            zBack),
+    new THREE.Vector3(xCenter, c0 + 0.150,            zBack),
+    new THREE.Vector3(xCenter, c0 + NECK_H,           zBack),
+    new THREE.Vector3(xCenter, c0 + NECK_H + ARC_R*0.8, zBack + ARC_R * 0.3 * FZ),
+    new THREE.Vector3(xCenter, c0 + NECK_H + ARC_R,   zBack + ARC_R * FZ),
+    new THREE.Vector3(xCenter, c0 + NECK_H + ARC_R,   zBack + (REACH - 0.04) * FZ),
+    new THREE.Vector3(xCenter, c0 + NECK_H + ARC_R - DOWNTURN * 0.55, zBack + (REACH - 0.005) * FZ),
+    new THREE.Vector3(xCenter, c0 + NECK_H + ARC_R - DOWNTURN, zBack + REACH * FZ),
+  ], false, 'catmullrom', 0.4);
+
+  /* High-tessellation tube — smooth as silk */
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 192, 0.0165, 32, false),
+    matChrome
+  );
+  tube.castShadow = true; tube.receiveShadow = true;
+  g.add(tube);
+
+  /* Aerator at the spout end, pointing along the curve's end tangent (down) */
+  const tipPos = curve.getPointAt(1);
+  const tipTan = curve.getTangentAt(1).normalize();
+  const aerator = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0215, 0.0215, 0.026, 36),
+    matChrome
+  );
+  const up = new THREE.Vector3(0, 1, 0);
+  const q = new THREE.Quaternion().setFromUnitVectors(up, tipTan);
+  aerator.quaternion.copy(q);
+  aerator.position.copy(tipPos);
+  /* Push the aerator a touch forward along the tangent so it visually attaches */
+  aerator.position.add(tipTan.clone().multiplyScalar(0.005));
+  aerator.castShadow = true;
+  g.add(aerator);
+
+  /* Aerator outlet — slightly darker disc at the very end (looking at the screen) */
+  const outlet = new THREE.Mesh(
+    new THREE.CircleGeometry(0.0195, 36),
+    new THREE.MeshPhysicalMaterial({ color: 0x6a6e74, roughness: 0.55, metalness: 0.6 })
+  );
+  outlet.quaternion.copy(q);
+  /* The circle's normal is +Z by default; we want it facing along tipTan.
+     Easier: position it just past the aerator end and set its rotation from tangent. */
+  const outletPos = tipPos.clone().add(tipTan.clone().multiplyScalar(0.013));
+  outlet.position.copy(outletPos);
+  /* Make the disc face along the tangent direction */
+  const zAxis = new THREE.Vector3(0, 0, 1);
+  const outletQ = new THREE.Quaternion().setFromUnitVectors(zAxis, tipTan);
+  outlet.quaternion.copy(outletQ);
+  g.add(outlet);
+
+  /* Single side lever — collar buries into the faucet body so it visually
+     attaches without a gap. Lever origin sits 4 mm INSIDE the tube surface;
+     the collar's inner edge protrudes from there outward. Rotations apply
+     around the lever origin (which is buried inside the body), so the lever's
+     entire travel pivots around the attachment point. */
+  {
+    const FAUCET_R = 0.0165;     // tube radius at the neck
+    const lever = new THREE.Group();
+
+    /* Pivot collar — short fat cylinder, length 18 mm, axis along lever-local +X.
+       Inner end at local x=0 (= lever origin = inside tube). Outer end at x=0.018. */
+    const collar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.022, 0.022, 0.022, 36),
+      matChrome
+    );
+    collar.rotation.z = Math.PI / 2;
+    collar.position.set(0.011, 0, 0);
+    lever.add(collar);
+
+    /* Lever shaft — tapering cylinder starts where collar ends */
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0090, 0.0078, 0.090, 28),
+      matChrome
+    );
+    shaft.rotation.z = Math.PI / 2;
+    shaft.position.set(0.022 + 0.045, 0, 0);
+    lever.add(shaft);
+
+    /* Rounded tip */
+    const tip = new THREE.Mesh(
+      new THREE.SphereGeometry(0.0105, 24, 18),
+      matChrome
+    );
+    tip.position.set(0.022 + 0.090 + 0.005, 0, 0);
+    lever.add(tip);
+
+    /* Anchor the lever group at the faucet body's right surface — actually 4 mm
+       inside, so the collar's inner half is buried and there's no visible gap. */
+    lever.position.set(xCenter + FAUCET_R - 0.004, baseY + 0.045, zBack);
+    lever.rotation.y = 0.18;
+    lever.rotation.z = THREE.MathUtils.degToRad(18);
+    g.add(lever);
+  }
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Cooktop — 3-burner gas hob (per ozu-test/interior-images/kitchen/d/    */
+/* kitchen-d-19.webp): dark charcoal enamel top, 3 burners with cast-iron */
+/* 4-prong grates, chrome burner caps, black grease-catcher across back. */
+/* ====================================================================== */
+function makeCooktop(xCenter) {
+  const g = new THREE.Group();
+  const ctW = 0.59;     /* 59 cm wide unit (typical Japanese 3-burner) */
+  const ctD = 0.52;     /* 52 cm deep */
+  const ctZ0 = 0.07;
+  const ctZ1 = ctZ0 + ctD;
+  const topY = COUNTER_TOP_Y + 0.008;       /* top surface 8 mm above counter */
+  const ctZc = (ctZ0 + ctZ1) / 2;
+
+  /* Materials (local — kept simple, conservative reflectance) */
+  const matEnamel = new THREE.MeshPhysicalMaterial({
+    color: 0x2e3036, roughness: 0.55, metalness: 0.45,
+    clearcoat: 0.25, clearcoatRoughness: 0.30,
+    envMapIntensity: 0.6,
+  });
+  const matCastIron = new THREE.MeshStandardMaterial({
+    color: 0x1a1a1c, roughness: 0.85, metalness: 0.30,
+  });
+  const matBurnerHead = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2e, roughness: 0.65, metalness: 0.50,
+  });
+  const matVent = new THREE.MeshStandardMaterial({
+    color: 0x101012, roughness: 0.95, metalness: 0.10,
+  });
+
+  /* Top plate — dark charcoal enamel inset into counter */
+  const top = new THREE.Mesh(
+    roundedBox(ctW, 0.012, ctD, 0.004, 3),
+    matEnamel
+  );
+  top.position.set(xCenter, topY, ctZc);
+  top.castShadow = false; top.receiveShadow = true;
+  g.add(top);
+
+  /* === High-res AO map baked on A6000 GPU 1 (Cycles + OptiX, see
+     kitchen-test/bake/bake_cooktop_ao.py) — captures contact shadows under
+     each burner cap, around the grate prongs, and behind the vent slats.
+     Wired via uv1 channel on the top plate only. */
+  {
+    const aoTex = aoLoader.load('kitchen-test/textures/ao/cooktop_top.png');
+    aoTex.colorSpace = THREE.NoColorSpace;
+    aoTex.wrapS = THREE.ClampToEdgeWrapping;
+    aoTex.wrapT = THREE.ClampToEdgeWrapping;
+    aoTex.magFilter = THREE.LinearFilter;
+    aoTex.minFilter = THREE.LinearMipmapLinearFilter;
+    matEnamel.aoMap = aoTex;
+    matEnamel.aoMapIntensity = 1.0;
+    matEnamel.needsUpdate = true;
+
+    /* Override uv1 on the top plate so the AO map samples by local (x, z). */
+    const pos = top.geometry.attributes.position;
+    const uv1 = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      const lx = pos.getX(i);
+      const lz = pos.getZ(i);
+      uv1[i * 2]     = (lx + ctW / 2) / ctW;
+      uv1[i * 2 + 1] = (lz + ctD / 2) / ctD;
+    }
+    top.geometry.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
+  }
+
+  /* Stainless trim frame (4 sides) around the inset */
+  const trimT = 0.012;
+  const rimY = topY - 0.001;
+  const trims = [
+    /* back  */ [ctW + trimT * 2, 0.006, trimT, xCenter, rimY, ctZ0 - trimT / 2],
+    /* front */ [ctW + trimT * 2, 0.006, trimT, xCenter, rimY, ctZ1 + trimT / 2],
+    /* left  */ [trimT, 0.006, ctD, xCenter - ctW / 2 - trimT / 2, rimY, ctZc],
+    /* right */ [trimT, 0.006, ctD, xCenter + ctW / 2 + trimT / 2, rimY, ctZc],
+  ];
+  for (const [w, h, d, x, y, z] of trims) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matStainlessBrushed);
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    g.add(m);
+  }
+
+  /* Back grease-catcher — perforated black mesh strip running across the back.
+     Built as a recessed dark base + a row of slim horizontal slats for the
+     perforated look. */
+  const ventW = ctW * 0.92;
+  const ventD = 0.055;
+  const ventZ = ctZ0 + ventD / 2 + 0.014;
+  {
+    /* Recessed dark base */
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(ventW, 0.004, ventD),
+      matVent
+    );
+    base.position.set(xCenter, topY + 0.001, ventZ);
+    g.add(base);
+    /* 9 slim slats forming the perforated grille */
+    const slatGap = ventD / 11;
+    for (let i = 0; i < 9; i++) {
+      const slat = new THREE.Mesh(
+        new THREE.BoxGeometry(ventW * 0.96, 0.0035, slatGap * 0.55),
+        matStainlessBrushed
+      );
+      const slatZ = ventZ - ventD / 2 + slatGap * (i + 1);
+      slat.position.set(xCenter, topY + 0.0035, slatZ);
+      g.add(slat);
+    }
+  }
+
+  /* === 3 burners === Per kitchen-d-19.webp:
+     - bigger at FRONT-LEFT
+     - smaller at BACK-CENTER
+     - medium at FRONT-RIGHT */
+  const burners = [
+    { dx: -0.165, dz: +0.075, gr: 0.085, hr: 0.030 },   /* front-left, biggest */
+    { dx:  0.000, dz: -0.115, gr: 0.067, hr: 0.024 },   /* back-center, smallest */
+    { dx: +0.150, dz: +0.045, gr: 0.075, hr: 0.027 },   /* front-right, medium */
+  ];
+
+  for (const b of burners) {
+    const bx = xCenter + b.dx;
+    const bz = ctZc + b.dz;
+
+    /* Recessed well — slightly darker ring on the enamel top */
+    const well = new THREE.Mesh(
+      new THREE.RingGeometry(b.hr + 0.005, b.gr * 0.95, 40),
+      new THREE.MeshStandardMaterial({
+        color: 0x1a1c20, roughness: 0.85, metalness: 0.25, side: THREE.DoubleSide
+      })
+    );
+    well.rotation.x = -Math.PI / 2;
+    well.position.set(bx, topY + 0.0065, bz);
+    g.add(well);
+
+    /* Chrome burner cap — short cylinder rising from the well */
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(b.hr, b.hr, 0.012, 32),
+      matChrome
+    );
+    cap.position.set(bx, topY + 0.013, bz);
+    g.add(cap);
+
+    /* Burner head dome on top of cap — slightly smaller, darker */
+    const head = new THREE.Mesh(
+      new THREE.CylinderGeometry(b.hr * 0.85, b.hr * 0.85, 0.008, 24),
+      matBurnerHead
+    );
+    head.position.set(bx, topY + 0.022, bz);
+    g.add(head);
+
+    /* Spark igniter — 2 chrome pins offset from center, one taller */
+    {
+      const pin1 = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0022, 0.0022, 0.014, 12),
+        matChrome
+      );
+      pin1.position.set(bx + 0.004, topY + 0.030, bz);
+      g.add(pin1);
+      const pin2 = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0022, 0.0022, 0.010, 12),
+        matChrome
+      );
+      pin2.position.set(bx - 0.004, topY + 0.028, bz);
+      g.add(pin2);
+    }
+
+    /* Drilled gas-outlet holes around the perimeter of the burner head — 8
+       small dark dots at radius hr*0.7, sitting just below the head's top
+       surface to read as drilled apertures. */
+    {
+      const holeR = b.hr * 0.05;
+      const ringR = b.hr * 0.70;
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        const hole = new THREE.Mesh(
+          new THREE.CylinderGeometry(holeR, holeR, 0.002, 10),
+          matVent
+        );
+        hole.position.set(
+          bx + Math.cos(ang) * ringR,
+          topY + 0.0265,
+          bz + Math.sin(ang) * ringR
+        );
+        g.add(hole);
+      }
+    }
+
+    /* Cast-iron 4-prong grate — 4 flat bars radiating from centre, raised
+       above the top plate so pans can sit on them. Each prong: ~3 mm wide,
+       1.5 cm tall, length = burner radius. */
+    const prongLen = b.gr;
+    const prongW = 0.012;
+    const prongH = 0.018;
+    const prongY = topY + 0.022;
+    const angles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
+    for (const a of angles) {
+      const prong = new THREE.Mesh(
+        new THREE.BoxGeometry(prongLen, prongH, prongW),
+        matCastIron
+      );
+      /* Build prong along +X by default; rotate around Y to point in direction `a`.
+         Translate so the inner end starts ~hr from centre. */
+      prong.position.set(
+        bx + Math.cos(a) * (b.hr + prongLen / 2 - 0.005),
+        prongY,
+        bz + Math.sin(a) * (b.hr + prongLen / 2 - 0.005)
+      );
+      prong.rotation.y = -a;
+      prong.castShadow = true; prong.receiveShadow = true;
+      g.add(prong);
+    }
+
+    /* Inner ring connecting prongs at burner edge — gives the grate a finished look */
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(b.hr + 0.002, 0.003, 8, 32),
+      matCastIron
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(bx, prongY + 0.005, bz);
+    g.add(ring);
+  }
+
+  /* === Front control knobs — 3 round knobs on the front face of the cooktop
+     unit, accessible by reaching down. One knob per burner. */
+  {
+    const matKnobBody = new THREE.MeshPhysicalMaterial({
+      color: 0x202024, roughness: 0.45, metalness: 0.55,
+      clearcoat: 0.30, clearcoatRoughness: 0.20,
+      envMapIntensity: 0.55,
+    });
+    const matKnobMark = new THREE.MeshStandardMaterial({
+      color: 0xeeeae3, roughness: 0.6, metalness: 0.0,
+    });
+    const knobR = 0.018;
+    const knobL = 0.018;
+    const knobY = COUNTER_TOP_Y - 0.025;
+    const knobXs = [xCenter - 0.16, xCenter, xCenter + 0.16];
+    for (const kx of knobXs) {
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(knobR, knobR, knobL, 32),
+        matKnobBody
+      );
+      body.rotation.x = Math.PI / 2;
+      body.position.set(kx, knobY, ctZ1 + trimT + knobL / 2);
+      g.add(body);
+      /* Position-indicator dash on the front face of the knob */
+      const mark = new THREE.Mesh(
+        new THREE.BoxGeometry(0.002, knobR * 0.7, 0.002),
+        matKnobMark
+      );
+      mark.position.set(kx, knobY + knobR * 0.5, ctZ1 + trimT + knobL + 0.001);
+      g.add(mark);
+    }
+  }
+
+  /* === Brand label — small white plate on the back-right area of the top */
+  {
+    const matLabel = new THREE.MeshStandardMaterial({
+      color: 0xf2f0ec, roughness: 0.7, metalness: 0.0,
+    });
+    const label = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 0.0008, 0.025),
+      matLabel
+    );
+    label.position.set(xCenter + ctW / 2 - 0.075, topY + 0.0070, ctZ0 + 0.075);
+    g.add(label);
+  }
+
+  /* === Screw heads at the 4 corners of the stainless trim frame */
+  {
+    const matScrew = new THREE.MeshStandardMaterial({
+      color: 0x303236, roughness: 0.55, metalness: 0.7,
+    });
+    const sR = 0.0028;
+    const cornerXs = [xCenter - ctW / 2 - trimT / 2, xCenter + ctW / 2 + trimT / 2];
+    const cornerZs = [ctZ0 - trimT / 2, ctZ1 + trimT / 2];
+    for (const sx of cornerXs) {
+      for (const sz of cornerZs) {
+        const screw = new THREE.Mesh(
+          new THREE.CylinderGeometry(sR, sR, 0.001, 12),
+          matScrew
+        );
+        screw.position.set(sx, rimY + 0.0035, sz);
+        g.add(screw);
+      }
+    }
+  }
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Range hood — drops down above cooktop                                  */
+/* ====================================================================== */
+function makeRangeHood(xCenter) {
+  const g = new THREE.Group();
+  const hoodW = 0.90;
+  const hoodD = 0.50;
+  const hoodH = 0.30;
+  const hoodTopY = WALL_CAB_TOP_Y - 0.10;
+  const hoodBottomY = hoodTopY - hoodH;
+
+  /* Body shell (canopy) — rounded */
+  const body = new THREE.Mesh(
+    roundedBox(hoodW, hoodH, hoodD, 0.006, 4),
+    matHoodBody
+  );
+  body.position.set(xCenter, (hoodTopY + hoodBottomY) / 2, hoodD / 2);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* Bottom filter recess (dark) */
+  const filter = new THREE.Mesh(
+    roundedBox(hoodW - 0.04, 0.015, hoodD - 0.04, 0.003, 3),
+    matHoodFilter
+  );
+  filter.position.set(xCenter, hoodBottomY + 0.008, hoodD / 2);
+  g.add(filter);
+
+  /* Front lip stainless trim */
+  const trim = new THREE.Mesh(
+    new THREE.BoxGeometry(hoodW + 0.005, 0.015, 0.012),
+    matStainlessBrushed
+  );
+  trim.position.set(xCenter, hoodBottomY + 0.0075, hoodD - 0.006);
+  g.add(trim);
+
+  /* Duct stub up to ceiling */
+  const ductW = 0.30, ductD = 0.30;
+  const duct = new THREE.Mesh(
+    new THREE.BoxGeometry(ductW, ROOM_H - hoodTopY, ductD),
+    matHoodBody
+  );
+  duct.position.set(xCenter, (hoodTopY + ROOM_H) / 2, ductD / 2);
+  duct.castShadow = true;
+  g.add(duct);
+
+  /* Touch-control panel on front */
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.025, 0.005),
+    matMicrowaveBlackGloss
+  );
+  panel.position.set(xCenter, hoodBottomY + 0.20, hoodD + 0.0025);
+  g.add(panel);
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Dish dryer — Cleanup electric lift wall cabinet (closed state)         */
+/* ====================================================================== */
+function makeDishDryer(xCenter) {
+  const g = new THREE.Group();
+  const dyW = 0.90;
+  const dyD = WALL_CAB_FRONT_Z;
+  const dyH = WALL_CAB_TOP_Y - WALL_CAB_BOTTOM_Y;
+  const cy = (WALL_CAB_BOTTOM_Y + WALL_CAB_TOP_Y) / 2;
+
+  /* Body (matches wall cabinet style) */
+  const body = new THREE.Mesh(
+    roundedBox(dyW, dyH, dyD, 0.005, 4),
+    matStainlessBrushed
+  );
+  body.position.set(xCenter, cy, dyD / 2);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* Front face — wood door matching wall cabinets */
+  const doorMat = makeWoodMaterial({
+    repeatX: 0.6, repeatY: 0.5,
+    offsetX: 0.31, offsetY: 0.12,
+  });
+  const door = new THREE.Mesh(
+    roundedBox(dyW - SEAM, dyH - 0.06, 0.022, 0.0025, 3),
+    doorMat
+  );
+  door.position.set(xCenter, cy + 0.025, dyD + 0.011);
+  door.castShadow = true;
+  g.add(door);
+
+  /* Stainless lift mechanism strip at the bottom of the door (motorised drop visual) */
+  const liftStrip = new THREE.Mesh(
+    roundedBox(dyW - SEAM, 0.045, 0.024, 0.003, 3),
+    matDryerPanelStrip
+  );
+  liftStrip.position.set(xCenter, WALL_CAB_BOTTOM_Y + 0.025, dyD + 0.012);
+  liftStrip.castShadow = true;
+  g.add(liftStrip);
+
+  /* Operation panel (small black rectangle at the bottom-center) */
+  const opPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.018, 0.004),
+    matDryerLcdBlack
+  );
+  opPanel.position.set(xCenter + 0.12, WALL_CAB_BOTTOM_Y + 0.020, dyD + 0.026);
+  g.add(opPanel);
+
+  /* 3 small button squares on the panel */
+  for (let i = 0; i < 3; i++) {
+    const btn = new THREE.Mesh(
+      new THREE.BoxGeometry(0.012, 0.008, 0.001),
+      new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.4, metalness: 0.6 })
+    );
+    btn.position.set(xCenter + 0.07 + i * 0.025, WALL_CAB_BOTTOM_Y + 0.020, dyD + 0.029);
+    g.add(btn);
+  }
+
+  /* Tiny LED dot */
+  const led = new THREE.Mesh(
+    new THREE.SphereGeometry(0.003, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0xff5500, emissive: 0xff7733, emissiveIntensity: 0.8 })
+  );
+  led.position.set(xCenter + 0.18, WALL_CAB_BOTTOM_Y + 0.020, dyD + 0.029);
+  g.add(led);
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Fridge — Panasonic NR-E45RY3L-S, 600 × 648 × 1850                       */
+/* ====================================================================== */
+function makeFridge(xCenter) {
+  const g = new THREE.Group();
+  const fW = 0.600;
+  const fD = 0.648;
+  const fH = 1.850;
+  const fX0 = xCenter - fW / 2;
+  const fZ0 = 0;
+
+  /* Body shell — single back+sides box (won't be visible from front anyway) */
+  const shell = new THREE.Mesh(
+    roundedBox(fW, fH, fD, 0.004, 4),
+    new THREE.MeshPhysicalMaterial({ color: 0xa6a9ae, roughness: 0.5, metalness: 0.7, envMapIntensity: 1.0 })
+  );
+  shell.position.set(xCenter, fH / 2, fZ0 + fD / 2);
+  shell.castShadow = true; shell.receiveShadow = true;
+  g.add(shell);
+
+  /* Black recessed seam plinth at very bottom */
+  const plinth = new THREE.Mesh(
+    new THREE.BoxGeometry(fW + 0.002, 0.045, 0.012),
+    fridgePanelMats.fridgePlinth
+  );
+  plinth.position.set(xCenter, 0.022, fZ0 + fD + 0.001);
+  g.add(plinth);
+
+  /* Panel layout (front face only):
+     - Top: y=0.93..1.85 — main fridge door (lightest, near-mirror)
+     - Upper drawers split: y=0.74..0.93, two halves (chilled / ice)
+     - Mid: y=0.36..0.74 — vegetable drawer
+     - Bottom: y=0.04..0.36 — lower freezer (darkest)
+     Seams ≈ 5 mm dark recess between panels.
+  */
+  const SEAM_Y = 0.005;
+
+  function frontPanel(yBot, yTop, mat, splitHalves = false) {
+    const h = (yTop - yBot) - SEAM_Y;
+    const cy = (yBot + yTop) / 2;
+    if (splitHalves) {
+      const halfW = (fW / 2) - SEAM_Y * 0.5;
+      const left = new THREE.Mesh(
+        roundedBox(halfW, h, 0.018, 0.0018, 3),
+        mat
+      );
+      left.position.set(xCenter - fW / 4 - SEAM_Y * 0.25, cy, fZ0 + fD + 0.009);
+      left.castShadow = true; left.receiveShadow = true;
+      g.add(left);
+      const right = left.clone();
+      right.position.x = xCenter + fW / 4 + SEAM_Y * 0.25;
+      g.add(right);
+    } else {
+      const m = new THREE.Mesh(
+        roundedBox(fW - SEAM_Y, h, 0.018, 0.0018, 3),
+        mat
+      );
+      m.position.set(xCenter, cy, fZ0 + fD + 0.009);
+      m.castShadow = true; m.receiveShadow = true;
+      g.add(m);
+    }
+  }
+
+  frontPanel(0.93, 1.85, fridgePanelMats.topLight, false);          // top fridge door
+  frontPanel(0.74, 0.93, fridgePanelMats.upperMid, true);            // split chilled / ice
+  frontPanel(0.36, 0.74, fridgePanelMats.midDrawer, false);          // vegetable
+  frontPanel(0.04, 0.36, fridgePanelMats.bottomDeep, false);         // lower freezer
+
+  /* Subtle handle recess line under top door (where fingers tuck in) */
+  const handleRecess = new THREE.Mesh(
+    new THREE.BoxGeometry(fW * 0.85, 0.020, 0.014),
+    new THREE.MeshStandardMaterial({ color: 0x33363a, roughness: 0.55, metalness: 0.5 })
+  );
+  handleRecess.position.set(xCenter, 0.92, fZ0 + fD + 0.014);
+  g.add(handleRecess);
+
+  /* Door pocket for left-opening (right-side handle hint) */
+  const handleBar = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.18, 0.014),
+    new THREE.MeshStandardMaterial({ color: 0x9099a0, roughness: 0.30, metalness: 0.85 })
+  );
+  handleBar.position.set(xCenter + fW / 2 - 0.030, 1.50, fZ0 + fD + 0.014);
+  g.add(handleBar);
+
+  /* Drawer pull recesses on each lower panel */
+  for (const y of [0.74 - 0.025, 0.36 - 0.025]) {
+    const pull = new THREE.Mesh(
+      new THREE.BoxGeometry(fW * 0.85, 0.012, 0.010),
+      new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.55, metalness: 0.4 })
+    );
+    pull.position.set(xCenter, y, fZ0 + fD + 0.012);
+    g.add(pull);
+  }
+
+  /* Top brand plate */
+  const brandPlate = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.10, 0.012),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.55 })
+  );
+  brandPlate.position.set(xCenter, 1.78, fZ0 + fD + 0.0185);
+  g.add(brandPlate);
+
+  return g;
+}
+
+/* ====================================================================== */
+/* Microwave — Sharp RE-TS174-B (matte black + copper accent)             */
+/* ====================================================================== */
+function makeMicrowave(xCenter, yBase, zFront) {
+  const g = new THREE.Group();
+  const mW = 0.460;
+  const mD = 0.350;
+  const mH = 0.280;
+  const cx = xCenter;
+  const cy = yBase + mH / 2;
+  const cz = zFront - mD / 2;
+
+  /* Body shell — rounded factory edges */
+  const body = new THREE.Mesh(
+    roundedBox(mW, mH, mD, 0.005, 4),
+    matMicrowaveBlackGloss
+  );
+  body.position.set(cx, cy, cz);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* Door (left 70% of front face) */
+  const doorW = mW * 0.62;
+  const doorH = mH * 0.86;
+  const door = new THREE.Mesh(
+    roundedBox(doorW - 0.004, doorH - 0.004, 0.005, 0.0015, 3),
+    matMicrowaveBlackGloss
+  );
+  door.position.set(cx - mW / 2 + doorW / 2 + 0.004, yBase + mH / 2, zFront + 0.0025);
+  door.castShadow = true;
+  g.add(door);
+
+  /* Door window: perforated grill BEHIND a real glass pane (transmission gives refraction) */
+  const windowMargin = 0.025;
+  const winW = doorW - windowMargin * 2 - 0.04;
+  const winH = doorH - windowMargin * 2 - 0.02;
+  const win = new THREE.Mesh(
+    new THREE.BoxGeometry(winW, winH, 0.002),
+    matMicrowaveGrill
+  );
+  win.position.set(cx - mW / 2 + doorW / 2 + 0.004, yBase + mH / 2, zFront + 0.005);
+  g.add(win);
+  /* Glass pane in front of the grill — true transmission */
+  const glass = new THREE.Mesh(
+    roundedBox(winW + 0.006, winH + 0.006, 0.004, 0.001, 2),
+    matMicrowaveGlass
+  );
+  glass.position.set(cx - mW / 2 + doorW / 2 + 0.004, yBase + mH / 2, zFront + 0.0085);
+  g.add(glass);
+
+  /* Right control panel area */
+  const panelX0 = cx - mW / 2 + doorW + 0.008;
+  const panelW  = mW - doorW - 0.012;
+
+  /* Copper vertical handle strip — between door and control panel */
+  const copperBar = new THREE.Mesh(
+    new THREE.BoxGeometry(0.020, doorH * 0.92, 0.012),
+    matCopper
+  );
+  copperBar.position.set(panelX0 + 0.012, yBase + mH / 2, zFront + 0.006);
+  copperBar.castShadow = true;
+  g.add(copperBar);
+
+  /* LCD display */
+  const lcd = new THREE.Mesh(
+    new THREE.BoxGeometry(panelW * 0.70, 0.040, 0.003),
+    matLcdScreen
+  );
+  lcd.position.set(panelX0 + panelW / 2 + 0.005, yBase + mH * 0.78, zFront + 0.004);
+  g.add(lcd);
+
+  /* LCD bezel */
+  const lcdBezel = new THREE.Mesh(
+    new THREE.BoxGeometry(panelW * 0.78, 0.054, 0.002),
+    matMicrowaveBlack
+  );
+  lcdBezel.position.set(panelX0 + panelW / 2 + 0.005, yBase + mH * 0.78, zFront + 0.0035);
+  g.add(lcdBezel);
+
+  /* Two control dials (top: small copper ring, bottom: large with copper rim) */
+  const dialMid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.013, 0.013, 0.008, 24),
+    matCopper
+  );
+  dialMid.rotation.x = Math.PI / 2;
+  dialMid.position.set(panelX0 + panelW / 2 + 0.005, yBase + mH * 0.55, zFront + 0.006);
+  g.add(dialMid);
+
+  const dialBig = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 0.008, 24),
+    matMicrowaveBlack
+  );
+  dialBig.rotation.x = Math.PI / 2;
+  dialBig.position.set(panelX0 + panelW / 2 + 0.005, yBase + mH * 0.32, zFront + 0.006);
+  g.add(dialBig);
+  const dialBigRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.024, 0.0035, 12, 32),
+    matCopper
+  );
+  dialBigRim.position.set(panelX0 + panelW / 2 + 0.005, yBase + mH * 0.32, zFront + 0.0075);
+  g.add(dialBigRim);
+
+  /* SHARP logo in copper, bottom-left of door */
+  const logo = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.07, 0.012),
+    matCopperLogo
+  );
+  logo.position.set(cx - mW / 2 + 0.06, yBase + 0.030, zFront + 0.006);
+  g.add(logo);
+
+  /* Tiny feet at the four corners */
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const foot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.012, 12),
+        matMicrowaveBlack
+      );
+      foot.position.set(cx + sx * (mW / 2 - 0.02), yBase + 0.006, cz + sz * (mD / 2 - 0.03));
+      g.add(foot);
+    }
+  }
+
+  return g;
+}
+
+step('builders defined');
+
+/* ====================================================================== */
+/* BUILD KITCHEN LAYOUT                                                    */
+/* ====================================================================== */
+
+/* Modules (left to right against back wall) */
+const FRIDGE_X0 = 0.00, FRIDGE_X1 = 0.60;            // fridge alcove
+const CAB1_X0   = 0.60, CAB1_X1   = 1.20;            // base cabinet (3-drawer) under microwave
+const COOK_X0   = 1.20, COOK_X1   = 1.95;            // cooktop module
+const CAB2_X0   = 1.95, CAB2_X1   = 2.55;            // base cabinet (3-drawer)
+const SINK_X0   = 2.55, SINK_X1   = 3.45;            // sink module
+const CAB3_X0   = 3.45, CAB3_X1   = 4.05;            // base cabinet (3-drawer)
+const CAB4_X0   = 4.05, CAB4_X1   = 4.50;            // end cabinet (3-drawer)
+
+/* Fridge */
+scene.add(makeFridge((FRIDGE_X0 + FRIDGE_X1) / 2));
+
+/* Base cabinets (drawer modules) */
+scene.add(makeBaseCabinet(CAB1_X0, CAB1_X1 - CAB1_X0, 3, 1));
+scene.add(makeBaseCabinet(CAB2_X0, CAB2_X1 - CAB2_X0, 3, 2));
+scene.add(makeBaseCabinet(CAB3_X0, CAB3_X1 - CAB3_X0, 3, 3));
+scene.add(makeBaseCabinet(CAB4_X0, CAB4_X1 - CAB4_X0, 3, 4));
+
+/* Sink module front (use cabinet body but just a single tall door instead of drawers) */
+{
+  const g = new THREE.Group();
+  const x0 = SINK_X0, x1 = SINK_X1, w = x1 - x0;
+  const cx = (x0 + x1) / 2;
+
+  /* Toe-kick plinth */
+  const toe = new THREE.Mesh(
+    roundedBox(w - SEAM, TOE_H, CABINET_FRONT_Z - CABINET_BACK_Z - TOE_INSET, 0.003, 3),
+    matPlinth
+  );
+  toe.position.set(cx, TOE_H / 2, (CABINET_BACK_Z + CABINET_FRONT_Z) / 2 - TOE_INSET / 2);
+  toe.castShadow = true; toe.receiveShadow = true;
+  g.add(toe);
+
+  /* Sink module: 2 cabinet doors, no drawers (plumbing access) */
+  const doorMat = makeWoodMaterial({
+    repeatX: w / 1.4, repeatY: (BASE_TOP_Y - TOE_H) / 1.4,
+    offsetX: 0.43, offsetY: 0.05,
+  });
+  const drawerH = BASE_TOP_Y - TOE_H;
+  const halfW = (w - SEAM * 2) / 2;
+  for (const sx of [-1, 1]) {
+    const door = new THREE.Mesh(
+      roundedBox(halfW, drawerH - SEAM, 0.022, 0.0025, 3),
+      doorMat
+    );
+    door.position.set(cx + sx * (halfW / 2 + SEAM / 2), (TOE_H + BASE_TOP_Y) / 2, CABINET_FRONT_Z + 0.011);
+    door.castShadow = true; door.receiveShadow = true;
+    g.add(door);
+  }
+  /* Top edge cap as handle */
+  const cap = new THREE.Mesh(
+    roundedBox(w - SEAM - 0.01, ABS_CAP_T, 0.018, 0.002, 3),
+    matStainlessBrushed
+  );
+  cap.position.set(cx, BASE_TOP_Y - ABS_CAP_T / 2 - 0.001, CABINET_FRONT_Z + 0.018);
+  g.add(cap);
+
+  /* Vertical seam between the 2 doors */
+  const seam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.003, drawerH, 0.002),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 })
+  );
+  seam.position.set(cx, (TOE_H + BASE_TOP_Y) / 2, CABINET_FRONT_Z + 0.024);
+  g.add(seam);
+
+  scene.add(g);
+}
+
+/* Cooktop module front (3 drawers like cabinet, except the top drawer is shorter to fit) */
+scene.add(makeBaseCabinet(COOK_X0, COOK_X1 - COOK_X0, 3, 5));
+
+/* Counter top runs continuously across all base modules — punched with sink cutout */
+{
+  const sinkCx = (SINK_X0 + SINK_X1) / 2;
+  scene.add(makeCounterRun(CAB1_X0, CAB4_X1, {
+    cutouts: [
+      { x: sinkCx, z: 0.30, w: 0.78, d: 0.46, r: 0.030 },
+    ],
+  }));
+}
+
+/* Wall cabinets (above base cabs except above cooktop where the hood lives) */
+scene.add(makeWallCabinet(CAB1_X0, CAB1_X1 - CAB1_X0, 21));
+scene.add(makeWallCabinet(CAB2_X0, CAB2_X1 - CAB2_X0, 22));
+/* sink: dish dryer instead of plain wall cab */
+scene.add(makeWallCabinet(CAB3_X0, CAB3_X1 - CAB3_X0, 23));
+scene.add(makeWallCabinet(CAB4_X0, CAB4_X1 - CAB4_X0, 24));
+
+/* Sink basin + faucet */
+{
+  const sinkCx = (SINK_X0 + SINK_X1) / 2;
+  scene.add(makeSink(sinkCx));
+  scene.add(makeFaucet(sinkCx, 0.055));
+}
+
+/* Cooktop */
+{
+  const cookCx = (COOK_X0 + COOK_X1) / 2;
+  scene.add(makeCooktop(cookCx));
+  scene.add(makeRangeHood(cookCx));
+}
+
+/* Dish dryer (above sink) */
+{
+  const sinkCx = (SINK_X0 + SINK_X1) / 2;
+  scene.add(makeDishDryer(sinkCx));
+}
+
+/* Microwave on counter above cabinet 1 */
+{
+  const microX = (CAB1_X0 + CAB1_X1) / 2;
+  scene.add(makeMicrowave(microX, COUNTER_TOP_Y, 0.42));
+}
+
+step('kitchen built');
+
+/* ====================================================================== */
+/* Postprocessing — Render → GTAO → Bloom → SMAA → Output                 */
+/* ====================================================================== */
+const renderTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth, window.innerHeight,
+  { type: THREE.HalfFloatType, samples: 4 }
+);
+const composer = new EffectComposer(renderer, renderTarget);
+composer.setPixelRatio(renderer.getPixelRatio());
+composer.setSize(window.innerWidth, window.innerHeight);
+
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+/* GTAO — ground-truth ambient occlusion for contact shadows in tight corners */
+const gtao = new GTAOPass(scene, camera, window.innerWidth, window.innerHeight);
+gtao.output = GTAOPass.OUTPUT.Default;
+gtao.updateGtaoMaterial({
+  radius: 0.25,
+  distanceExponent: 1.0,
+  thickness: 0.10,
+  scale: 1.0,
+  samples: 16,
+  distanceFallOff: 1.0,
+});
+composer.addPass(gtao);
+
+/* Bloom — only true emissives (LCD, ceiling fixtures, sky proxy) — no specular pickup */
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.14,   // strength
+  0.50,   // radius
+  1.05    // threshold (above non-HDR specular peaks)
+);
+composer.addPass(bloom);
+
+/* SMAA — subpixel-morphological antialiasing on top of MSAA target */
+const smaa = new SMAAPass(window.innerWidth, window.innerHeight);
+composer.addPass(smaa);
+
+/* Output — applies tone mapping (ACESFilmic) + sRGB encode */
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
+
+step('postprocessing wired');
+
+/* ====================================================================== */
+/* Hotspot system (reused from earlier kitchen-test)                       */
+/* ====================================================================== */
+const hotspotsLayer = document.getElementById('hotspots-layer');
+const popover       = document.getElementById('popover');
+const scrim         = document.getElementById('scrim');
+const titleEl       = document.getElementById('popover-title');
+const subtitleEl    = document.getElementById('popover-subtitle');
+const specsEl       = document.getElementById('popover-specs');
+const buyEl         = document.getElementById('popover-buy');
+const closeEl       = popover.querySelector('.close');
+const arrowEl       = popover.querySelector('.arrow');
+
+const hotspots = [];
+
+function createHotspot(id, product) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'hotspot';
+  btn.dataset.id = id;
+  btn.setAttribute('aria-label', `Product details for ${product.name}`);
+  btn.innerHTML = '<span class="hotspot__dot" aria-hidden="true"></span>';
+  const worldPos = new THREE.Vector3(
+    product.hotspotPosition.x,
+    product.hotspotPosition.y,
+    product.hotspotPosition.z,
+  );
+  btn.addEventListener('click', () => openPopover(id, btn));
+  hotspotsLayer.appendChild(btn);
+  return { id, product, btn, worldPos };
+}
+
+for (const [id, p] of Object.entries(PRODUCTS)) {
+  hotspots.push(createHotspot(id, p));
+}
+
+function projectToScreen(worldPos) {
+  const v = worldPos.clone().project(camera);
+  return {
+    x: (v.x * 0.5 + 0.5) * window.innerWidth,
+    y: (-v.y * 0.5 + 0.5) * window.innerHeight,
+    visible: v.z < 1,
+  };
+}
+
+function updateHotspotPositions() {
+  for (const h of hotspots) {
+    const s = projectToScreen(h.worldPos);
+    if (s.visible) {
+      h.btn.style.transform = `translate(${s.x - 22}px, ${s.y - 22}px)`;
+      h.btn.style.visibility = '';
+    } else {
+      h.btn.style.visibility = 'hidden';
+    }
+  }
+}
+
+let openHotspot = null;
+
+function openPopover(id, originBtn) {
+  const product = PRODUCTS[id];
+  if (!product) return;
+  titleEl.textContent = product.name;
+  subtitleEl.textContent = product.subtitle || '';
+  specsEl.innerHTML = '';
+  for (const [k, v] of (product.specs || [])) {
+    const li = document.createElement('li');
+    const ks = document.createElement('span'); ks.className = 'k'; ks.textContent = k;
+    const vs = document.createElement('span'); vs.className = 'v'; vs.textContent = v;
+    li.appendChild(ks); li.appendChild(vs);
+    specsEl.appendChild(li);
+  }
+  if (product.buyUrl) {
+    buyEl.href = product.buyUrl;
+    buyEl.textContent = product.buyLabel || 'View product';
+    buyEl.style.display = '';
+  } else {
+    buyEl.style.display = 'none';
+  }
+  openHotspot = { id, originBtn };
+  scrim.hidden = false;
+  popover.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    popover.classList.add('open');
+    scrim.classList.add('open');
+    updatePopoverPosition();
+    closeEl.focus();
+  }));
+}
+
+function closePopover() {
+  if (!openHotspot) return;
+  const origin = openHotspot.originBtn;
+  popover.classList.remove('open');
+  scrim.classList.remove('open');
+  popover.classList.remove('flip-down');
+  setTimeout(() => {
+    popover.hidden = true;
+    scrim.hidden = true;
+    if (origin) origin.focus();
+  }, 250);
+  openHotspot = null;
+}
+
+function updatePopoverPosition() {
+  if (!openHotspot) return;
+  if (window.innerWidth < 768) {
+    arrowEl.style.display = 'none';
+    popover.style.left = ''; popover.style.top = '';
+    return;
+  }
+  arrowEl.style.display = '';
+  const h = hotspots.find(x => x.id === openHotspot.id);
+  if (!h) return;
+  const s = projectToScreen(h.worldPos);
+  const popW = popover.offsetWidth;
+  const popH = popover.offsetHeight;
+  const margin = 16, gap = 14;
+  let placeAbove = true;
+  let top = s.y - popH - gap;
+  if (top < margin) { placeAbove = false; top = s.y + gap; }
+  let left = s.x - popW / 2;
+  if (left < margin) left = margin;
+  if (left + popW > window.innerWidth - margin) left = window.innerWidth - margin - popW;
+  popover.style.left = `${left}px`;
+  popover.style.top  = `${top}px`;
+  popover.classList.toggle('flip-down', !placeAbove);
+  const arrowX = Math.max(16, Math.min(popW - 16, s.x - left));
+  arrowEl.style.left = `${arrowX - 8}px`;
+}
+
+closeEl.addEventListener('click', closePopover);
+scrim.addEventListener('click', closePopover);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && openHotspot) closePopover();
+});
+window.addEventListener('resize', () => {
+  if (openHotspot) updatePopoverPosition();
+});
+
+/* ====================================================================== */
+/* OrbitControls (inline — Mac trackpad guard preserved)                  */
+/* ====================================================================== */
+class OrbitControls {
+  constructor(cam, dom) {
+    this.cam = cam; this.dom = dom;
+    this.target = new THREE.Vector3(2.25, 1.0, 0.5);
+    this.sph = new THREE.Spherical();
+    this._updateSph();
+    this._down = false; this._pan = false;
+    this._last = { x: 0, y: 0 };
+    dom.addEventListener('mousedown', e => this._onDown(e));
+    window.addEventListener('mousemove', e => this._onMove(e));
+    window.addEventListener('mouseup',   e => this._onUp(e));
+    dom.addEventListener('wheel',     e => this._onWheel(e), { passive: false });
+    dom.addEventListener('contextmenu', e => e.preventDefault());
+    let lastTouch = null;
+    dom.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) { lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
+    }, { passive: true });
+    dom.addEventListener('touchmove', e => {
+      if (e.touches.length === 1 && lastTouch) {
+        const dx = e.touches[0].clientX - lastTouch.x;
+        const dy = e.touches[0].clientY - lastTouch.y;
+        lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        this.sph.theta -= dx * 0.005;
+        this.sph.phi   -= dy * 0.005;
+        this.sph.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this.sph.phi));
+        this.update();
+      }
+    }, { passive: true });
+    dom.addEventListener('touchend', () => { lastTouch = null; });
+  }
+  _updateSph() {
+    const off = new THREE.Vector3().copy(this.cam.position).sub(this.target);
+    this.sph.setFromVector3(off);
+  }
+  _onDown(e) {
+    this._down = true;
+    this._pan = e.shiftKey || e.button === 2;
+    this._last.x = e.clientX; this._last.y = e.clientY;
+  }
+  _onMove(e) {
+    if (!this._down) return;
+    const dx = e.clientX - this._last.x;
+    const dy = e.clientY - this._last.y;
+    this._last.x = e.clientX; this._last.y = e.clientY;
+    if (this._pan) {
+      const scale = this.sph.radius * 0.002;
+      const right = new THREE.Vector3();
+      this.cam.getWorldDirection(right);
+      right.cross(this.cam.up).normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      this.target.addScaledVector(right, -dx * scale);
+      this.target.addScaledVector(up, dy * scale);
+    } else {
+      this.sph.theta -= dx * 0.005;
+      this.sph.phi   -= dy * 0.005;
+      this.sph.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this.sph.phi));
+    }
+    this.update();
+  }
+  _onUp() { this._down = false; this._pan = false; this._lastUp = performance.now(); }
+  _onWheel(e) {
+    e.preventDefault();
+    if (this._down) return;
+    if (this._lastUp && (performance.now() - this._lastUp) < 400) return;
+    const factor = Math.pow(0.95, -e.deltaY * 0.01);
+    this.sph.radius = Math.max(1.2, Math.min(20, this.sph.radius * factor));
+    this.update();
+  }
+  update() {
+    const off = new THREE.Vector3().setFromSpherical(this.sph);
+    this.cam.position.copy(this.target).add(off);
+    this.cam.lookAt(this.target);
+  }
+}
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.update();
+
+/* ====================================================================== */
+/* Debug — alt-click to log world coords                                   */
+/* ====================================================================== */
+const HINT_BASE = 'click a dot · drag to orbit · wheel to zoom · alt-click any surface to log world coords';
+const hintEl = document.getElementById('hint');
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, dragMoved = false;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downX = e.clientX; downY = e.clientY; dragMoved = false;
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 4) dragMoved = true;
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (dragMoved) return;
+  if (!(e.altKey || e.metaKey)) return;
+  ndc.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(scene.children, true);
+  if (!hits.length) return;
+  const p = hits[0].point;
+  const txt = `world: { x: ${p.x.toFixed(3)}, y: ${p.y.toFixed(3)}, z: ${p.z.toFixed(3)} }`;
+  console.log(txt);
+  hintEl.textContent = txt + '  (logged to console)';
+  clearTimeout(hintEl._t);
+  hintEl._t = setTimeout(() => { hintEl.textContent = HINT_BASE; }, 4000);
+});
+
+/* ====================================================================== */
+/* Resize + render loop                                                    */
+/* ====================================================================== */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloom.setSize(window.innerWidth, window.innerHeight);
+  gtao.setSize(window.innerWidth, window.innerHeight);
+  smaa.setSize(window.innerWidth, window.innerHeight);
+});
+
+let _firstFrameDone = false;
+function tick() {
+  updateHotspotPositions();
+  if (openHotspot) updatePopoverPosition();
+  composer.render();
+  if (!_firstFrameDone) {
+    _firstFrameDone = true;
+    if (_loadbox) _loadbox.style.display = 'none';
+    step('first frame');
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>
