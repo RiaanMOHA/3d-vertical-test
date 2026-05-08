@@ -293,16 +293,37 @@ mail slot.
 
 ### Phase 8 — Small clean-ups
 
-- 🔲 Decide what to do with the empty `corridor-2` photo folder
-  (keep or delete)
-- 🔲 Decide whether to run the photo-folder rename script (some
-  folders are still named `a/b/c/d` instead of by which corner they
-  show)
-- 🔲 `package.json` — currently flagged "leave it"; the `npm run dev`
-  script also fails on Linux because it uses a Mac-only command.
-  Could be tidied while we're here.
+- ✅ `corridor-2` folder — clarified 2026-05-07. The user confirmed
+  `corridor-2` photos are **the same physical space as `corridor-1`,
+  re-shot with the toilet door closed**. No new viewpoints, no new
+  geometry information. **Rule: ignore `corridor-2` entirely** — leave
+  it on disk untouched, do not rename, do not chip-link, do not
+  migrate. (Stored as memory `project_ozu_1f_corridor_rules.md`.)
+- 🔲 Photo-folder rename — partial picture. `room-1` and `room-2`
+  already use `corner-*-*` names; the rest still use `a/b/c/d`
+  (`corridor-1`, `room-3`, `room-4`, `kitchen`, `laundry`,
+  `toilet-1-f`, `washroom`, `corridor-2-toilet-2-f`). There is **no
+  rename script on disk** — each rename has to be authored from the
+  room's `room-map.md`. Special cases:
+  - `corridor-1` target shape is `pano-a` + `pano-a2` (2-viewpoint
+    capture), not `corner-*-*`. Per
+    `project_ozu_1f_corridor_rules.md`. Until re-shoots arrive, the
+    existing `a/b/c/d` photos stay on disk as legacy reference.
+  - `corridor-2` is excluded from any rename run (see above).
+  - Other a/b/c/d rooms can follow the room-1 pattern (corner names
+    derived from each room-map.md's wall list).
+- ✅ `package.json` — fixed 2026-05-07. The old `dev` script ran
+  `concurrently --kill-others-on-fail` with `xdg-open || open` to
+  auto-open a browser. On the headless GPU server `xdg-open` errors
+  with no DISPLAY, which (per `--kill-others-on-fail`) tore down the
+  http.server every time. Now `npm run dev` is just
+  `python3 -m http.server 8080` — server starts, user opens the URL
+  themselves via VS Code's port-forward. The `concurrently` dep was
+  removed; `dev:no-open` is gone too (redundant with the simplified
+  `dev`).
 
-**Status:** open.
+**Status:** mostly done; only the photo-folder rename remains, and
+that's a "decide" item — not a free-running cleanup.
 
 ### Optional — going public
 
