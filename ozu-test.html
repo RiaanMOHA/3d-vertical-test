@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>ozu-test — 3D projects</title>
 <style>
   /* === Liquid Glass tokens (iOS 26 / visionOS 26) ===
@@ -29,22 +29,104 @@
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; color: #fff; }
   #app { position: fixed; inset: 0; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-  /* Photographic vignette overlay — only active for the room-1 sandbox.
-     Soft radial darkening at the corners gives the render a cinematic
-     "viewed through a lens" feel without touching the EffectComposer. */
-  #app::after {
-    content: '';
-    position: absolute; inset: 0;
-    pointer-events: none;
-    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%);
-    opacity: 0;
-    transition: opacity 200ms ease;
-  }
-  #app.vignette::after { opacity: 1; }
   .ui { position: absolute; pointer-events: none; user-select: none; font-size: 13px; letter-spacing: 0.02em; }
 
   /* === Hide legacy chip wrappers — JS still uses them for state === */
   #chips, #tod-chips, #project-badge, #hints, #room-label { display: none !important; }
+
+  /* === Corner-jump hotspots ===
+     Floating dots in each corner of room-1 the user can click to teleport
+     the camera there. Screen-overlay only — projected from world-space each
+     frame in JS. Visible regardless of wall occlusion so they stay
+     discoverable from the default "outside the room" orbit framing. */
+  #corner-hotspots-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 40;
+  }
+  .corner-hotspot {
+    position: absolute;
+    left: 0; top: 0;
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0; border: 0;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    will-change: transform;
+  }
+  .corner-hotspot__dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow:
+      0 0 0 3px rgba(0, 0, 0, 0.22),
+      0 2px 6px rgba(0, 0, 0, 0.40);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    animation: corner-pulse 2.6s ease-in-out infinite;
+  }
+  .corner-hotspot:hover  .corner-hotspot__dot,
+  .corner-hotspot:focus-visible .corner-hotspot__dot {
+    transform: scale(1.25);
+    box-shadow:
+      0 0 0 3px rgba(0, 122, 255, 0.95),
+      0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+  .corner-hotspot:focus-visible {
+    outline: 2px solid #007AFF;
+    outline-offset: 2px;
+    border-radius: 50%;
+  }
+  @keyframes corner-pulse {
+    0%, 100% { opacity: 0.85; }
+    50%      { opacity: 1.00; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .corner-hotspot__dot { animation: none; }
+  }
+
+  /* === Top-center: entry hint pill ===
+     Briefly shown after each scene switch so users learn the controls
+     without us having to print them anywhere permanent. Glass styling
+     matches dock + back-link. Sized for iPhone SE (375 px) up; clears the
+     back button on the leading side via centred max-width. */
+  .entry-hint {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: 50%;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--glass-bg);
+    background-image: var(--glass-highlight);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-stroke);
+    box-shadow: var(--glass-inner-shadow), var(--glass-elevation);
+    color: var(--text-on-glass);
+    font-size: 13px; line-height: 1.3; font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    z-index: 50;
+    /* Reserve 72 px on each side for the back-link (left) + matching gutter
+       (right). Falls back to ellipsis on the smallest phones if the text is
+       ever longer than the available pill width. */
+    max-width: calc(100vw - 144px - var(--safe-left) - var(--safe-right));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    transform: translate(-50%, -8px);
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+  .entry-hint.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  @media (max-width: 420px) {
+    .entry-hint { font-size: 12px; padding: 7px 14px; }
+  }
 
   /* === Top-leading: glass back button (icon-only, 44pt) === */
   #back-link {
@@ -265,6 +347,13 @@
 <!-- Top-leading: glass back button (icon only) -->
 <a id="back-link" href="http://localhost:8080/index.html" aria-label="Back to projects">‹</a>
 
+<!-- Top-center: brief on-entry control hint. Shown after each scene switch,
+     auto-fades so it doesn't sit permanently in the user's view. -->
+<div id="entry-hint" class="entry-hint" aria-live="polite">Drag to look · pinch to zoom</div>
+
+<!-- Corner-jump hotspots — populated by JS. Hidden unless room-1 is active. -->
+<div id="corner-hotspots-layer" hidden></div>
+
 <!-- Bottom-center: glass dock with scene segmented control + views button -->
 <div id="dock" role="toolbar" aria-label="Scene controls">
   <div id="scene-segment" role="group" aria-label="Scene">
@@ -304,7 +393,13 @@
 // Works offline once vendor/ + ozu-test/hdri/ are populated.
 import * as THREE from 'three';
 import { HDRLoader } from './vendor/three/examples/jsm/loaders/HDRLoader.js';
-import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+// RectAreaLight LTC: WebGPU path (RectAreaLightTexturesLib) is disabled here
+// because we render via WebGLRenderer below. The WebGL counterpart
+// (RectAreaLightUniformsLib) needs UniformsLib which the minified bundle
+// drops, so it can't be initialised either. Result: any RectAreaLight in the
+// scene falls back to default un-LUT'd behaviour (slightly dimmer, less
+// physically accurate). Acceptable trade-off until a non-minified build is
+// vendored.
 
 (function() {
   'use strict';
@@ -313,19 +408,18 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
   const roomLabel = document.getElementById('room-label');
 
   // ---------- Renderer / camera / scene ----------
+  // WebGLRenderer with default MSAA. Tried WebGPURenderer (r184) but
+  // renderer.init() hangs in browsers without WebGPU support, so reverted.
+  // Pixel-ratio cap at 3 (instead of 2) keeps retina+ displays sharp on the
+  // transmission buffer for window glass.
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  // RectAreaLight needs its uniforms LUT initialised exactly once, after the
-  // renderer exists but before any material that the light touches is built
-  // (Phase 2a of room-1-ONLY-cutting-edge-plan.md — the order fix that the
-  // previous attempt got wrong).
-  RectAreaLightUniformsLib.init();
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -466,6 +560,71 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
     (err) => { console.warn('HDRI load failed, using procedural fallback:', err); }
   );
 
+  // Phase D — through-window backdrop. Was the kloppenheim_06_2k HDRI (German
+  // village); now a cropped Google Street View screenshot of the actual
+  // location: Ozu, Kumamoto, 32°54'53.0"N 130°51'00.9"E. Loaded as a regular
+  // 2D texture and assigned to scene.background only when room-1 is active —
+  // three.js renders it as a screen-fitted backdrop visible behind the room
+  // geometry (same role the HDRI had, minus the 360° rotation tracking, which
+  // a rectilinear photo can't provide anyway). The puresky HDRI above is
+  // still used for IBL lighting on PBR materials.
+  let _room1BgTex = null;
+  new THREE.TextureLoader().load(
+    'ozu-test/streetview/driveway-backdrop.jpg',
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      _room1BgTex = texture;
+      if (scene && activeScene === 'room-1') scene.background = texture;
+    },
+    undefined,
+    (err) => { console.warn('Room-1 background photo failed to load:', err); }
+  );
+
+  // ---------- Procedural cream-siding texture (subtle horizontal courses) ----------
+  // Builds a small canvas with a cream base + a thin darker line every ~40 mm. Applied
+  // globally to the exterior cladding materials. Wall heights are uniform (2.50 m per
+  // floor) so the per-mesh course count stays consistent.
+  function creamSidingTex() {
+    const cvs = document.createElement('canvas');
+    cvs.width = 64; cvs.height = 256;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#e8e3d9';
+    ctx.fillRect(0, 0, 64, 256);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.10)';
+    for (let y = 32; y < 256; y += 32) {
+      ctx.fillRect(0, y, 64, 1);
+    }
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 8;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    // Canvas physical span: 256 px = 0.32 m (8 courses × 40 mm). Most walls are 2.50 m
+    // tall × ~3 m wide, so default repeat ~ (9, 8). Caller can override via tex.clone().
+    tex.repeat.set(9, 8);
+    return tex;
+  }
+
+  // ---------- PBR texture helper (Poly Haven CC0 sets in ozu-test/room-1-textures/) ----------
+  // Loads diff + normal + rough maps for the given slug, sets per-mesh repeat, returns a
+  // MeshStandardMaterial. Available slugs locally: wood_floor, dark_wood. Each call clones
+  // textures (browser caches the underlying file) so each mesh has its own UV repeat.
+  function pbrMat(slug, repU, repV, extras = {}) {
+    const loader = new THREE.TextureLoader();
+    const base = `ozu-test/room-1-textures/${slug}/${slug}`;
+    const map = loader.load(`${base}_diff.jpg`);
+    map.colorSpace = THREE.SRGBColorSpace;
+    const normalMap = loader.load(`${base}_nor_gl.jpg`);
+    const roughnessMap = loader.load(`${base}_rough.jpg`);
+    const aniso = renderer.capabilities.getMaxAnisotropy();
+    for (const t of [map, normalMap, roughnessMap]) {
+      t.wrapS = THREE.RepeatWrapping;
+      t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(repU, repV);
+      t.anisotropy = aniso;
+    }
+    return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
+  }
+
   // ---------- Scene registry ----------
   const scenes = {};
   let activeScene = null;
@@ -538,7 +697,7 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
 
       // ---------- materials ----------
       const matLower  = new THREE.MeshStandardMaterial({ color: 0x5a4838, roughness: 0.88 });   // dark brown siding
-      const matUpper  = new THREE.MeshStandardMaterial({ color: 0xe8e3d9, roughness: 0.92 });   // off-white panels
+      const matUpper  = new THREE.MeshStandardMaterial({ map: creamSidingTex(), roughness: 0.92 });   // off-white panels with horizontal courses
       const matTrim   = new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.7 });    // dark window frame
       const matGlass  = new THREE.MeshPhysicalMaterial({ color: 0xeaf0f4, roughness: 0.12, metalness: 0.0, transmission: 0.82, thickness: 0.01, ior: 1.52 });
       const matRoof   = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.9 });
@@ -863,6 +1022,74 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         S.group.add(lamp);
       }
 
+      // ---------- exterior detail kit (plinth + gutters + AC + address plate + intercom) ----------
+      // Foundation plinth — 250 mm exposed concrete strip wrapping the building base, 100 mm
+      // proud of the cladding. Universal in JP residential construction.
+      {
+        const plinthH = 0.25, plinthD = 0.10;
+        // Front + back
+        for (const [zCenter, zSign] of [[D + plinthD / 2, +1], [-plinthD / 2, -1]]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(W + 2 * plinthD, plinthH, plinthD), matConcrete);
+          m.position.set(W / 2, plinthH / 2, zCenter);
+          m.receiveShadow = true; m.castShadow = true;
+          S.group.add(m);
+        }
+        // Left + right
+        for (const xCenter of [-plinthD / 2, W + plinthD / 2]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(plinthD, plinthH, D + 2 * plinthD), matConcrete);
+          m.position.set(xCenter, plinthH / 2, D / 2);
+          m.receiveShadow = true; m.castShadow = true;
+          S.group.add(m);
+        }
+      }
+      // Gutter + downspouts on the front facade
+      {
+        const matGutter = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.4 });
+        const totalH = F1H + F2H;
+        const gutter = new THREE.Mesh(new THREE.BoxGeometry(W + 0.20, 0.06, 0.10), matGutter);
+        gutter.position.set(W / 2, totalH + 0.03, D + 0.05);
+        gutter.castShadow = true;
+        S.group.add(gutter);
+        // Vertical downspouts at each front corner
+        for (const xDS of [-0.05, W + 0.05]) {
+          const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, totalH, 12), matGutter);
+          pipe.position.set(xDS, totalH / 2, D + 0.06);
+          pipe.castShadow = true;
+          S.group.add(pipe);
+        }
+      }
+      // Outdoor AC condenser (室外機) — standard split-system unit on the back / garden side.
+      {
+        const matACBody = new THREE.MeshStandardMaterial({ color: 0xe8e6df, roughness: 0.6 });
+        const matACGrille = new THREE.MeshStandardMaterial({ color: 0xa8a8a0, roughness: 0.7 });
+        const ax = 4.0, az = -0.40;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.55, 0.30), matACBody);
+        body.position.set(ax, 0.275, az);
+        body.castShadow = true; body.receiveShadow = true;
+        S.group.add(body);
+        const grille = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.40, 0.02), matACGrille);
+        grille.position.set(ax, 0.275, az - 0.155);
+        S.group.add(grille);
+      }
+      // Address plate (表札) + intercom flanking the front door (door at x=4.95..5.85)
+      {
+        const matPlate = new THREE.MeshStandardMaterial({ color: 0xeeeae3, roughness: 0.4, metalness: 0.1 });
+        const matInter = new THREE.MeshStandardMaterial({ color: 0xe0d8c8, roughness: 0.5 });
+        const matBtn = new THREE.MeshStandardMaterial({ color: 0xc8a838, roughness: 0.5, metalness: 0.6 });
+        // Plate to the left of the door (smaller x)
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.10, 0.012), matPlate);
+        plate.position.set(4.85, 1.55, D + 0.012);
+        S.group.add(plate);
+        // Intercom to the right of the door (larger x)
+        const inter = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.13, 0.025), matInter);
+        inter.position.set(5.95, 1.40, D + 0.018);
+        S.group.add(inter);
+        const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.005, 12), matBtn);
+        btn.rotation.x = Math.PI / 2;
+        btn.position.set(5.95, 1.36, D + 0.033);
+        S.group.add(btn);
+      }
+
       // ---------- lighting ----------
       const sun = new THREE.DirectionalLight(0xfff2dc, 1.0);
       sun.position.set(-8, 14, 10);
@@ -964,35 +1191,42 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       const wallMat = new THREE.MeshStandardMaterial({ color: CLR.wall, roughness: 0.95 });
       // Outer-wall cladding (matches exterior scene + photos)
       const matLowerExt = new THREE.MeshStandardMaterial({ color: 0x5a4838, roughness: 0.88 });   // dark brown panel
-      const matUpperExt = new THREE.MeshStandardMaterial({ color: 0xe8e3d9, roughness: 0.92 });   // off-white cream
+      const matUpperExt = new THREE.MeshStandardMaterial({ map: creamSidingTex(), roughness: 0.92 });   // off-white cream with horizontal courses
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xb89878, roughness: 0.6 });
       const closetDoorMat = new THREE.MeshStandardMaterial({ color: 0xe8dfd0, roughness: 0.6 });
       const doorHandleMat = new THREE.MeshStandardMaterial({ color: 0xc8cdd2, metalness: 0.85, roughness: 0.18 });
       // Painted-trim material: door casings (architrave), baseboards (巾木), crown molding (回り縁).
       // Modern JP residential trim is typically a clean off-white, slightly whiter than the wall paint.
-      const trimMat = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.8 });
+      const trimMat = new THREE.MeshStandardMaterial({
+        color: 0xfafaf6, roughness: 0.8,
+        polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+      });
 
-      // Procedural wood-plank textures per floor type (uses the global plankTex helper).
-      // Each entry: a base CanvasTexture + a density (cycles per metre) used to set repeat.
+      // PBR wood-floor textures (Poly Haven CC0 wood_floor set), tinted per room. The
+      // browser caches the texture files; each mesh clones the textures for its own UV repeat.
       const FLOORS = {
-        ldk:      { tex: plankTex(CLR.floor_ldk,      8, 17), density: 0.5, rough: 0.85 },
-        corridor: { tex: plankTex(CLR.floor_corridor, 8, 23), density: 0.5, rough: 0.85 },
-        stairs:   { tex: plankTex(CLR.floor_stairs,   8, 31), density: 0.6, rough: 0.8  },
-        room4:    { tex: plankTex(CLR.floor_room4,    8, 41), density: 0.5, rough: 0.85 },
-        room:     { tex: plankTex(CLR.floor_room,     8, 53), density: 0.5, rough: 0.85 },
-        toilet:   { tex: plankTex(CLR.floor_toilet,   8, 67), density: 0.6, rough: 0.85 },
+        ldk:      { slug: 'wood_floor', density: 0.5, rough: 0.7,  color: CLR.floor_ldk },
+        corridor: { slug: 'wood_floor', density: 0.5, rough: 0.75, color: CLR.floor_corridor },
+        stairs:   { slug: 'wood_floor', density: 0.6, rough: 0.7,  color: CLR.floor_stairs },
+        room4:    { slug: 'wood_floor', density: 0.5, rough: 0.75, color: CLR.floor_room4 },
+        room:     { slug: 'wood_floor', density: 0.5, rough: 0.75, color: CLR.floor_room },
+        toilet:   { slug: 'wood_floor', density: 0.6, rough: 0.8,  color: CLR.floor_toilet },
       };
 
       // Wall builders, parameterised by yBase (1F at y=0, 2F at y=F1H).
-      // colorOrSpec is either a hex number (flat colour) or a {tex, density, rough}
-      // object — in which case the texture is cloned and its repeat is set to
-      // (dx * density, dz * density) so larger floors get more cycles, not bigger planks.
+      // colorOrSpec is either a hex number (flat colour), a procedural {tex, density, rough}
+      // entry (cloned per mesh), or a PBR {slug, density, rough, color} entry that loads
+      // diff + normal + rough maps via the top-level pbrMat helper.
       function makeFloor(x0, z0, x1, z1, colorOrSpec, yBase) {
         const dx = x1 - x0, dz = z1 - z0;
         if (dx <= 0 || dz <= 0) return;
         let mat;
         if (typeof colorOrSpec === 'number') {
           mat = new THREE.MeshStandardMaterial({ color: colorOrSpec, roughness: 0.9 });
+        } else if (colorOrSpec.slug) {
+          const extras = { roughness: colorOrSpec.rough ?? 0.85 };
+          if (colorOrSpec.color !== undefined) extras.color = colorOrSpec.color;
+          mat = pbrMat(colorOrSpec.slug, dx * colorOrSpec.density, dz * colorOrSpec.density, extras);
         } else {
           const t = colorOrSpec.tex.clone();
           t.needsUpdate = true;
@@ -1041,15 +1275,19 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         if (cur < b) makeWall(cur, z, b, z, height, yBase, mat, outerSign);
       }
 
-      // Ceiling — whitewashed wood-plank look (matches photos in LDK + bedrooms + 2F toilet).
+      // Ceilings — most rooms are plain warm off-white plaster. The wood-plank accent is
+      // localized to the recess above the stair shaft upper flight. Color stays cream/whitewash
+      // (NOT photo-accurate brown — visible from above where there's no roof, looked wrong).
+      // White perimeter trim frames the panel (added separately).
       const CEIL_T = 0.04;
-      const ceilTex = plankTex(0xeae3d6, 14, 47);
-      ceilTex.repeat.set(2.0, 1.0);
-      const matCeiling = new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: 0.92, map: ceilTex });
-      function makeCeiling(x0, z0, x1, z1, yTop) {
+      const matCeiling = new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: 0.92 });
+      const ceilPlankTex = plankTex(0xeae3d6, 14, 47);
+      ceilPlankTex.repeat.set(2.0, 1.0);
+      const matPlankCeiling = new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: 0.92, map: ceilPlankTex });
+      function makeCeiling(x0, z0, x1, z1, yTop, mat) {
         const dx = x1 - x0, dz = z1 - z0;
         if (dx <= 0 || dz <= 0) return;
-        const m = new THREE.Mesh(new THREE.BoxGeometry(dx, CEIL_T, dz), matCeiling);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(dx, CEIL_T, dz), mat || matCeiling);
         m.position.set((x0 + x1) / 2, yTop - CEIL_T / 2, (z0 + z1) / 2);
         m.userData._isCeiling = true;
         m.userData._ceilingFloor = (yTop > F1H + 0.1) ? '2f' : '1f';
@@ -1343,17 +1581,80 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         { mat: FLOORS.room,        x0: 0,    z0: 4.50, x1: 2.70, z1: D    }, // room-2
         { mat: FLOORS.corridor,    x0: 2.70, z0: 4.50, x1: 3.60, z1: 5.85 }, // corridor_n stub
         { mat: FLOORS.corridor,    x0: 2.70, z0: 3.60, x1: SX0,  z1: 4.50 }, // mid corridor (x=2.70..stair, after closets carved out)
-        { mat: CLR.floor_closet,   x0: 0,    z0: 3.60, x1: 1.35, z1: 4.50 }, // mid-band closet (west) — room-3's
-        { mat: CLR.floor_closet,   x0: 1.35, z0: 3.60, x1: 2.70, z1: 4.50 }, // mid-band closet (east) — room-3's
+        { mat: CLR.floor_closet,   x0: 0,    z0: 3.60, x1: 2.70, z1: 4.50 }, // mid-band closet (west+east merged) — room-3's
         { mat: FLOORS.room4,       x0: 3.60, z0: 0,    x1: W,    z1: 3.60 }, // room-4 (single rect, 9.72 m²)
-        { mat: CLR.floor_closet,   x0: 2.70, z0: 1.80, x1: 3.60, z1: 3.60 }, // closet_b
-        { mat: CLR.floor_closet,   x0: 2.70, z0: 0,    x1: 3.60, z1: 1.80 }, // closet_a
+        { mat: CLR.floor_closet,   x0: 2.70, z0: 0,    x1: 3.60, z1: 3.60 }, // closet_a+b merged (single column)
         { mat: FLOORS.room,        x0: 0,    z0: 0,    x1: 2.70, z1: 3.60 }, // room-3
       ];
       for (const r of F2_ROOMS) makeFloor(r.x0, r.z0, r.x1, r.z1, r.mat, F1H);
 
-      // 2F ceilings — flat plaster covering the entire 2F footprint (closes the "looking up shows sky" gap).
-      makeCeiling(0, 0, W, D, F1H + F2H);
+      // 2F floor-material thresholds (見切り材 / saddle bars). At every place where
+      // two different floor materials meet on 2F, a thin wood strip sits on top of
+      // the floor and covers any hairline gap as deliberate architecture — modern
+      // JP houses have these at every floor-material change. 30 mm wide × 3 mm
+      // proud. No base slab, no box extends, each room keeps its exact footprint.
+      // 12 different-material boundary segments collapse onto 6 axis-aligned strips.
+      {
+        const matThreshold = new THREE.MeshStandardMaterial({ color: 0x8a6a44, roughness: 0.55 });
+        const TW = 0.030, TH = 0.003;
+        const yT = F1H + TH / 2;
+        const thresholdX = (x, z0, z1) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(TW, TH, z1 - z0), matThreshold);
+          m.position.set(x, yT, (z0 + z1) / 2);
+          S.group.add(m);
+        };
+        const thresholdZ = (z, x0, x1) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, TH, TW), matThreshold);
+          m.position.set((x0 + x1) / 2, yT, z);
+          S.group.add(m);
+        };
+        thresholdX(2.70, 0,    D   );  // room-3↔closet, closet↔corridor, room-2↔corridor_n, room-2↔toilet
+        thresholdX(3.60, 0,    3.60);  // room-4 ↔ closet_a+b
+        thresholdX(3.60, 4.50, D   );  // room-1 ↔ corridor_n_stub, room-1 ↔ toilet
+        thresholdZ(3.60, 0,    SX0 );  // room-3↔closet, closet↔corridor, room-4↔corridor
+        thresholdZ(4.50, 0,    2.70);  // closet ↔ room-2
+        thresholdZ(4.50, 3.60, SX0 );  // room-1 ↔ mid-corridor
+      }
+
+      // 2F ceilings — flat plaster everywhere except the stair shaft, which gets a
+      // whitewashed wood-plank accent ceiling (visible from the upper flight in stairs-1, 2, 22, 24).
+      makeCeiling(0,    0,    W,     3.60, F1H + F2H);                   // south of stair shaft
+      makeCeiling(0,    3.60, 4.725, 4.50, F1H + F2H);                   // west of stair shaft
+      makeCeiling(0,    4.50, W,     D,    F1H + F2H);                   // north of stair shaft
+      // Stair shaft (wood-plank accent). Built manually instead of via makeCeiling so the
+      // top face uses plain matCeiling — the interior scene has no roof, and from an orbit
+      // camera above you'd otherwise see the plank pattern bleeding through to the top.
+      // BoxGeometry face order: [+X, -X, +Y, -Y, +Z, -Z]; index 2 = top, index 3 = bottom.
+      {
+        const dx = W - 4.725, dz = 4.50 - 3.60;
+        const mats = [matPlankCeiling, matPlankCeiling, matCeiling, matPlankCeiling, matPlankCeiling, matPlankCeiling];
+        const m = new THREE.Mesh(new THREE.BoxGeometry(dx, CEIL_T, dz), mats);
+        m.position.set((4.725 + W) / 2, F1H + F2H - CEIL_T / 2, (3.60 + 4.50) / 2);
+        m.userData._isCeiling = true;
+        m.userData._ceilingFloor = '2f';
+        S.group.add(m);
+      }
+      // White perimeter trim framing the plank panel — clean painted reveal between the plank
+      // accent and the surrounding plain plaster ceilings (visible in stairs-1, 2, 10, 13, 14,
+      // 20, 22, 23, 24). 50 mm wide × 15 mm proud, sits flush below the plank ceiling underside.
+      {
+        const trimMat = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.85 });
+        const trimW = 0.05, trimT = 0.015;
+        const px0 = 4.725, px1 = W, pz0 = 3.60, pz1 = 4.50;
+        const yTrim = F1H + F2H - CEIL_T - trimT / 2;
+        // South + north edges (run in x)
+        for (const z of [pz0 + trimW / 2, pz1 - trimW / 2]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(px1 - px0, trimT, trimW), trimMat);
+          m.position.set((px0 + px1) / 2, yTrim, z);
+          S.group.add(m);
+        }
+        // West + east edges (run in z)
+        for (const x of [px0 + trimW / 2, px1 - trimW / 2]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(trimW, trimT, pz1 - pz0), trimMat);
+          m.position.set(x, yTrim, (pz0 + pz1) / 2);
+          S.group.add(m);
+        }
+      }
 
       // Smoke detectors (住宅用火災警報器) — mandatory in every bedroom + stair-top per 消防法.
       // Small white disc with a tiny red emissive LED, flush to the 2F ceiling underside.
@@ -1373,7 +1674,9 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
           body.position.set(d.x, ceilY - 0.009, d.z);
           S.group.add(body);
           const led = new THREE.Mesh(new THREE.SphereGeometry(0.005, 8, 8), matLED);
-          led.position.set(d.x + 0.025, ceilY - 0.018, d.z);
+          // LED hangs just below the detector body; ceilY-0.018 is the body's bottom face,
+          // so place the sphere center 7mm further down to clear the cylinder face plane.
+          led.position.set(d.x + 0.025, ceilY - 0.025, d.z);
           S.group.add(led);
         }
       }
@@ -1643,7 +1946,10 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       // are 2D-cut from the paint so transom / sill / lintel solid-wall regions remain
       // painted. Paint Y range sits between the baseboard (yFloor..yFloor+0.07) and
       // crown (yFloor+ceilH-0.05..yFloor+ceilH) bands.
-      const bedroomPaintMat = new THREE.MeshStandardMaterial({ color: 0xafa299, roughness: 0.95 });
+      const bedroomPaintMat = new THREE.MeshStandardMaterial({
+        color: 0xafa299, roughness: 0.95,
+        polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+      });
       function addWallPaint2F(axis, c, a, b, sign, yFloor, ceilH, doors, windows) {
         const paintD = 0.005;
         const stripC = c + sign * (WT / 2 + paintD / 2);
@@ -1715,6 +2021,18 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       addWallPaint2F('Z', 2.70, 4.50, 5.85,  +1, F1H, F2H, filterF2('Z', 2.70), []);
       addWallPaint2F('Z', 3.60, 4.50, 5.85,  -1, F1H, F2H, filterF2('Z', 3.60), []);
 
+      // ───────────────── STAIR SHAFT WALL PAINT (taupe-grey) ─────────────────
+      // Photos stairs-1..27 show warm taupe-grey paint throughout the L-shape stair shaft —
+      // not the global cream wallMat. Reuses bedroomPaintMat (0xafa299) since the hue matches.
+      // 1F lower-flight + winder zone (z=2.90..4.50, full 1F height):
+      addWallPaint2F('Z', 5.40, 2.90, 4.50, +1, 0, F1H, [], []);     // east face: corridor partition, paint faces stair
+      addWallPaint2F('Z', W,    2.90, 4.50, -1, 0, F1H, [], []);     // west face: exterior wall, paint faces stair
+      addWallPaint2F('X', 4.50, 5.40, W,    -1, 0, F1H, [], []);     // north face: laundry/storage partition
+      // 2F upper-flight open shaft (z=3.60..4.50, 2F height — no 2F floor here so the shaft is open):
+      addWallPaint2F('Z', 4.725, 3.60, 4.50, +1, F1H, F2H, [], []);  // east face: 2F corridor partition
+      addWallPaint2F('Z', W,     3.60, 4.50, -1, F1H, F2H, [], []);  // west face: exterior, 2F portion
+      addWallPaint2F('X', 4.50,  4.725, W,   -1, F1H, F2H, [], []);  // north face: room-1 partition
+
       // ───────────────── GENKAN DETAIL (Phase 3) ─────────────────
       // Genkan zone: x=4.50..6.30, z=6.30..D=7.20. Front door at x=4.95..5.85, z=D.
       {
@@ -1765,6 +2083,23 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
           }
         }
 
+        // Genkan ceiling downlight — single recessed white fixture in the genkan ceiling.
+        // Visible in corridor-1/b/corridor-1-b-10 as a round LED face above the entry.
+        {
+          const matDownlight = new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.7 });
+          const matDownlightFace = new THREE.MeshStandardMaterial({
+            color: 0xfff4d4, emissive: 0xfff4d4, emissiveIntensity: 0.85
+          });
+          const dlY = F1H - 0.06;       // just below the genkan ceiling
+          const dlX = 5.40, dlZ = 6.70; // centered in the genkan zone
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.020, 20), matDownlight);
+          body.position.set(dlX, dlY, dlZ);
+          S.group.add(body);
+          const face = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.005, 20), matDownlightFace);
+          face.position.set(dlX, dlY - 0.011, dlZ);
+          S.group.add(face);
+        }
+
         // 3-hook coat rack on entry-wall (z=D), west of front door (real-world west).
         const rackX0 = 5.92, rackX1 = 6.27, rackY = 1.65, rackZ = D - 0.06;
         const matRackBase = new THREE.MeshStandardMaterial({ color: 0xe8e0d2, roughness: 0.85 });
@@ -1783,29 +2118,58 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         }
       }
 
-      // ───────────────── L-SHAPE STAIR (Phase 5: boxed-stair upgrade) ─────────────────
-      const TOTAL_RISERS = 11;
-      const RISE = F1H / TOTAL_RISERS;          // 0.227 m
+      // ───────────────── L-SHAPE STAIR (13 risers: 5 lower + 2 winders + 6 upper) ─────────────────
+      // Per blueprint and stairs/room-map.md. Materials match the photos: light maple wood
+      // treads + risers + stringer, white-painted wall-mounted handrail, brushed-chrome
+      // brackets, white elbow at the L-bend, two parallel dark inlay strips on each nosing.
+      const TOTAL_RISERS = 13;
+      const RISE = F1H / TOTAL_RISERS;            // 0.192 m
       const TREAD_T = 0.04;
-      const treadMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4d, roughness: 0.85 });
-      const riserMat = new THREE.MeshStandardMaterial({ color: CLR.floor_stairs, roughness: 0.9 });
-      // Smooth diagonal soffit wedge under each flight (replaces stacked-box bodies).
-      const carriageMat = new THREE.MeshStandardMaterial({ color: 0x7a5e3d, roughness: 0.95 });
-      // Closed-string side board ("stringer") on each flight's open side.
-      const stringerMat = new THREE.MeshStandardMaterial({ color: 0x6f553a, roughness: 0.85 });
-      // Handrail (sloped cylinder + brackets/posts).
-      const handrailMat = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.5 });
-      const handrailBracketMat = new THREE.MeshStandardMaterial({ color: 0x5c5c5c, metalness: 0.6, roughness: 0.4 });
-
-      // Lower flight: 5 steps in 1F shaft (x=5.40..W, z=2.90..4.50), climbing +z.
-      // Each tread carries a 25 mm front-edge nosing overhanging the riser below it (per JP convention).
-      const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;
-      const LOWER_RUN = 4.50 - 2.90;
-      const TREAD_LO = LOWER_RUN / 5;
       const NOSING = 0.025;
+      const treadMat = new THREE.MeshStandardMaterial({ color: 0xe6cca3, roughness: 0.7 });
+      const riserMat = new THREE.MeshStandardMaterial({ color: 0xe0c498, roughness: 0.75 });
+      // Carriage + stringer share the tread wood. Photos (stairs-10/13/17/21/27) show one uniform
+      // light-maple tone across treads, risers, side panel, and soffit — only the riser face reads
+      // a hair darker because it's lit edge-on. Carriage ≈ riserMat (less direct light on undersides);
+      // stringer slightly between tread and riser (catches light from multiple angles).
+      const carriageMat = new THREE.MeshStandardMaterial({ color: 0xe0c498, roughness: 0.85 });
+      const stringerMat = new THREE.MeshStandardMaterial({ color: 0xe2c89e, roughness: 0.7 });
+      // Handrail is smooth matte cream/ivory paint — NO visible wood grain. Confirmed across
+      // stairs-4, 5, 7, 8, 9, 10, 12, 13, 19, 20, 22, 25 (paint reads uniform; in same frames
+      // the wood treads show clear grain figure but the rail does not).
+      const handrailMat = new THREE.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 0.55 });
+      const handrailBracketMat = new THREE.MeshStandardMaterial({ color: 0xc4c6c8, metalness: 0.7, roughness: 0.3 });
+      const nosingMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.6 });
+
+      // Helper: 2 parallel dark inlay grooves on the front edge of a tread (the anti-slip strips
+      // visible in stairs-10, stairs-17, stairs-27). Strips are inset 12 mm and 25 mm from the
+      // nosing edge, run along the tread's long axis, and stand 3 mm proud of the tread surface.
+      function addNosingStrips(yTop, axis, longCenter, longLen, frontEdge, frontDir) {
+        // axis 'X' = strips run along x (tread's nosing is parallel to x); frontDir = ±1 sign in z
+        // axis 'Z' = strips run along z; frontDir = ±1 sign in x
+        const stripT = 0.003, stripW = 0.005, margin = 0.04;
+        const offsets = [0.012, 0.025];
+        for (const off of offsets) {
+          const dimX = axis === 'X' ? (longLen - 2 * margin) : stripW;
+          const dimZ = axis === 'X' ? stripW : (longLen - 2 * margin);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(dimX, stripT, dimZ), nosingMat);
+          const px = axis === 'X' ? longCenter : frontEdge - frontDir * off;
+          const pz = axis === 'X' ? frontEdge - frontDir * off : longCenter;
+          m.position.set(px, yTop + stripT / 2 - 0.0005, pz);
+          S.group.add(m);
+        }
+      }
+
+      // ── LOWER FLIGHT — 5 risers, climbing +z along the west wall ──
+      // Tread depth 0.225 m per blueprint annotation 踏面225. Lower flight occupies the
+      // south portion of the 1F shaft; winders fill z=[4.025, 4.50] (0.475 m N–S).
+      const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;
+      const LZ0 = 2.90;
+      const TREAD_LO = 0.225;
+      const LZ1 = LZ0 + 5 * TREAD_LO;             // 4.025
       for (let i = 0; i < 5; i++) {
         const yTop = (i + 1) * RISE;
-        const z0 = 2.90 + i * TREAD_LO;
+        const z0 = LZ0 + i * TREAD_LO;
         const z1 = z0 + TREAD_LO;
         const tDepth = TREAD_LO + NOSING;
         const tread = new THREE.Mesh(new THREE.BoxGeometry(LW, TREAD_T, tDepth), treadMat);
@@ -1814,15 +2178,15 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         const riser = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
         riser.position.set(LXc, yTop - RISE / 2, z0);
         S.group.add(riser);
+        addNosingStrips(yTop, 'X', LXc, LW, z0 - NOSING, -1);
       }
       // Lower flight diagonal soffit wedge (smooth underside).
-      // Triangle profile in (z, y) plane, extruded along x from LX0 to LX1.
       {
         const lowerTopY = 5 * RISE - TREAD_T;
         const sh = new THREE.Shape();
-        sh.moveTo(2.90, 0);
-        sh.lineTo(4.50, 0);
-        sh.lineTo(4.50, lowerTopY);
+        sh.moveTo(LZ0 - NOSING, 0);
+        sh.lineTo(LZ1, 0);
+        sh.lineTo(LZ1, lowerTopY);
         sh.closePath();
         const geom = new THREE.ExtrudeGeometry(sh, { depth: LW, bevelEnabled: false });
         const wedge = new THREE.Mesh(geom, carriageMat);
@@ -1830,14 +2194,14 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         wedge.position.set(LX0, 0, 0);
         S.group.add(wedge);
       }
-      // Lower flight side stringer — closed-string board on the corridor side at x=LX0.
+      // Lower flight stringer — visible side board on the corridor (LX0) side.
       {
         const ST_T = 0.03;
         const sh = new THREE.Shape();
-        sh.moveTo(2.90, 0);
-        sh.lineTo(4.50, 0);
-        sh.lineTo(4.50, 5 * RISE + 0.05);
-        sh.lineTo(2.90, RISE + 0.05);
+        sh.moveTo(LZ0 - NOSING, 0);
+        sh.lineTo(LZ1, 0);
+        sh.lineTo(LZ1, 5 * RISE + 0.05);
+        sh.lineTo(LZ0 - NOSING, RISE + 0.05);
         sh.closePath();
         const geom = new THREE.ExtrudeGeometry(sh, { depth: ST_T, bevelEnabled: false });
         const stringer = new THREE.Mesh(geom, stringerMat);
@@ -1845,46 +2209,76 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         stringer.position.set(LX0 - ST_T, 0, 0);
         S.group.add(stringer);
       }
-      // Lower flight handrail + brackets.
+
+      // ── WINDERS — 2 triangular treads at the L-bend, x=[5.40, W], z=[4.025, 4.50] ──
+      // Diagonal split from inside corner (LX0, 4.50) to outside corner (LX1, LZ1=4.025).
+      // Winder 6 = SW triangle (climber enters from south); winder 7 = NE triangle (climber
+      // exits east into the upper flight). Each climbs 1 RISE.
+      const WZ0 = LZ1, WZ1 = 4.50;
+      const winderTris = [
+        // Winder 6: vertices in CCW order, top y at 6*RISE
+        { yTop: 6 * RISE, pts: [[LX0, WZ0], [LX1, WZ0], [LX0, WZ1]] },
+        // Winder 7: vertices in CCW order, top y at 7*RISE
+        { yTop: 7 * RISE, pts: [[LX1, WZ0], [LX1, WZ1], [LX0, WZ1]] },
+      ];
+      for (const w of winderTris) {
+        const sh = new THREE.Shape();
+        sh.moveTo(w.pts[0][0], w.pts[0][1]);
+        for (let k = 1; k < w.pts.length; k++) sh.lineTo(w.pts[k][0], w.pts[k][1]);
+        sh.closePath();
+        const geom = new THREE.ExtrudeGeometry(sh, { depth: TREAD_T, bevelEnabled: false });
+        const tread = new THREE.Mesh(geom, treadMat);
+        tread.rotation.x = Math.PI / 2;             // shape (px, py) → world (px, _, py)
+        tread.position.y = w.yTop;
+        S.group.add(tread);
+      }
+      // Winder risers — winder 6's front face (at z=WZ0=4.025) is the riser climber sees
+      // when stepping from lower flight's top tread onto winder 6.
       {
-        const HR_R = 0.025, HR_INSET = 0.05;
-        const sZ = 2.90, eZ = 4.50;
-        const sY = 0.85, eY = 5 * RISE + 0.85;
-        const dz = eZ - sZ, dy = eY - sY;
-        const len = Math.sqrt(dz * dz + dy * dy);
-        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
-        rail.rotation.x = Math.atan2(dz, dy);
-        rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
-        S.group.add(rail);
-        for (const t of [0.05, 0.5, 0.95]) {
-          const z = sZ + t * dz;
-          const y = sY + t * dy;
-          const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.025, 0.025), handrailBracketMat);
-          bracket.position.set(LX1 - HR_INSET / 2, y - 0.04, z);
-          S.group.add(bracket);
-        }
-        // Return-to-wall stubs at each end — short horizontal cylinders extending +x from the
-        // rail center (x=LX1-HR_INSET=6.25) to the right wall at x=W=6.30. Snag-prevention.
-        for (const [stubY, stubZ] of [[sY, sZ], [eY, eZ]]) {
-          const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
-          stub.rotation.z = Math.PI / 2;   // align cylinder along X axis
-          stub.position.set(LX1 - HR_INSET / 2, stubY, stubZ);
-          S.group.add(stub);
+        const winder6Riser = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
+        winder6Riser.position.set(LXc, 6 * RISE - RISE / 2, WZ0);
+        S.group.add(winder6Riser);
+      }
+      // Winder 7 riser — vertical strip along the W6/W7 diagonal joint (from outside corner
+      // (LX1, WZ0) to inside corner (LX0, WZ1)). Visible in stairs-14, 15, 17 between the two
+      // triangular treads.
+      {
+        const dx = LX0 - LX1, dz = WZ1 - WZ0;
+        const w7RiserLen = Math.sqrt(dx * dx + dz * dz);
+        const w7Riser = new THREE.Mesh(new THREE.BoxGeometry(w7RiserLen, RISE, 0.02), riserMat);
+        w7Riser.rotation.y = Math.atan2(dz, dx);     // rotate so length aligns with diagonal
+        w7Riser.position.set((LX0 + LX1) / 2, 7 * RISE - RISE / 2, (WZ0 + WZ1) / 2);
+        S.group.add(w7Riser);
+      }
+      // Winder soffit — extruded triangle for each winder, mirrored vertically below the tread.
+      {
+        for (const w of winderTris) {
+          const sh = new THREE.Shape();
+          sh.moveTo(w.pts[0][0], w.pts[0][1]);
+          for (let k = 1; k < w.pts.length; k++) sh.lineTo(w.pts[k][0], w.pts[k][1]);
+          sh.closePath();
+          const soffit = new THREE.Mesh(
+            new THREE.ExtrudeGeometry(sh, { depth: w.yTop - TREAD_T, bevelEnabled: false }),
+            carriageMat
+          );
+          soffit.rotation.x = Math.PI / 2;
+          soffit.position.y = w.yTop - TREAD_T;
+          S.group.add(soffit);
         }
       }
 
-      // Upper flight: 6 steps in 2F mid band (x=4.725..W, z=3.60..4.50), climbing -x.
+      // ── UPPER FLIGHT — 6 risers, climbing -x along the north wall ──
+      // Tread depth 0.2625 m fills the full 2F shaft width (1.575 m / 6). Upper flight starts
+      // at y=7*RISE (after winder 7) and tops out at y=13*RISE = F1H.
       const UX1 = W;
       const UPPER_RUN = 1.575;
       const UX0 = UX1 - UPPER_RUN;       // 4.725
       const TREAD_UP = UPPER_RUN / 6;
       const UZ0 = 3.60, UZ1 = 4.50, UZc = (UZ0 + UZ1) / 2, UD = UZ1 - UZ0;
       for (let i = 0; i < 6; i++) {
-        const yTop = 5 * RISE + (i + 1) * RISE;
+        const yTop = 7 * RISE + (i + 1) * RISE;
         const x1 = UX1 - i * TREAD_UP;
         const x0 = x1 - TREAD_UP;
-        // Climber moves -x as they ascend; the riser at x=x1 is below tread i's front edge,
-        // so the nosing extends in +x past x1.
         const tDepth = TREAD_UP + NOSING;
         const tread = new THREE.Mesh(new THREE.BoxGeometry(tDepth, TREAD_T, UD), treadMat);
         tread.position.set((x0 + x1 + NOSING) / 2, yTop - TREAD_T / 2, UZc);
@@ -1892,15 +2286,14 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         const riser = new THREE.Mesh(new THREE.BoxGeometry(0.02, RISE, UD), riserMat);
         riser.position.set(x1, yTop - RISE / 2, UZc);
         S.group.add(riser);
+        addNosingStrips(yTop, 'Z', UZc, UD, x1 + NOSING, +1);
       }
       // Upper flight diagonal soffit wedge.
-      // Triangle profile in (x, y) plane, extruded along z from UZ0 to UZ1.
-      // Bottom edge at y = 5*RISE matches the top of the lower flight (the L-turn landing height).
       {
-        const upperBottomY = 5 * RISE;
-        const upperTopY = 11 * RISE - TREAD_T;
+        const upperBottomY = 7 * RISE;
+        const upperTopY = 13 * RISE - TREAD_T;
         const sh = new THREE.Shape();
-        sh.moveTo(W, upperBottomY);
+        sh.moveTo(W + NOSING, upperBottomY);
         sh.lineTo(UX0, upperBottomY);
         sh.lineTo(UX0, upperTopY);
         sh.closePath();
@@ -1909,59 +2302,113 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         wedge.position.set(0, 0, UZ0);
         S.group.add(wedge);
       }
-      // Upper flight side stringer — closed-string board on the open side at z=UZ0.
+      // Upper flight stringer.
       {
         const ST_T = 0.03;
-        const upperBottomY = 5 * RISE;
-        const upperTopY = 11 * RISE - TREAD_T;
-        // Cap the top-left at 2.40 (below the 1F ceiling underside at y=2.41) so the
-        // stringer's tall corner doesn't poke through the ceiling at x=UX0, z=UZ0.
-        // The upper flight's top tread is HIDDEN behind the ceiling above this cap;
-        // a few cm of stringer continuity isn't worth a visible protrusion.
-        const stringerTopCap = 2.40;
+        const upperBottomY = 7 * RISE;
+        // Top edge runs along the line through the tread tops + 5cm overhang. East end sits 5cm
+        // above step 8 (8*RISE), west end 5cm above step 13 (13*RISE = F1H). The previous
+        // `stringerTopCap = 2.40` left a 15cm gap below step 13 and broke the slope continuity.
         const sh = new THREE.Shape();
-        sh.moveTo(W, upperBottomY);
+        sh.moveTo(W + NOSING, upperBottomY);
         sh.lineTo(UX0, upperBottomY);
-        sh.lineTo(UX0, stringerTopCap);
-        sh.lineTo(W, 6 * RISE + 0.05);
+        sh.lineTo(UX0, 13 * RISE + 0.05);
+        sh.lineTo(W + NOSING, 8 * RISE + 0.05);
         sh.closePath();
         const geom = new THREE.ExtrudeGeometry(sh, { depth: ST_T, bevelEnabled: false });
         const stringer = new THREE.Mesh(geom, stringerMat);
-        // Same fix as the handrail: keep the stringer inside the shaft (north of UZ0)
-        // rather than south, where it would protrude into room-4's footprint below.
         stringer.position.set(0, 0, UZ0);
         S.group.add(stringer);
       }
-      // Upper flight handrail + newel posts.
+
+      // ── HANDRAILS — white-painted, wall-mounted with brushed-chrome brackets ──
+      // Lower flight rail: along the west wall (x=W), inset 0.05 m. Climbs from y=0.85 to
+      // y=5*RISE+0.85 over z=[LZ0, LZ1]. Brushed-chrome brackets at 5%/50%/95% of length.
       {
-        const HR_R = 0.025;
-        const sX = W, eX = UX0;
-        const sY = 6 * RISE + 0.85, eY = 11 * RISE + 0.85;
+        const HR_R = 0.025, HR_INSET = 0.05;
+        const sZ = LZ0, eZ = LZ1;
+        const sY = 0.85, eY = 5 * RISE + 0.85;
+        const dz = eZ - sZ, dy = eY - sY;
+        const len = Math.sqrt(dz * dz + dy * dy);
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
+        rail.rotation.x = Math.atan2(dz, dy);
+        rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
+        S.group.add(rail);
+        for (const t of [0.05, 0.5, 0.95]) {
+          const z = sZ + t * dz, y = sY + t * dy;
+          const BR_R = 0.012, ESC_R = 0.022, ESC_T = 0.004;
+          const bracket = new THREE.Mesh(new THREE.CylinderGeometry(BR_R, BR_R, 0.04, 12), handrailBracketMat);
+          bracket.rotation.z = Math.PI / 2;
+          // Bracket sits flush against the rail's underside — its top tangent meets the rail's
+          // bottom tangent (no visible gap, no overlap). Bracket centerline = rail.y - HR_R - BR_R.
+          bracket.position.set(LX1 - HR_INSET / 2, y - HR_R - BR_R, z);
+          // Escutcheon: flat chrome disc flush against the wall (visible in stairs-25).
+          const esc = new THREE.Mesh(new THREE.CylinderGeometry(ESC_R, ESC_R, ESC_T, 16), handrailBracketMat);
+          esc.rotation.z = Math.PI / 2;
+          esc.position.set(LX1 - ESC_T / 2, y - HR_R - BR_R, z);
+          S.group.add(esc);
+          S.group.add(bracket);
+        }
+        // Stub returns to wall at each end
+        for (const [stubY, stubZ] of [[sY, sZ], [eY, eZ]]) {
+          const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
+          stub.rotation.z = Math.PI / 2;
+          stub.position.set(LX1 - HR_INSET / 2, stubY, stubZ);
+          S.group.add(stub);
+        }
+      }
+      // Winder rail — short curved-feel section running along the west wall through the winder
+      // zone, climbing from 5*RISE+0.85 to 7*RISE+0.85.
+      {
+        const HR_R = 0.025, HR_INSET = 0.05;
+        const sZ = LZ1, eZ = WZ1;
+        const sY = 5 * RISE + 0.85, eY = 7 * RISE + 0.85;
+        const dz = eZ - sZ, dy = eY - sY;
+        const len = Math.sqrt(dz * dz + dy * dy);
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
+        rail.rotation.x = Math.atan2(dz, dy);
+        rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
+        S.group.add(rail);
+        // Brushed-chrome cuff/ferrule at the L-bend — photos 6, 7, 12, 13 show a clean mitre
+        // joint with a small chrome ring at the meeting point, NOT a painted-ball elbow.
+        const cuff = new THREE.Mesh(
+          new THREE.TorusGeometry(0.030, 0.005, 8, 20),
+          handrailBracketMat
+        );
+        cuff.rotation.x = Math.PI / 2;
+        cuff.position.set(LX1 - HR_INSET, eY, eZ);
+        S.group.add(cuff);
+      }
+      // Upper flight rail: runs along the north wall (z=UZ1=4.50), climbing from 7*RISE+0.85
+      // to 13*RISE+0.85 over x=[UX1, UX0].
+      {
+        const HR_R = 0.025, HR_INSET = 0.05;
+        const sX = UX1, eX = UX0;
+        const sY = 7 * RISE + 0.85, eY = 13 * RISE + 0.85;
         const dx = eX - sX, dy = eY - sY;
         const len = Math.sqrt(dx * dx + dy * dy);
-        const railZ = UZ0 + 0.085;
+        const railZ = UZ1 - HR_INSET;
         const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
         rail.rotation.z = Math.atan2(-dx, dy);
         rail.position.set((sX + eX) / 2, (sY + eY) / 2, railZ);
         S.group.add(rail);
-        for (const t of [0.05, 0.95]) {
-          const x = sX + t * dx;
-          const yTop = sY + t * dy;
-          const stringerTop = 6 * RISE + 0.05 + t * ((11 * RISE - TREAD_T + 0.05) - (6 * RISE + 0.05));
-          const postLen = yTop - stringerTop;
-          if (postLen > 0.05) {
-            const post = new THREE.Mesh(new THREE.BoxGeometry(0.025, postLen, 0.025), stringerMat);
-            post.position.set(x, stringerTop + postLen / 2, railZ);
-            S.group.add(post);
-          }
+        for (const t of [0.05, 0.5, 0.95]) {
+          const x = sX + t * dx, y = sY + t * dy;
+          const BR_R = 0.012, ESC_R = 0.022, ESC_T = 0.004;
+          const bracket = new THREE.Mesh(new THREE.CylinderGeometry(BR_R, BR_R, 0.04, 12), handrailBracketMat);
+          bracket.rotation.x = Math.PI / 2;
+          bracket.position.set(x, y - HR_R - BR_R, railZ + HR_INSET / 2);
+          const esc = new THREE.Mesh(new THREE.CylinderGeometry(ESC_R, ESC_R, ESC_T, 16), handrailBracketMat);
+          esc.rotation.x = Math.PI / 2;
+          esc.position.set(x, y - HR_R - BR_R, UZ1 - ESC_T / 2);
+          S.group.add(esc);
+          S.group.add(bracket);
         }
-        // Return-to-parapet stub at the top end (x=UX0). Short horizontal cylinder going -z
-        // from the rail center (z=railZ=3.685) toward the parapet face at z≈3.66. Snag prevention.
-        {
-          const stubLen = 0.05;
-          const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, stubLen, 16), handrailMat);
-          stub.rotation.x = Math.PI / 2;   // align cylinder along Z axis
-          stub.position.set(eX, eY, railZ - stubLen / 2);
+        // Stub returns at each end
+        for (const [stubX, stubY] of [[sX, sY], [eX, eY]]) {
+          const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
+          stub.rotation.x = Math.PI / 2;
+          stub.position.set(stubX, stubY, railZ + HR_INSET / 2);
           S.group.add(stub);
         }
       }
@@ -1972,8 +2419,12 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       // the upper landing has an open drop. The matching parapet is documented in
       // blueprints/global-coords.md (stairs 2F, south-wall = parapet, half-height).
       {
-        const parapetMat = new THREE.MeshStandardMaterial({ color: 0xeeeae3, roughness: 0.95 });
-        const capMat = new THREE.MeshStandardMaterial({ color: 0xb89878, roughness: 0.6 });
+        // Parapet body is taupe-grey — matches the stair shaft walls, NOT cream/white. Photos
+        // 1, 2, 3, 21 show a uniform taupe surface from floor to cap rail. Same hue as
+        // bedroomPaintMat (0xafa299) used for the bedrooms + stair shaft paint overlay.
+        const parapetMat = new THREE.MeshStandardMaterial({ color: 0xafa299, roughness: 0.95 });
+        // Cap is white-painted (stairs-1, 2, 21) — distinct white reveal on top of the taupe body.
+        const capMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.7 });
         const parapetH = 1.10;
         const parapetT = 0.06;
         const parapetX0 = UX0;            // 4.725
@@ -2567,7 +3018,8 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         S.group.add(tpRoll);
         // Frosted privacy pane just inside the existing window glass at x=3.020..3.280, y=F1H+1.10..F1H+2.00
         const matFrosted = new THREE.MeshStandardMaterial({
-          color: 0xeef2f4, transparent: true, opacity: 0.92, roughness: 0.95
+          color: 0xeef2f4, transparent: true, opacity: 0.92, roughness: 0.95,
+          depthWrite: false
         });
         const frostedPane = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.90, 0.012), matFrosted);
         frostedPane.position.set(3.15, F1H + 1.55, D - 0.06);
@@ -2589,14 +3041,17 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       const dir = new THREE.DirectionalLight(0xffffff, 0.6);
       dir.position.set(8, 14, 6);
       dir.castShadow = true;
-      dir.shadow.mapSize.set(2048, 2048);
+      // Higher map resolution + normalBias reduces shadow acne / shimmer on the many
+      // thin overlays in this scene (trim, paint, ceiling planks, stair carriages).
+      dir.shadow.mapSize.set(4096, 4096);
       dir.shadow.camera.left = -10;
       dir.shadow.camera.right = 10;
       dir.shadow.camera.top = 10;
       dir.shadow.camera.bottom = -10;
       dir.shadow.camera.near = 0.5;
       dir.shadow.camera.far = 40;
-      dir.shadow.bias = -0.0005;
+      dir.shadow.bias = -0.0002;
+      dir.shadow.normalBias = 0.05;
       S.group.add(dir);
       // Enable shadow casting + receiving on every solid mesh in the interior.
       // Skip transparent glass + transom-style helpers via a userData hint set elsewhere.
@@ -2696,7 +3151,12 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       function feat(axis, innerCoord, inward, dims, mat) {
         const aLen = dims.a2 - dims.a1, bLen = dims.b2 - dims.b1;
         const aC = (dims.a1+dims.a2)/2, bC = (dims.b1+dims.b2)/2;
-        const c = innerCoord + inward * BIAS;
+        // Place the feat so its inner face (closest to wall) sits BIAS away
+        // from the wall surface; the rest of FEAT thickness extends INTO the
+        // room. Old version centred the box on innerCoord+BIAS, so half the
+        // box (FEAT/2 = 20 mm) intersected the wall slab → checkerboard
+        // z-fighting band at door/window/closet heights on WebGPU.
+        const c = innerCoord + inward * (BIAS + FEAT / 2);
         const m = (mat instanceof THREE.Material)
           ? mat : new THREE.MeshStandardMaterial({ color: mat, roughness: 0.9 });
         let mesh;
@@ -2754,6 +3214,49 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
               '#include <output_fragment>');
         };
       }
+      // Procedural fabric-weave normal map — tiny analytic plain-weave so
+      // pillows / sheet / curtains / lamp shades catch directional light as
+      // woven cloth rather than flat plastic. Threads alternate horizontal /
+      // vertical in a checkerboard. Scale per-mesh via texture.repeat.
+      const fabricNormalTex = (() => {
+        const N = 64, cell = 8, half = cell / 2;
+        const k = (Math.PI / 2) / half;
+        const cvs = document.createElement('canvas');
+        cvs.width = N; cvs.height = N;
+        const ctx = cvs.getContext('2d');
+        const img = ctx.createImageData(N, N);
+        for (let y = 0; y < N; y++) {
+          for (let x = 0; x < N; x++) {
+            const tx = x % cell, ty = y % cell;
+            const cellRow = Math.floor(y / cell), cellCol = Math.floor(x / cell);
+            const isH = (cellRow + cellCol) % 2 === 0;
+            let dhx = 0, dhy = 0;
+            if (isH) dhy = -Math.sin((ty - half) * k) * k;
+            else     dhx = -Math.sin((tx - half) * k) * k;
+            const nx = -dhx, ny = -dhy, nz = 1.0;
+            const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            const i = (y * N + x) * 4;
+            img.data[i]     = Math.round((nx / len * 0.5 + 0.5) * 255);
+            img.data[i + 1] = Math.round((ny / len * 0.5 + 0.5) * 255);
+            img.data[i + 2] = Math.round((nz / len * 0.5 + 0.5) * 255);
+            img.data[i + 3] = 255;
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+        const tex = new THREE.CanvasTexture(cvs);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        return tex;
+      })();
+      function applyFabricWeave(material, repeatU, repeatV, scale = 0.25) {
+        const t = fabricNormalTex.clone();
+        t.needsUpdate = true;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(repeatU, repeatV);
+        material.normalMap = t;
+        material.normalScale = new THREE.Vector2(scale, scale);
+        material.needsUpdate = true;
+      }
       const matFloorR1 = pbrMatR1('wood_floor',           RW / 1.7, RD / 1.7, { roughness: 0.7 });
       // Whitewashed-plank ceiling — built with plankTex so we get plank seam
       // lines + grain at a pale base colour. Tinting the brown wood_floor map
@@ -2804,7 +3307,11 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        // Procedural plank has high-frequency noise (knots, grain, color
+        // variation). Mipmapping that on WebGPU produces visible moiré /
+        // speckle on the ceiling's top face. Skip mipmaps; sample full-res.
+        tex.generateMipmaps = false;
+        tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
         return tex;
       })();
@@ -2812,23 +3319,47 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       ceilTexR1.anisotropy = renderer.capabilities.getMaxAnisotropy();
       const matCeilR1 = new THREE.MeshStandardMaterial({ map: ceilTexR1, roughness: 0.85 });
       // Smooth painted walls — neutral cool grey, matches the real photos
-      // in interior-images/room-1/. No textures (PBR plaster map looked
-      // too bumpy for a freshly painted bedroom).
-      // Walls — smooth modern painted finish (the real walls in the photos
-      // are uniform painted plaster, not the rough/bumpy variety). Flat color
-      // is correct here; PBR plaster textures looked wrong against the photo.
-      // Walls use MeshBasicMaterial with toneMapped:false so they render the
-      // literal #afa299 paint colour on every face, regardless of which
-      // direction the cinematic lighting is hitting them. PBR shading would
-      // tint each wall by the colour of the lights striking it (warm sun on
-      // the cabinet wall, etc.) and the user has explicitly required all four
-      // walls to read as exactly #afa299. Trade-off: walls have no shading or
-      // corner darkening, by design.
+      // in interior-images/room-1/. Walls stay on MeshBasicMaterial with
+      // toneMapped:false so the LITERAL paint colour `#afa299` is rendered
+      // exactly, with no light-direction tint.
+      //
+      // Corner darkening is added via per-wall AO maps, baked offline by
+      // ozu-test/bake/bake_room1_ao.py (Blender Cycles, OptiX on the A6000).
+      // Each AO map is a grayscale image where 1.0 = no occlusion (wall
+      // middle stays at full paint colour) and lower = corner/edge contact
+      // darkening. material.color × material.map gives `#afa299 × ao` per
+      // pixel, so middles read as exactly the paint colour and corners
+      // darken naturally — without any runtime lighting cost.
       const wallPaintArgs = { color: 0xafa299, toneMapped: false };
       const matWall_x0 = new THREE.MeshBasicMaterial(wallPaintArgs);
       const matWall_xW = new THREE.MeshBasicMaterial(wallPaintArgs);
       const matWall_z0 = new THREE.MeshBasicMaterial(wallPaintArgs);
       const matWall_zD = new THREE.MeshBasicMaterial(wallPaintArgs);
+      // Load the four wall AO maps. `NoColorSpace` because AO is linear
+      // data, not sRGB image data.
+      (function attachWallAO() {
+        const aoLoader = new THREE.TextureLoader();
+        const maxAniso = renderer.capabilities.getMaxAnisotropy();
+        const load = (slug) => {
+          const tex = aoLoader.load(`ozu-test/room-1-textures/wall_ao/${slug}.png`);
+          tex.colorSpace   = THREE.NoColorSpace;
+          tex.anisotropy   = maxAniso;
+          // No mipmaps. WebGPU's mipmap filtering produces visible checkerboard
+          // quantization at low LODs on AO maps with smooth gradients (the
+          // dark-vignette → white-centre gradient banded into ~10 cm blocks at
+          // distance). Linear-only sampling preserves the gradient.
+          tex.generateMipmaps = false;
+          tex.minFilter    = THREE.LinearFilter;
+          tex.magFilter    = THREE.LinearFilter;
+          tex.wrapS = THREE.ClampToEdgeWrapping;
+          tex.wrapT = THREE.ClampToEdgeWrapping;
+          return tex;
+        };
+        matWall_x0.map = load('wall_x0');
+        matWall_xW.map = load('wall_xW');
+        matWall_z0.map = load('wall_z0');
+        matWall_zD.map = load('wall_zD');
+      })();
       // Real refractive glass — MeshPhysicalMaterial with transmission picks up
       // the room's environment map and gives proper specular highlights.
       const matGlassR1 = new THREE.MeshPhysicalMaterial({
@@ -2866,10 +3397,52 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
 
       // 4 walls. Window-wall (wB, x=W) and ac-wall (wD, z=D) are single meshes
       // built from a Shape with a window-shaped hole — no segment seams.
+      //
+      // Each wall mesh has its UV attribute overridden so the AO texture
+      // wraps in world-aligned coordinates that match the bake script's
+      // parametric layout (see ozu-test/bake/bake_room1_ao.py). Default
+      // UVs from BoxGeometry / ShapeGeometry don't match. Without this
+      // override the AO would still appear, just rotated or flipped.
+      // For BoxGeometry walls, the "thickness side" faces (top, bottom,
+      // ±depth-edge) get DEGENERATE UVs from a single-axis formula (one
+      // constant axis). On WebGPU that causes undefined mipmap derivatives →
+      // checkerboard / pixelated artifacts on exterior wall surfaces.
+      // Pass `mainAxis` ('x'|'y'|'z') so only faces whose normal aligns with
+      // that axis get the proper formula; other faces sample the AO centre.
+      function setUVsByLocal(geometry, uvFn, mainAxis) {
+        const pos = geometry.attributes.position;
+        const norm = geometry.attributes.normal;
+        const uvs = new Float32Array(pos.count * 2);
+        const axisIdx = { x: 0, y: 1, z: 2 }[mainAxis];
+        for (let i = 0; i < pos.count; i++) {
+          const onMain = (axisIdx === undefined || !norm) ||
+            Math.abs([norm.getX(i), norm.getY(i), norm.getZ(i)][axisIdx]) > 0.5;
+          if (onMain) {
+            const out = uvFn(pos.getX(i), pos.getY(i), pos.getZ(i));
+            uvs[i*2 + 0] = out[0];
+            uvs[i*2 + 1] = out[1];
+          } else {
+            uvs[i*2 + 0] = 0.5;
+            uvs[i*2 + 1] = 0.5;
+          }
+        }
+        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+      }
       const wA = new THREE.Mesh(new THREE.BoxGeometry(WT_R, RH, RD), matWall_x0);
       wA.position.set(-WT_R/2, RH/2, RD/2); S.group.add(wA);
+      // wA inside+outside (±x normal) get the AO map; top/bottom/±z faces
+      // sample (0.5, 0.5) — the AO map's bright centre.
+      setUVsByLocal(wA.geometry, (lx, ly, lz) => [
+        0.5 + ly / RH,
+        0.5 + lz / RD,
+      ], 'x');
       const wC = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, WT_R), matWall_z0);
       wC.position.set(RW/2, RH/2, -WT_R/2); S.group.add(wC);
+      // wC inside+outside (±z normal) only.
+      setUVsByLocal(wC.geometry, (lx, ly, lz) => [
+        0.5 + lx / RW,
+        0.5 + ly / RH,
+      ], 'z');
       // Helper: build a flat wall plane with a rectangular hole cut out.
       // Returns a ShapeGeometry sized wallW × wallH with the hole at (hx1,hy1)-(hx2,hy2).
       function wallShapeWithHole(wallW, wallH, hx1, hy1, hx2, hy2) {
@@ -2898,137 +3471,42 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       wB.rotation.y = -Math.PI/2;
       wB.position.set(RW, 0, 0);
       S.group.add(wB);
+      // wB ShapeGeometry default UVs are RAW shape coords (0..RD, 0..RH), not
+      // normalized 0..1 — this caused tiled stripes on WebGPU. Normalize.
+      setUVsByLocal(wB.geometry, (lx, ly, lz) => [lx / RD, ly / RH]);
       // ac-wall: hole at frosted window x=[0.30, 0.56], y=[0.9, 1.9]
       // ShapeGeometry on (x, y) plane, normal +z; positioned at z=RD (normal points away from room — DoubleSide makes it visible from inside too).
       const wD = new THREE.Mesh(wallShapeWithHole(RW, RH, 0.30, 0.9, 0.56, 1.9), matWall_zD);
       wD.position.set(0, 0, RD);
       S.group.add(wD);
+      // wD bake UV = (world_y/RH, world_x/RW); ShapeGeometry default
+      // gives (lx/RW, ly/RH). Swap so the AO texture aligns with bake.
+      setUVsByLocal(wD.geometry, (lx, ly, lz) => [
+        ly / RH,
+        lx / RW,
+      ]);
 
-      // Suburban Japanese houses backdrop visible through the windows.
-      // 2F view — neighbour roofs / 2nd-floor walls + sky.
-      const buildingsTex = (() => {
-        const cvs = document.createElement('canvas');
-        cvs.width = 2048; cvs.height = 1024;
-        const ctx = cvs.getContext('2d');
-        // sky gradient
-        const sky = ctx.createLinearGradient(0, 0, 0, 600);
-        sky.addColorStop(0, '#a8b8c8');
-        sky.addColorStop(1, '#e0e4e3');
-        ctx.fillStyle = sky;
-        ctx.fillRect(0, 0, 2048, 620);
-        // distant haze line
-        ctx.fillStyle = 'rgba(170, 178, 168, 0.4)';
-        ctx.fillRect(0, 600, 2048, 30);
-        // foreground street/asphalt
-        ctx.fillStyle = '#494846';
-        ctx.fillRect(0, 900, 2048, 124);
-        let s = 23;
-        const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-        const wallShades = ['#e6dfd0', '#cec5b3', '#dad2c0', '#f0e6d6', '#bfb6a3'];
-        const lowerShades = ['#5a4435', '#3a3a3e', '#7a5e48', '#403838', '#28282c'];
-        const roofShades = ['#3a3838', '#2e2c2e', '#4a3a32', '#26242c'];
-        let x = -60;
-        while (x < 2100) {
-          const w = 280 + rnd() * 200;
-          const wallH = 280 + rnd() * 100;
-          const baseY = 900 - wallH;
-          ctx.fillStyle = wallShades[(rnd() * wallShades.length) | 0];
-          ctx.fillRect(x, baseY, w, wallH);
-          // 1F lower-band (many JP houses split colour mid-height)
-          if (rnd() > 0.35) {
-            const split = baseY + wallH * (0.45 + rnd() * 0.2);
-            ctx.fillStyle = lowerShades[(rnd() * lowerShades.length) | 0];
-            ctx.fillRect(x, split, w, 900 - split);
-          }
-          // pitched roof
-          const roofH = 60 + rnd() * 50;
-          ctx.fillStyle = roofShades[(rnd() * roofShades.length) | 0];
-          ctx.beginPath();
-          ctx.moveTo(x - 8, baseY);
-          ctx.lineTo(x + w / 2, baseY - roofH);
-          ctx.lineTo(x + w + 8, baseY);
-          ctx.closePath();
-          ctx.fill();
-          // small upper-floor windows
-          const cols = 1 + ((rnd() * 3) | 0);
-          for (let c = 0; c < cols; c++) {
-            const wx = x + (c + 0.5) * w / cols - 22;
-            const wy = baseY + 50 + rnd() * 40;
-            ctx.fillStyle = 'rgba(80,100,120,0.85)';
-            ctx.fillRect(wx, wy, 44, 60);
-            ctx.strokeStyle = '#fafafa'; ctx.lineWidth = 3;
-            ctx.strokeRect(wx, wy, 44, 60);
-          }
-          x += w + 6;
-        }
-        // power lines
-        ctx.strokeStyle = 'rgba(40,40,40,0.55)';
-        ctx.lineWidth = 1.5;
-        for (let i = 0; i < 4; i++) {
-          ctx.beginPath();
-          ctx.moveTo(0, 200 + i * 40);
-          ctx.bezierCurveTo(600, 240 + i * 40, 1400, 240 + i * 40, 2048, 200 + i * 40);
-          ctx.stroke();
-        }
-        // a TV antenna
-        ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(560, 540); ctx.lineTo(560, 380); ctx.stroke();
-        for (let i = 0; i < 4; i++) {
-          ctx.beginPath();
-          ctx.moveTo(540, 400 + i * 30); ctx.lineTo(580, 400 + i * 30); ctx.stroke();
-        }
-        // Atmospheric haze pass — pushes the procedural houses into the
-        // distance instead of reading as a cartoon strip right outside the
-        // window. Strongest at the horizon line, fades toward the foreground.
-        const haze = ctx.createLinearGradient(0, 600, 0, 950);
-        haze.addColorStop(0,   'rgba(216, 222, 228, 0.50)');
-        haze.addColorStop(0.5, 'rgba(216, 222, 228, 0.25)');
-        haze.addColorStop(1,   'rgba(216, 222, 228, 0.05)');
-        ctx.fillStyle = haze;
-        ctx.fillRect(0, 600, 2048, 350);
-        // Desaturating top wash so building roofs don't pop with sharp colour
-        // contrast against the soft sky.
-        const desat = ctx.createLinearGradient(0, 580, 0, 720);
-        desat.addColorStop(0, 'rgba(232, 234, 232, 0.30)');
-        desat.addColorStop(1, 'rgba(232, 234, 232, 0.00)');
-        ctx.fillStyle = desat;
-        ctx.fillRect(0, 580, 2048, 140);
-        const t = new THREE.CanvasTexture(cvs);
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        t.minFilter = THREE.LinearMipmapLinearFilter;
-        t.magFilter = THREE.LinearFilter;
-        return t;
-      })();
-      // Backdrop plane outside the window-wall (sliding window).
-      {
-        const planeMat = new THREE.MeshBasicMaterial({ map: buildingsTex, side: THREE.DoubleSide, toneMapped: false });
-        const plane = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), planeMat);
-        plane.position.set(RW + 3.0, 1.5, RD / 2);
-        plane.rotation.y = -Math.PI / 2; // face -x toward the room
-        S.group.add(plane);
-      }
-      // Backdrop plane outside the ac-wall (frosted privacy window).
-      {
-        const planeMat = new THREE.MeshBasicMaterial({ map: buildingsTex, side: THREE.DoubleSide, toneMapped: false });
-        const plane = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), planeMat);
-        plane.position.set(RW / 2, 1.5, RD + 3.0);
-        plane.rotation.y = Math.PI; // face -z toward the room
-        S.group.add(plane);
-      }
+      // ── Phase D: through-window view ──
+      // The view past the room is the Street View photo of the actual
+      // location, set as scene.background at the top of switchScene when
+      // room-1 is active. Room walls opaquely occlude it everywhere except
+      // around the room silhouette, which gives the outdoor-backdrop effect.
 
-      // baseboards
+      // baseboards + crown molding — nudged 1 mm INWARD so they don't share
+      // a plane with the wall's inside face (was producing a checkerboard
+      // z-fight band on WebGPU's stricter depth test).
+      const ZF = 0.001;
       const bbH = 0.05, bbD = 0.01, bbColor = 0xf2f0eb, bbX = { roughness: 0.7 };
-      box(bbD, bbH, RD, bbD/2,        bbH/2, RD/2, bbColor, bbX);
-      box(bbD, bbH, RD, RW - bbD/2,   bbH/2, RD/2, bbColor, bbX);
-      box(RW,  bbH, bbD, RW/2, bbH/2, bbD/2,      bbColor, bbX);
-      box(RW,  bbH, bbD, RW/2, bbH/2, RD - bbD/2, bbColor, bbX);
+      box(bbD, bbH, RD, bbD/2 + ZF,        bbH/2, RD/2, bbColor, bbX);
+      box(bbD, bbH, RD, RW - bbD/2 - ZF,   bbH/2, RD/2, bbColor, bbX);
+      box(RW,  bbH, bbD, RW/2, bbH/2, bbD/2 + ZF,      bbColor, bbX);
+      box(RW,  bbH, bbD, RW/2, bbH/2, RD - bbD/2 - ZF, bbColor, bbX);
       // crown molding (white line between walls and ceiling)
       const cmH = 0.06, cmD = 0.02, cmColor = 0xffffff, cmY = RH - cmH/2;
-      box(cmD, cmH, RD, cmD/2,        cmY, RD/2, cmColor, bbX);
-      box(cmD, cmH, RD, RW - cmD/2,   cmY, RD/2, cmColor, bbX);
-      box(RW,  cmH, cmD, RW/2, cmY, cmD/2,      cmColor, bbX);
-      box(RW,  cmH, cmD, RW/2, cmY, RD - cmD/2, cmColor, bbX);
+      box(cmD, cmH, RD, cmD/2 + ZF,        cmY, RD/2, cmColor, bbX);
+      box(cmD, cmH, RD, RW - cmD/2 - ZF,   cmY, RD/2, cmColor, bbX);
+      box(RW,  cmH, cmD, RW/2, cmY, cmD/2 + ZF,      cmColor, bbX);
+      box(RW,  cmH, cmD, RW/2, cmY, RD - cmD/2 - ZF, cmColor, bbX);
 
       // sliding window on x=W (window-wall per April 22 v4 layout)
       feat('x', RW, -1, { a1: 0.405, a2: 1.595, b1: 0.85, b2: 1.75 }, matGlassR1);
@@ -3036,25 +3514,55 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       // central vertical mullion — meeting point of the two hikichigai panels.
       feat('x', RW, -1, { a1: 0.98, a2: 1.02, b1: 0.85, b2: 1.75 }, matFrameR1);
       // curtains on window-wall — gathered + tieback at both sides of the sliding window.
-      // Hourglass-shaped bunched fabric (wide top + bottom, narrow at the tieback).
+      // Fluted vertical pleats so each column reads as folded fabric instead
+      // of a smooth pole. Different mechanism from the previous "7-fold
+      // bunched" attempt that was rejected as lumpy: the silhouette stays
+      // close to the original cylinder, but the surface gets 6 pairs of
+      // ridges + valleys carved into it so directional light + the fabric
+      // weave normal map both read as drape pleats.
       {
         const matCurt = new THREE.MeshStandardMaterial({ color: 0xddd2c0, roughness: 1 });
         const matBand = new THREE.MeshStandardMaterial({ color: 0xc7bba2, roughness: 0.95 });
         applyClothShader(matCurt);
+        applyFabricWeave(matCurt, 8, 24, 0.30);
+        function flutedColumn(rTop, rBot, height, ridges, depth) {
+          const geom = new THREE.CylinderGeometry(rTop, rBot, height, 64, 1, false);
+          const pos = geom.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i), z = pos.getZ(i);
+            const r = Math.hypot(x, z);
+            if (r < 1e-6) continue;
+            const theta = Math.atan2(z, x);
+            // Per-pleat jitter (±15 %) so they don't read as a lathed-perfect
+            // pattern — real drape pleats vary in depth.
+            const jitter = 0.85 + 0.15 * Math.sin(ridges * theta * 1.5 + 1.7);
+            // 0 at the ridges, 1 at the valleys.
+            const valley = (1 - Math.cos(ridges * theta)) * 0.5 * jitter;
+            const newR = r - depth * valley;
+            pos.setX(i, x * newR / r);
+            pos.setZ(i, z * newR / r);
+          }
+          pos.needsUpdate = true;
+          geom.computeVertexNormals();
+          return geom;
+        }
         const cTop = 1.85, cX = RW - 0.10;
         const SHELF_TOP_Y = 1.27;
         function bunch(zPos, yBot, yTie) {
-          // Single straight column of bunched fabric (slight top-to-bottom taper)
-          // with a tieback torus around the middle.
           const fullH = cTop - yBot;
           const col = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.075, 0.085, fullH, 16, 1, false),
+            // 8 vertical pleats, 25 mm deep — deeper than the previous 6×14 mm
+            // attempt because that read as a smooth pole. Top narrower than
+            // bottom (0.058 → 0.080) so the drape pools into a wider hem.
+            flutedColumn(0.058, 0.080, fullH, 8, 0.025),
             matCurt
           );
           col.position.set(cX, (cTop + yBot) / 2, zPos);
           S.group.add(col);
+          // Tieback radius widened from 0.092 → 0.098 so its inner edge sits
+          // outside the column's ridge max and doesn't clip the pleats.
           const band = new THREE.Mesh(
-            new THREE.TorusGeometry(0.092, 0.012, 8, 22),
+            new THREE.TorusGeometry(0.098, 0.012, 10, 28),
             matBand
           );
           band.position.set(cX, yTie, zPos);
@@ -3111,8 +3619,10 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       }
       // light switch panel on entrance-wall, just past the door frame (latch side).
       {
-        const matSwPlate = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.4 });
-        const matSwBtn   = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.45 });
+        // Plastic switch plate is satin-matte, not glossy. Bumping roughness so
+        // the highlight from the sunbeam on this wall reads as plastic, not painted ceramic.
+        const matSwPlate = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.6 });
+        const matSwBtn   = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.55 });
         const swX = 0.95, swY = 1.15, swZ = BIAS + 0.0025;
         const plate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.005), matSwPlate);
         plate.position.set(swX, swY, swZ); S.group.add(plate);
@@ -3134,7 +3644,9 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       // handle was at x=0.009 — fully buried inside the closet panel and
       // therefore invisible.)
       {
-        const matCabKnob = new THREE.MeshStandardMaterial({ color: 0xb8b8b8, metalness: 0.85, roughness: 0.25 });
+        // Match the entrance-door knob's chrome treatment for visual consistency
+        // (was 0.85/0.25 — closet read slightly less polished than the door knob 30 cm away).
+        const matCabKnob = new THREE.MeshStandardMaterial({ color: 0xc6c6c6, metalness: 1.0, roughness: 0.18 });
         const stemGeom = new THREE.CylinderGeometry(0.006, 0.006, 0.03, 12);
         const knobGeom = new THREE.SphereGeometry(0.018, 16, 12);
         for (const dz of [-0.06, 0.06]) {
@@ -3176,12 +3688,13 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         const acW = 0.82, acH = 0.26, acD = 0.18;
         const acBackZ  = RD - BIAS;            // back face (against wall)
         const acFrontZ = acBackZ - acD;        // front face (into room)
-        // main body
-        box(acW, acH, acD, acCx, acCy, acFrontZ + acD/2, 0xf6f6f4, { roughness: 0.45 });
+        // main body — matte ABS plastic, NOT glossy. 0.45 was reading as wet/painted
+        // under the new RectAreaLight; bumping to 0.7 settles the body into matte plastic.
+        box(acW, acH, acD, acCx, acCy, acFrontZ + acD/2, 0xf6f6f4, { roughness: 0.7 });
         // bottom louver flap — hangs slightly below body and forward,
         // creates the visible "bottom edge" of a real AC
         box(acW * 0.94, 0.04, acD * 0.6, acCx, acCy - acH/2 - 0.01, acFrontZ + acD * 0.45,
-            0xeceae6, { roughness: 0.55 });
+            0xeceae6, { roughness: 0.7 });
         // front grille (slightly recessed, slightly darker)
         box(acW * 0.86, acH * 0.55, 0.003, acCx, acCy + 0.02, acFrontZ - 0.002,
             0xc6c3bd, { roughness: 0.7 });
@@ -3193,8 +3706,10 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       winFrame('z', RD, -1, 0.30, 0.56, 0.9, 1.9, matFrameR1);
       // intercom / call panel on ac-wall — small white plate below the AC.
       {
-        const matPanel = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.5 });
-        const matBtn   = new THREE.MeshStandardMaterial({ color: 0x6b6e6e, roughness: 0.4 });
+        // Plate is matte plastic; button is a small darker push-button (kept slightly
+        // glossier so the eye picks it out as the actual control).
+        const matPanel = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.65 });
+        const matBtn   = new THREE.MeshStandardMaterial({ color: 0x4d5052, roughness: 0.35 });
         const px = 1.55, py = 1.65, pz = RD - 0.004;
         const plate = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.12, 0.008), matPanel);
         plate.position.set(px, py, pz); S.group.add(plate);
@@ -3203,39 +3718,210 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       }
 
       // bed — April 22 v4: along ac-wall (z=D); head at corner-ac-window (x=W), foot at corner-ac-entrance (x=0.7)
-      aabb({ x1: 0.7, x2: 2.7, z1: 1.7, z2: 2.7, y1: 0.1, y2: 0.5 }, COL.mattress);
+      // Pulled back 3 cm from both walls so posts (radius 24 mm) don't poke
+      // through the ac-wall and the mattress doesn't z-fight at the surface.
+      aabb({ x1: 0.7, x2: 2.67, z1: 1.7, z2: 2.67, y1: 0.1, y2: 0.5 }, COL.mattress);
+      // Pipe-style headboard / footboard, matching the photo reference at
+      //   ozu-test/interior-images/room-1/corner-cabinet-window/
+      //     room-1-corner-cabinet-window-08.webp
+      // Cylindrical rails + bars (was square bars), end posts extend ABOVE
+      // the top rail by 8 cm with two decorative collar rings + a small ball
+      // cap on top. Replaces the previous separate "ball finials" block —
+      // caps are now integral to the frame so they always touch the post.
       const IRON = { roughness: 0.45, metalness: 0.6 };
-      function metalFrame(panel, topRail, botRail, nBars) {
+      const ironMat = new THREE.MeshStandardMaterial({ color: COL.ironDark, ...IRON });
+      function pipeFrame(panel, topRail, botRail, nBars) {
         const w = panel.x2 - panel.x1, d = panel.z2 - panel.z1;
-        const cx = (panel.x1+panel.x2)/2, cz = (panel.z1+panel.z2)/2;
-        box(w, topRail.y2-topRail.y1, d, cx, (topRail.y1+topRail.y2)/2, cz, COL.ironDark, IRON);
-        box(w, botRail.y2-botRail.y1, d, cx, (botRail.y1+botRail.y2)/2, cz, COL.ironDark, IRON);
-        const barT = 0.05;
-        const barH = topRail.y1 - botRail.y2;
-        const barCy = (topRail.y1 + botRail.y2)/2;
+        const cx = (panel.x1 + panel.x2) / 2, cz = (panel.z1 + panel.z2) / 2;
+        const isLongZ = d > w;
+        const length = isLongZ ? d : w;
+
+        // Horizontal rails — cylinders along the long axis.
+        function rail(yCenter, thickness) {
+          const r = thickness / 2;
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(r, r, length, 16),
+            ironMat,
+          );
+          if (isLongZ) m.rotation.x = Math.PI / 2;
+          else         m.rotation.z = Math.PI / 2;
+          m.position.set(cx, yCenter, cz);
+          S.group.add(m);
+        }
+        rail((topRail.y1 + topRail.y2) / 2, topRail.y2 - topRail.y1);
+        rail((botRail.y1 + botRail.y2) / 2, botRail.y2 - botRail.y1);
+
+        // Vertical bars + end posts. End posts are slightly thicker and rise
+        // 8 cm above the top rail to host the collar bands + cap.
+        const barR  = 0.020;
+        const postR = 0.024;
+        const barH  = topRail.y1 - botRail.y2;
+        const barCy = (topRail.y1 + botRail.y2) / 2;
+        const POST_RISE = 0.08;
+        const postH    = barH + POST_RISE;
+        const postCy   = botRail.y2 + postH / 2;
+        const postTopY = botRail.y2 + postH;
+
         for (let i = 0; i < nBars; i++) {
           const t = nBars === 1 ? 0.5 : i / (nBars - 1);
-          if (d > w) {
-            const z = panel.z1 + d * t;
-            box(barT, barH, barT, cx, barCy, z, COL.ironDark, IRON);
-          } else {
-            const x = panel.x1 + w * t;
-            box(barT, barH, barT, x, barCy, cz, COL.ironDark, IRON);
+          const isEnd = (i === 0 || i === nBars - 1);
+          const r = isEnd ? postR : barR;
+          const h = isEnd ? postH : barH;
+          const cy = isEnd ? postCy : barCy;
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(r, r, h, 16),
+            ironMat,
+          );
+          if (isLongZ) m.position.set(cx, cy, panel.z1 + d * t);
+          else         m.position.set(panel.x1 + w * t, cy, cz);
+          S.group.add(m);
+        }
+
+        // End-post detail: 2 collar bands + small ball cap on top.
+        const collarR    = postR + 0.006;
+        const collarTube = 0.005;
+        const collarGeom = new THREE.TorusGeometry(collarR, collarTube, 8, 22);
+        const capGeom    = new THREE.SphereGeometry(postR + 0.004, 16, 12);
+        for (const i of [0, nBars - 1]) {
+          const t = i / (nBars - 1);
+          const x = isLongZ ? cx : panel.x1 + w * t;
+          const z = isLongZ ? panel.z1 + d * t : cz;
+          for (const yOff of [0.025, 0.050]) {
+            const c = new THREE.Mesh(collarGeom, ironMat);
+            c.position.set(x, postTopY - yOff, z);
+            c.rotation.x = Math.PI / 2;   // torus axis aligned to +Y
+            S.group.add(c);
           }
+          const cap = new THREE.Mesh(capGeom, ironMat);
+          // Sphere bottom sits 5 mm below post top so it reads as welded on.
+          cap.position.set(x, postTopY - 0.005 + (postR + 0.004), z);
+          S.group.add(cap);
         }
       }
-      metalFrame({ x1: 2.65, x2: 2.7, z1: 1.7, z2: 2.7 }, { y1: 0.98, y2: 1.0 }, { y1: 0, y2: 0.02 }, 5);
-      metalFrame({ x1: 0.7,  x2: 0.75, z1: 1.7, z2: 2.7 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
-      // ball finials on the four corner posts (Victorian iron-bedstead detail).
+      // Footboard — simple pipe frame, matches corner-cabinet-window-08.
+      // z2 pulled back 3 cm from ac-wall so the corner post (radius 24 mm) sits inside.
+      pipeFrame({ x1: 0.7,  x2: 0.75, z1: 1.7, z2: 2.67 }, { y1: 0.68, y2: 0.7 }, { y1: 0, y2: 0.02 }, 3);
+
+      // Headboard — distinct construction from the footboard. Reference:
+      //   ozu-test/interior-images/room-1/corner-ac-window/
+      //     room-1-corner-ac-window-{01,02}.webp
+      // Two-section design: lower half is a stained-wood inset panel between
+      // bottom rail (at mattress level) and middle rail, with black bracket
+      // plates hugging both side edges; upper half is a short row of vertical
+      // bars between middle rail and top rail. Corner posts run full-height
+      // and end in collar bands + ball cap.
       {
-        const ironMat = new THREE.MeshStandardMaterial({ color: COL.ironDark, roughness: 0.45, metalness: 0.6 });
-        const finial = new THREE.SphereGeometry(0.025, 16, 12);
-        const headPosts = [[2.675, 1.05, 1.7], [2.675, 1.05, 2.7]];
-        const footPosts = [[0.725, 0.75, 1.7], [0.725, 0.75, 2.7]];
-        for (const [x, y, z] of [...headPosts, ...footPosts]) {
-          const m = new THREE.Mesh(finial, ironMat);
-          m.position.set(x, y, z);
+        // Headboard pulled back 3 cm from window-wall (x) and ac-wall (z) so the
+        // corner posts (radius 24 mm) don't protrude through either wall.
+        const head = { x1: 2.62, x2: 2.67, z1: 1.7, z2: 2.67 };
+        const w = head.x2 - head.x1, d = head.z2 - head.z1;
+        const cx = (head.x1 + head.x2) / 2, cz = (head.z1 + head.z2) / 2;
+        const Y_TOP = 1.0, Y_MID = 0.85, Y_BOT = 0.50;
+        const POST_R = 0.024, POST_RISE = 0.08;
+        const POST_TOP_Y = Y_TOP + POST_RISE;
+
+        // Corner posts (full height; cap zone above the top rail)
+        for (const z of [head.z1, head.z2]) {
+          const post = new THREE.Mesh(
+            new THREE.CylinderGeometry(POST_R, POST_R, POST_TOP_Y, 16),
+            ironMat,
+          );
+          post.position.set(cx, POST_TOP_Y / 2, z);
+          S.group.add(post);
+        }
+
+        // Three horizontal rails along z (top, middle, bottom).
+        function headRail(yC, thickness) {
+          const r = thickness / 2;
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(r, r, d, 16),
+            ironMat,
+          );
+          m.rotation.x = Math.PI / 2;
+          m.position.set(cx, yC, cz);
           S.group.add(m);
+        }
+        headRail(Y_TOP, 0.02);
+        headRail(Y_MID, 0.02);
+        headRail(Y_BOT, 0.02);
+
+        // Upper section: 5 short vertical bars between middle and top rails.
+        const UPPER_BARS = 5;
+        const barR = 0.020;
+        const upperH = Y_TOP - Y_MID;
+        const upperCy = (Y_TOP + Y_MID) / 2;
+        for (let i = 0; i < UPPER_BARS; i++) {
+          const t = (i + 0.5) / UPPER_BARS; // centred between the corner posts
+          const z = head.z1 + 0.06 + (d - 0.12) * t;
+          const bar = new THREE.Mesh(
+            new THREE.CylinderGeometry(barR, barR, upperH, 14),
+            ironMat,
+          );
+          bar.position.set(cx, upperCy, z);
+          S.group.add(bar);
+        }
+
+        // Wood inset panel — 3 horizontal stained-wood planks between bottom
+        // and middle rails. Same dark_wood texture as the desk + shelf tiers
+        // so the room reads as one furniture set.
+        const woodMat = pbrMatR1('dark_wood', 1.2, 0.4, { roughness: 0.65, color: 0xffe2c8 });
+        const PLANK_COUNT = 3;
+        const wpInset = 0.07; // pulled in from corner posts so the brackets fit between
+        const wpZ1 = head.z1 + wpInset, wpZ2 = head.z2 - wpInset;
+        const wpZSpan = wpZ2 - wpZ1;
+        const totalH = Y_MID - Y_BOT;
+        const plankH = totalH / PLANK_COUNT;
+        const plankT = 0.045;
+        for (let i = 0; i < PLANK_COUNT; i++) {
+          const cy = Y_BOT + (i + 0.5) * plankH;
+          const plank = new THREE.Mesh(
+            new THREE.BoxGeometry(plankT, plankH * 0.96, wpZSpan),
+            woodMat,
+          );
+          plank.position.set(cx, cy, cz);
+          S.group.add(plank);
+        }
+
+        // Side brackets — flat black plates hugging both z edges of the wood
+        // panel. Approximates the stepped industrial bracket detail visible
+        // in the photo without modelling each rivet.
+        const brW = 0.05, brT = 0.05;
+        for (const z of [wpZ1 - brT / 2, wpZ2 + brT / 2]) {
+          const br = new THREE.Mesh(
+            new THREE.BoxGeometry(brW, totalH, brT),
+            ironMat,
+          );
+          br.position.set(cx, (Y_BOT + Y_MID) / 2, z);
+          S.group.add(br);
+          // Three horizontal rivet bands across each bracket — approximates
+          // the visible "screw" pattern on real industrial gussets.
+          for (let k = 0; k < 3; k++) {
+            const t = (k + 0.5) / 3;
+            const ribY = Y_BOT + t * totalH;
+            const rib = new THREE.Mesh(
+              new THREE.BoxGeometry(brW * 1.15, 0.008, brT * 1.15),
+              ironMat,
+            );
+            rib.position.set(cx, ribY, z);
+            S.group.add(rib);
+          }
+        }
+
+        // Corner-post detail: 2 collar bands + small ball cap on top.
+        const collarR = POST_R + 0.006;
+        const collarTube = 0.005;
+        const collarGeom = new THREE.TorusGeometry(collarR, collarTube, 8, 22);
+        const capGeom = new THREE.SphereGeometry(POST_R + 0.004, 16, 12);
+        for (const z of [head.z1, head.z2]) {
+          for (const yOff of [0.025, 0.050]) {
+            const c = new THREE.Mesh(collarGeom, ironMat);
+            c.position.set(cx, POST_TOP_Y - yOff, z);
+            c.rotation.x = Math.PI / 2;
+            S.group.add(c);
+          }
+          const cap = new THREE.Mesh(capGeom, ironMat);
+          cap.position.set(cx, POST_TOP_Y - 0.005 + (POST_R + 0.004), z);
+          S.group.add(cap);
         }
       }
       // bedding — white fitted sheet, white pillow, dark accent pillow.
@@ -3246,6 +3932,9 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         applyClothShader(matSheet);
         applyClothShader(matPillowWhite);
         applyClothShader(matPillowAccent);
+        applyFabricWeave(matSheet, 24, 12, 0.25);
+        applyFabricWeave(matPillowWhite, 6, 4, 0.30);
+        applyFabricWeave(matPillowAccent, 6, 4, 0.30);
         // sheet — flat slab over the mattress, slightly oversized so it drapes.
         const sheet = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.04, 1.04), matSheet);
         sheet.position.set(1.7, 0.52, 2.2); S.group.add(sheet);
@@ -3291,8 +3980,16 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
           for (const pz of [f.z1 + postT/2, f.z2 - postT/2])
             box(postT, sH, postT, px, sH/2, pz, COL.blackMet, BMET);
         const matTier = pbrMatR1('dark_wood', 0.4, 0.4, { roughness: 0.65, color: 0xffe2c8 });
+        // Tier shelves sit BETWEEN the corner posts, not flush with them.
+        // Previously the tier and post outer faces shared the same plane at
+        // every corner, which caused per-pixel z-fighting between the wood
+        // texture and the post's black metal — the user saw wood/metal
+        // randomly switching at the corners. Photo reference confirms the
+        // wood shelves are inset, ending at the posts' inner faces.
+        const tierW = w - 2 * postT;
+        const tierD = d - 2 * postT;
         for (const y of tierYs) {
-          const tier = new THREE.Mesh(new THREE.BoxGeometry(w, tierT, d), matTier);
+          const tier = new THREE.Mesh(new THREE.BoxGeometry(tierW, tierT, tierD), matTier);
           tier.position.set(cx, y, cz); S.group.add(tier);
         }
         function rod(start, end) {
@@ -3314,20 +4011,97 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         }
       }
 
-      // chair — tucked under desk; smaller seat/base so it eats less floor.
+      // chair — distressed grey-leather office chair with studded back, on a
+      // cylinder pedestal + 5-arm spider base + caster wheels.
+      // Photo references:
+      //   corner-ac-window-02 (visible 5-spoke caster base + cylinder)
+      //   corner-cabinet-window-01 (back-edge studs + grey leather)
+      //   corner-cabinet-window-{02,03} (cross-checks)
+      // Merges the right base from the first rebuild with the right
+      // upholstery from the second.
       {
         const f = { x1: 1.95, x2: 2.4, z1: 0.7, z2: 1.15 };
         const w = f.x2 - f.x1, d = f.z2 - f.z1;
-        const cx = (f.x1+f.x2)/2, cz = (f.z1+f.z2)/2;
-        const seatY = 0.5, seatT = 0.05, backT = 0.04, backH = 0.4;
-        const pedT = 0.06, baseT = 0.015;
-        const BMET = { roughness: 0.5, metalness: 0.6 };
-        box(w, seatT, d, cx, seatY - seatT/2, cz, COL.chairSeat);
-        box(backT, backH, d, f.x1 + backT/2, seatY + backH/2, cz, COL.chairSeat);
-        const pHa = seatY - seatT - baseT;
-        box(pedT, pHa, pedT, cx, baseT + pHa/2, cz, COL.blackMet, BMET);
-        // narrower 5-arm-style base footprint (0.7 of seat)
-        box(w * 0.7, baseT, d * 0.7, cx, baseT/2, cz, COL.blackMet, BMET);
+        const cx = (f.x1 + f.x2) / 2, cz = (f.z1 + f.z2) / 2;
+        const seatY = 0.45, seatT = 0.06;
+        const backW = 0.36, backH = 0.55, backT = 0.05;
+        const baseT = 0.018, casterR = 0.022;
+
+        const matLeather = new THREE.MeshStandardMaterial({
+          color: 0x9a948e, roughness: 0.62, metalness: 0.0,
+        });
+        const matBlackMet = new THREE.MeshStandardMaterial({
+          color: 0x141414, roughness: 0.5, metalness: 0.5,
+        });
+        const matCaster = new THREE.MeshStandardMaterial({
+          color: 0x222226, roughness: 0.55,
+        });
+        const matStud = new THREE.MeshStandardMaterial({
+          color: 0xc8c8c8, metalness: 0.95, roughness: 0.25,
+        });
+
+        // Seat — leather slab.
+        const seat = new THREE.Mesh(
+          new THREE.BoxGeometry(w * 0.92, seatT, d * 0.88),
+          matLeather,
+        );
+        seat.position.set(cx, seatY - seatT / 2, cz);
+        S.group.add(seat);
+
+        // Back assembly: panel + nailhead studs in a single tilted group, so
+        // when the back leans, the studs lean with it.
+        const backGroup = new THREE.Group();
+        const backPanel = new THREE.Mesh(
+          new THREE.BoxGeometry(backT, backH, backW),
+          matLeather,
+        );
+        backPanel.position.set(0, backH / 2, 0);
+        backGroup.add(backPanel);
+        const studR = 0.005;
+        const studGeom = new THREE.SphereGeometry(studR, 8, 6);
+        const STUD_COUNT = 9;
+        for (let i = 0; i < STUD_COUNT; i++) {
+          const t = i / (STUD_COUNT - 1);
+          const studY = 0.04 + t * (backH - 0.08);
+          for (const dz of [-backW / 2 + 0.012, backW / 2 - 0.012]) {
+            const stud = new THREE.Mesh(studGeom, matStud);
+            stud.position.set(backT / 2 + 0.003, studY, dz);
+            backGroup.add(stud);
+          }
+        }
+        backGroup.position.set(f.x1 + 0.04 + backT / 2, seatY, cz);
+        // Tilt the top of the back slightly toward −x (away from desk).
+        backGroup.rotation.z = 0.10;
+        S.group.add(backGroup);
+
+        // Cylinder pedestal from the spider base up to the seat underside.
+        const pedR = 0.030;
+        const pedH = (seatY - seatT) - baseT;
+        const ped = new THREE.Mesh(
+          new THREE.CylinderGeometry(pedR, pedR, pedH, 18),
+          matBlackMet,
+        );
+        ped.position.set(cx, baseT + pedH / 2, cz);
+        S.group.add(ped);
+
+        // 5-arm spider base + caster wheel at each tip.
+        const SPOKES = 5;
+        const spokeLen = 0.25, spokeT = 0.026;
+        const spokeGeom = new THREE.BoxGeometry(spokeLen, baseT, spokeT);
+        const casterGeom = new THREE.SphereGeometry(casterR, 12, 8);
+        for (let i = 0; i < SPOKES; i++) {
+          const ang = (Math.PI / 2) + i * (Math.PI * 2 / SPOKES);
+          const dx = Math.cos(ang), dz = Math.sin(ang);
+          const spoke = new THREE.Mesh(spokeGeom, matBlackMet);
+          spoke.position.set(cx + dx * spokeLen / 2, baseT / 2, cz + dz * spokeLen / 2);
+          // +Y rotation in three.js sends local +X to (cos θ, 0, −sin θ);
+          // so to point local +X at (cos ang, 0, sin ang) we set θ = −ang.
+          spoke.rotation.y = -ang;
+          S.group.add(spoke);
+          const caster = new THREE.Mesh(casterGeom, matCaster);
+          caster.position.set(cx + dx * spokeLen, casterR, cz + dz * spokeLen);
+          S.group.add(caster);
+        }
       }
 
       // pendant lights (4 emissive cylinder shades hanging from a wood cross)
@@ -3381,13 +4155,16 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
           side: THREE.DoubleSide, // visible from inside (bulb side) too
         });
         const matBulb = new THREE.MeshStandardMaterial({
-          color: 0xfff8e0, emissive: 0xfff2c8, emissiveIntensity: 0, roughness: 1.0,
+          color: 0xfff0d8, emissive: 0xffb16e, emissiveIntensity: 0, roughness: 1.0,
         });
         // Expose so the on/off "lights" toggle in the UI can mutate both.
+        // Emissive values calibrated for WebGPU + AgX tone mapping (research
+        // 2026-05-08): visible bulbs sit at 1.0–2.0, fabric shades at 0.3–0.6.
+        // Higher numbers blow out to flat white before bloom even kicks in.
         S.lampMaterial   = matShade;
         S.bulbMaterial   = matBulb;
-        S.lampOnIntensity = 3.0;
-        S.bulbOnIntensity = 8.0;
+        S.lampOnIntensity = 0.4;
+        S.bulbOnIntensity = 1.5;
         S.lampsOn        = false;
         // open-ended cylinder so the bulb is visible from below.
         const shadeGeom = new THREE.CylinderGeometry(sDia/2, sDia/2, sH, 20, 1, true);
@@ -3401,13 +4178,16 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
             const bulb = new THREE.Mesh(bulbGeom, matBulb);
             bulb.position.set(cx + dx, sBotY + 0.05, cz + dz);
             S.group.add(bulb);
-            // Real point light at each bulb so the toggle actually illuminates the room.
-            const pl = new THREE.PointLight(0xfff2c8, 0, 6, 2);
+            // Real point light at each bulb. distance=0 = unbounded inverse-square
+            // fall-off (correct for r155+ physical units). Colour 0xffb16e = real
+            // 2700 K warm-white (sRGB). Intensity in candela; ~30 cd/bulb × 4 bulbs
+            // ≈ 1500 lumens total — a small Japanese pendant cluster.
+            const pl = new THREE.PointLight(0xffb16e, 0, 0, 2);
             pl.position.set(cx + dx, sBotY + 0.05, cz + dz);
             S.group.add(pl);
             S.lampPointLights.push(pl);
           }
-        S.lampPointOnIntensity = 4.0;
+        S.lampPointOnIntensity = 30;
       }
 
       // lighting — sunlight through window-wall (x=W) casting shadows.
@@ -3456,6 +4236,48 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
         sun.lookAt(rectCx - 1, rectCy, rectCz);
         S.group.add(sun);
       }
+      // Visible god-ray cone — soft additive light shaft so you SEE the
+      // beam in the air, not just the patch on the floor. 4-sided cone
+      // (square cross-section) roughly matches the window. Vertex-colour
+      // alpha gradient peaks ~30% along the length and fades to 0 at the
+      // window-plane base and at the apex, so it has no hard edges.
+      {
+        const BEAM_LEN = 3.0;
+        const beamGeom = new THREE.ConeGeometry(0.75, BEAM_LEN, 4, 1, true);
+        const posAttr = beamGeom.attributes.position;
+        const cols = new Float32Array(posAttr.count * 4);
+        for (let i = 0; i < posAttr.count; i++) {
+          const y = posAttr.getY(i);
+          const t = (y + BEAM_LEN / 2) / BEAM_LEN; // 0 at base → 1 at apex
+          const peak = 0.30;
+          const a = t < peak ? (t / peak) : Math.max(0, 1 - (t - peak) / (1 - peak));
+          cols[i * 4 + 0] = 1;
+          cols[i * 4 + 1] = 1;
+          cols[i * 4 + 2] = 1;
+          cols[i * 4 + 3] = a;
+        }
+        beamGeom.setAttribute('color', new THREE.BufferAttribute(cols, 4));
+        const beamMat = new THREE.MeshBasicMaterial({
+          color: 0xfff4d6,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.18,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        const beam = new THREE.Mesh(beamGeom, beamMat);
+        beam.castShadow = false;
+        beam.receiveShadow = false;
+        // Sun-ray direction: dir1 sits at (6.5, 4.5, 1.35) aimed at
+        // (1.0, 0.6, 1.35) so rays travel (−5.5, −3.9, 0).
+        const sunDir = new THREE.Vector3(1.0 - 6.5, 0.6 - 4.5, 0).normalize();
+        const baseCentre = new THREE.Vector3(RW + 0.001, 1.30, 1.00);
+        const centre = baseCentre.clone().addScaledVector(sunDir, BEAM_LEN / 2);
+        beam.position.copy(centre);
+        beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sunDir);
+        S.group.add(beam);
+      }
       // Fill light from the cabinet-wall side — fills the dark corners softly
       // without doubling the cast shadow. Originally a cool 0xc8d4e8 sky-tint,
       // but that shifted the window-wall (the only face it directly hits) off
@@ -3493,82 +4315,203 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
   });
 
   // ---------- OrbitControls (minimal inline) ----------
+  // Two-input orbit controls — drag/one-finger to look around, pinch/wheel to
+  // zoom. No pan, no keyboard. Designed to work the same on Mac trackpads,
+  // mice, iPhone (375 px) up through iPad Pro. Damped catch-up for a smooth
+  // feel without making input feel laggy.
   class OrbitControls {
     constructor(cam, dom) {
       this.cam = cam;
       this.dom = dom;
-      this.target = new THREE.Vector3(1.8, 1.2, 2.7);
-      this.sph = new THREE.Spherical();
+      this.target      = new THREE.Vector3(1.8, 1.2, 2.7);
+      this._targetGoal = new THREE.Vector3();
+      this.sph         = new THREE.Spherical();
+      this._sphGoal    = new THREE.Spherical();
       this._updateSph();
-      this.enabled = true;
+      this._sphGoal.copy(this.sph);
+      this._targetGoal.copy(this.target);
+      this.minRadius = 0.5;
+      this.maxRadius = 40;
+      this.damping   = 0.22;
+      this.enabled   = true;
+
       this._down = false;
-      this._pan = false;
       this._last = { x: 0, y: 0 };
-      dom.addEventListener('mousedown', e => this._onDown(e));
+      this._dragMoved = false;
+      this._lastUp = 0;
+
+      this._touchTracking = new Map();
+      this._lastPinchDist = 0;
+
+      dom.addEventListener('mousedown',  e => this._onDown(e));
       window.addEventListener('mousemove', e => this._onMove(e));
       window.addEventListener('mouseup',   e => this._onUp(e));
-      dom.addEventListener('wheel',     e => this._onWheel(e), { passive: false });
+      dom.addEventListener('wheel',       e => this._onWheel(e), { passive: false });
       dom.addEventListener('contextmenu', e => e.preventDefault());
+      dom.addEventListener('touchstart',  e => this._onTouchStart(e), { passive: false });
+      dom.addEventListener('touchmove',   e => this._onTouchMove(e),  { passive: false });
+      dom.addEventListener('touchend',    e => this._onTouchEnd(e));
+      dom.addEventListener('touchcancel', e => this._onTouchEnd(e));
     }
+
     _updateSph() {
       const off = new THREE.Vector3().copy(this.cam.position).sub(this.target);
       this.sph.setFromVector3(off);
     }
+
     setFrom(pos, target) {
       this.target.copy(target);
+      this._targetGoal.copy(target);
       this.cam.position.copy(pos);
       this._updateSph();
+      this._sphGoal.copy(this.sph);
       this.update();
     }
+
+    // Like setFrom, but only mutates the GOAL — leaves the current state
+    // alone so the per-frame damping smoothly lerps the camera toward the
+    // new pose over ~half a second. Used by corner-hotspot clicks.
+    flyTo(pos, target) {
+      this._targetGoal.copy(target);
+      const off = new THREE.Vector3().copy(pos).sub(target);
+      this._sphGoal.setFromVector3(off);
+    }
+
+    _orbit(dx, dy) {
+      this._sphGoal.theta -= dx * 0.005;
+      this._sphGoal.phi   -= dy * 0.005;
+      this._sphGoal.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphGoal.phi));
+    }
+    _zoom(factor) {
+      this._sphGoal.radius = Math.max(this.minRadius, Math.min(this.maxRadius, this._sphGoal.radius * factor));
+    }
+
     _onDown(e) {
       if (!this.enabled) return;
       this._down = true;
-      this._pan = e.shiftKey || e.button === 2;
+      this._dragMoved = false;
       this._last.x = e.clientX; this._last.y = e.clientY;
     }
     _onMove(e) {
       if (!this._down) return;
       const dx = e.clientX - this._last.x;
       const dy = e.clientY - this._last.y;
+      if (Math.abs(dx) + Math.abs(dy) > 2) this._dragMoved = true;
       this._last.x = e.clientX; this._last.y = e.clientY;
-      if (this._pan) {
-        const scale = this.sph.radius * 0.002;
-        const right = new THREE.Vector3();
-        this.cam.getWorldDirection(right);
-        right.cross(this.cam.up).normalize();
-        const up = new THREE.Vector3(0, 1, 0);
-        this.target.addScaledVector(right, -dx * scale);
-        this.target.addScaledVector(up, dy * scale);
-      } else {
-        this.sph.theta -= dx * 0.005;
-        this.sph.phi -= dy * 0.005;
-        this.sph.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this.sph.phi));
-      }
-      this.update();
+      this._orbit(dx, dy);
     }
     _onUp() {
       this._down = false;
-      this._pan = false;
-      this._lastUp = performance.now();
+      if (this._dragMoved) this._lastUp = performance.now();
     }
+
     _onWheel(e) {
       if (!this.enabled) return;
       e.preventDefault();
-      // Ignore wheel events while dragging OR within 400ms of mouseup
-      // (Mac trackpads emit momentum/phantom scroll events on release).
-      if (this._down) return;
-      if (this._lastUp && (performance.now() - this._lastUp) < 400) return;
-      const factor = Math.pow(0.95, -e.deltaY * 0.01);
-      this.sph.radius = Math.max(1, Math.min(40, this.sph.radius * factor));
-      this.update();
+      // Mac/Windows trackpad pinch arrives as wheel with ctrlKey=true. Always
+      // honour it — even right after a drag — so pinch-zoom feels live.
+      const isPinch = e.ctrlKey;
+      if (!isPinch) {
+        if (this._down) return;
+        if (this._lastUp && (performance.now() - this._lastUp) < 150) return;
+      }
+      const sens = isPinch ? 0.02 : 0.01;
+      this._zoom(Math.pow(0.95, -e.deltaY * sens));
     }
+
+    _onTouchStart(e) {
+      if (!this.enabled) return;
+      e.preventDefault();
+      for (const t of e.changedTouches) this._touchTracking.set(t.identifier, { x: t.clientX, y: t.clientY });
+      if (e.touches.length === 2) {
+        const a = e.touches[0], b = e.touches[1];
+        this._lastPinchDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      }
+    }
+    _onTouchMove(e) {
+      if (!this.enabled) return;
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        const last = this._touchTracking.get(t.identifier);
+        if (!last) return;
+        this._orbit(t.clientX - last.x, t.clientY - last.y);
+        last.x = t.clientX; last.y = t.clientY;
+      } else if (e.touches.length === 2) {
+        const a = e.touches[0], b = e.touches[1];
+        const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        if (this._lastPinchDist > 0) this._zoom(this._lastPinchDist / dist);
+        this._lastPinchDist = dist;
+      }
+    }
+    _onTouchEnd(e) {
+      for (const t of e.changedTouches) this._touchTracking.delete(t.identifier);
+      if (e.touches.length < 2) this._lastPinchDist = 0;
+    }
+
     update() {
+      const k = this.damping;
+      let dT = this._sphGoal.theta - this.sph.theta;
+      while (dT >  Math.PI) dT -= 2 * Math.PI;
+      while (dT < -Math.PI) dT += 2 * Math.PI;
+      this.sph.theta  += dT * k;
+      this.sph.phi    += (this._sphGoal.phi    - this.sph.phi)    * k;
+      this.sph.radius += (this._sphGoal.radius - this.sph.radius) * k;
+      this.target.lerp(this._targetGoal, k);
       const off = new THREE.Vector3().setFromSpherical(this.sph);
       this.cam.position.copy(this.target).add(off);
       this.cam.lookAt(this.target);
     }
   }
   const orbit = new OrbitControls(camera, renderer.domElement);
+
+  // ---------- Corner-jump hotspots (room-1 only) ----------
+  // Four floating dots, one in each corner of room-1 at eye level. Click a
+  // dot → camera flies to that corner, looking at the room centre. Layer is
+  // hidden unless room-1 is the active scene; an individual dot is hidden
+  // when the camera is < 0.7 m from its target so the dot you just clicked
+  // doesn't sit in your face.
+  const cornerHotspotsLayer = document.getElementById('corner-hotspots-layer');
+  const ROOM1_TARGET = new THREE.Vector3(1.35, 1.0, 1.35);
+  const ROOM1_CORNERS = [
+    { id: 'corner-cabinet-entrance', dotWorld: new THREE.Vector3(0.05, 1.5, 0.05), camPos: new THREE.Vector3(0.30, 1.55, 0.30) },
+    { id: 'corner-cabinet-window',   dotWorld: new THREE.Vector3(2.65, 1.5, 0.05), camPos: new THREE.Vector3(2.40, 1.55, 0.30) },
+    { id: 'corner-ac-window',        dotWorld: new THREE.Vector3(2.65, 1.5, 2.65), camPos: new THREE.Vector3(2.40, 1.55, 2.40) },
+    { id: 'corner-ac-entrance',      dotWorld: new THREE.Vector3(0.05, 1.5, 2.65), camPos: new THREE.Vector3(0.30, 1.55, 2.40) },
+  ];
+  const cornerHotspots = [];
+  for (const c of ROOM1_CORNERS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'corner-hotspot';
+    btn.dataset.id = c.id;
+    btn.setAttribute('aria-label', `Move camera to ${c.id}`);
+    btn.innerHTML = '<span class="corner-hotspot__dot" aria-hidden="true"></span>';
+    btn.addEventListener('click', () => orbit.flyTo(c.camPos, ROOM1_TARGET));
+    cornerHotspotsLayer.appendChild(btn);
+    cornerHotspots.push({ btn, world: c.dotWorld, camPos: c.camPos });
+  }
+  const _cornerProjV = new THREE.Vector3();
+  function updateCornerHotspots() {
+    if (cornerHotspotsLayer.hidden) return;
+    for (const h of cornerHotspots) {
+      // Hide a dot if you're already at (or very close to) its corner.
+      if (camera.position.distanceTo(h.camPos) < 0.7) {
+        h.btn.style.visibility = 'hidden';
+        continue;
+      }
+      _cornerProjV.copy(h.world).project(camera);
+      const visible = _cornerProjV.z < 1;
+      if (!visible) {
+        h.btn.style.visibility = 'hidden';
+        continue;
+      }
+      const x = (_cornerProjV.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-_cornerProjV.y * 0.5 + 0.5) * window.innerHeight;
+      h.btn.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+      h.btn.style.visibility = '';
+    }
+  }
 
   // ---------- Room label detection ----------
   function updateRoomLabel() {
@@ -3854,6 +4797,21 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
     // dropped to reduce UI complexity. Drag-orbit covers the use case.
   }
 
+  // Briefly fade in the top-centre control hint pill, then fade it out
+  // again. Called on every scene entry. Cancelable so a fast scene-switch
+  // burst doesn't leave a half-faded element on screen.
+  const entryHintEl = document.getElementById('entry-hint');
+  let _entryHintTimer = 0;
+  function showEntryHint() {
+    if (!entryHintEl) return;
+    clearTimeout(_entryHintTimer);
+    entryHintEl.classList.remove('show');
+    // Force a reflow so the next add re-runs the transition from opacity 0.
+    void entryHintEl.offsetWidth;
+    entryHintEl.classList.add('show');
+    _entryHintTimer = setTimeout(() => entryHintEl.classList.remove('show'), 4500);
+  }
+
   function switchScene(id) {
     const S = scenes[id];
     if (!S) return;
@@ -3865,7 +4823,13 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
       camera.updateProjectionMatrix();
     }
     orbit.setFrom(S.orbitPos, S.orbitTarget);
-    scene.background = new THREE.Color(S.bg);
+    // Room-1 uses a Street View photo of the actual location as the
+    // through-window backdrop. Other scenes use their solid bg colour.
+    if (id === 'room-1' && _room1BgTex) {
+      scene.background = _room1BgTex;
+    } else {
+      scene.background = new THREE.Color(S.bg);
+    }
     // ACES tone mapping is set globally at renderer construction.
     // The procedural PMREM env map is shared across all scenes so PBR materials
     // get realistic indirect light + reflections everywhere (was room-1-only before).
@@ -3873,16 +4837,22 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
     // until then use the procedural fallback so the very first render is lit.
     if (!scene.environment) scene.environment = _envLoaded ? _room1EnvMap : buildRoom1EnvMap();
     if (id === 'room-1') {
-      // room-1 sandbox keeps its hand-tuned dimmer exposure
-      renderer.toneMappingExposure = 0.55;
+      // room-1 cinematic sandbox uses AgX (Blender 4+ default) — preserves
+      // hue at the highlight roll-off where the warm bulbs meet the shade,
+      // unlike ACES which crushes oranges → yellow.
+      renderer.toneMapping = THREE.AgXToneMapping;
+      renderer.toneMappingExposure = 0.9;
     } else {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.0;
     }
     for (const chip of document.querySelectorAll('.chip[data-scene]')) {
       chip.classList.toggle('active', chip.dataset.scene === id);
     }
-    // Vignette overlay is only on for the room-1 cinematic sandbox.
-    container.classList.toggle('vignette', id === 'room-1');
+    // Corner-jump hotspots are room-1 only.
+    cornerHotspotsLayer.hidden = (id !== 'room-1');
+    // Briefly surface the camera controls so the user learns them on entry.
+    showEntryHint();
     // Show the "Lights" toggle only when room-1 is active.
     const lightsBtn = document.getElementById('lights-btn');
     const lightsDivider = document.getElementById('lights-divider');
@@ -3968,18 +4938,12 @@ import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/Rec
 
   // ---------- Animation loop ----------
   function animate() {
-    requestAnimationFrame(animate);
     orbit.update();
     updateRoomLabel();
-    // Plain renderer.render uses the browser's hardware MSAA (antialias: true
-    // on the WebGLRenderer). For room-1 we previously routed through
-    // EffectComposer for bloom, but composer pipelines in r128 produce
-    // fundamentally lower-quality AA than browser MSAA — confirmed jagged
-    // edges across many tuning attempts. So all scenes now use the plain
-    // path. Lamp glow lives purely in the emissive material (no bloom halo).
+    updateCornerHotspots();
     renderer.render(scene, camera);
   }
-  animate();
+  renderer.setAnimationLoop(animate);
 })();
 
 /* ============================================================
