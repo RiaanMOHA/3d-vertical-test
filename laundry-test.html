@@ -161,6 +161,10 @@ import * as THREE from 'three';
 import { HDRLoader }                from './vendor/three/examples/jsm/loaders/HDRLoader.js';
 import { RoundedBoxGeometry }       from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import { EffectComposer }           from './vendor/three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }               from './vendor/three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass }          from './vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass }               from './vendor/three/examples/jsm/postprocessing/OutputPass.js';
 RectAreaLightUniformsLib.init();
 
 /* ====================================================================== */
@@ -173,7 +177,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.52;
+renderer.toneMappingExposure = 0.68;        /* Kumamoto 11 AM clear sky — bright but contained */
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.appendChild(renderer.domElement);
 
@@ -263,6 +267,18 @@ pmrem.compileEquirectangularShader();
 new HDRLoader().load('ozu-test/hdri/kloppenheim_06_puresky_2k.hdr', (hdr) => {
   const envMap = pmrem.fromEquirectangular(hdr).texture;
   scene.environment = envMap;
+  /* Kumamoto, sunny spring, 11:00 AM JST — sun azimuth ≈ 160° (SSE),
+   * elevation ≈ 60°. Window is on +Z (north wall). Sun is on the OPPOSITE
+   * side of the building — never enters this window. We rotate the HDRI
+   * so its bright clear-sky zone sits over the south-southeast direction
+   * (sun source), and the cooler diffuse sky portion faces the north
+   * window. envIntensity slightly lower than before — the washer was
+   * picking up too much IBL specular at 0.65. */
+  scene.environmentIntensity = 0.60;
+  /* Yaw so the HDRI sun direction lands at world-space azimuth 160°.
+   * kloppenheim_06's sun sits roughly at equirect U≈0.65; a yaw of
+   * +0.8 rad (about +46°) brings it to the SSE direction. */
+  scene.environmentRotation = new THREE.Euler(0, 0.80, 0);
   hdr.dispose();
 });
 
@@ -272,8 +288,10 @@ new HDRLoader().load('ozu-test/hdri/kloppenheim_06_puresky_2k.hdr', (hdr) => {
 /* sky proxy outside the window.                                          */
 /* ====================================================================== */
 
-/* Hemisphere — gentle ambient lift so deep shadows don't go pure black */
-scene.add(new THREE.HemisphereLight(0xdde8f0, 0x4a4035, 0.22));
+/* Hemisphere — Kumamoto 11 AM clear-spring sky bias: COOL pale-blue sky
+ * (clear day), warm pine-floor bounce from below. Strong enough that the
+ * room interior reads bright without the window light. */
+scene.add(new THREE.HemisphereLight(0xc8d6e8, 0xa89878, 0.55));
 
 /* ====================================================================== */
 /* Texture helpers                                                         */
@@ -554,23 +572,26 @@ matWindowWall.lightMapIntensity = 1.0;
 matWindowWall.envMapIntensity = 0.15;
 matWindowWall.needsUpdate = true;
 
-/* Washing-machine palette */
+/* Washing-machine palette — Kumamoto 11 AM rule: cool diffuse window light
+ * is the only source hitting the washer (the alcove faces north). White
+ * cabinet should read MATTE, slightly cool, NOT highlight-blown. Chrome
+ * gets capped envMapIntensity so the IBL doesn't punch a bloom-triggering
+ * highlight on the dial/buttons. Roughness raised; metalness on the white
+ * cabinet dropped — real Japanese top-loader paint is a soft eggshell,
+ * not a hard-pearl finish. */
 const matWasherWhite = new THREE.MeshPhysicalMaterial({
-  color: 0xf2f3f5, roughness: 0.42, metalness: 0.18,
-  clearcoat: 0.50, clearcoatRoughness: 0.18,
-  /* Anisotropy for a subtle brushed-paint highlight — directional sheen
-     when light hits the side of the cabinet (per research brief). */
-  anisotropy: 0.20, anisotropyRotation: 0,
-  envMapIntensity: 0.70,
+  color: 0xeceeee, roughness: 0.62, metalness: 0.04,
+  clearcoat: 0.25, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.35,
 });
 const matWasherWhiteSoft = new THREE.MeshPhysicalMaterial({
-  color: 0xe7e8ea, roughness: 0.55, metalness: 0.05,
-  envMapIntensity: 0.45,
+  color: 0xe2e4e6, roughness: 0.68, metalness: 0.02,
+  envMapIntensity: 0.25,
 });
 const matWasherChrome = new THREE.MeshPhysicalMaterial({
-  color: 0xdde0e6, roughness: 0.18, metalness: 1.0,
-  clearcoat: 0.20, clearcoatRoughness: 0.10,
-  envMapIntensity: 1.0,
+  color: 0xc8ccd2, roughness: 0.30, metalness: 1.0,
+  clearcoat: 0.10, clearcoatRoughness: 0.25,
+  envMapIntensity: 0.45,
 });
 const matWasherDoorGlass = new THREE.MeshPhysicalMaterial({
   color: 0x1d2024, roughness: 0.10, metalness: 0.10,
@@ -611,9 +632,19 @@ const ROOM_D = 2.70;
 const ROOM_H = 2.50;
 const WALL_T = 0.05;
 
-/* Sliding window on north wall (window-wall): high, FL+1800. ~1.0 m wide × 0.4 m tall. */
-const WIN_X0 = 0.40, WIN_X1 = 1.40;
-const WIN_Y0 = 1.80, WIN_Y1 = 2.20;
+/* Window on window-wall (north). Per laundry-a-1.webp the actual window is the
+ * 横すべり 06003 (600 × 300 mm) called out in room-map.md — small horizontal
+ * landscape pane, sill at FL+1500, head at FL+1800, centred on the wall.
+ *
+ * The defining visual feature in the photo is the DEEP reveal: the window sits
+ * back inside a 10 cm-deep white-painted pocket so you see four white inner
+ * faces (sill / head / jambs) framing the glass, plus a thin painted casing
+ * sitting ~1.5 cm proud of the inside wall surface. We model that by
+ * thickening the north wall locally (WIN_DEPTH) — the lightmap UV1 override
+ * stays correct because the -Z face position is unchanged. */
+const WIN_X0 = 0.60, WIN_X1 = 1.20;
+const WIN_Y0 = 1.50, WIN_Y1 = 1.80;
+const WIN_DEPTH = 0.10;
 
 function wallBox(x0, x1, y0, y1, z0, z1, mat) {
   const m = new THREE.Mesh(
@@ -686,11 +717,14 @@ scene.add(wallBox(0, ROOM_W, 0, ROOM_H, -WALL_T, 0, matDoorWall));
 /* Vanity-wall (east) — BRICK accent with baked AO */
 scene.add(wallBox(ROOM_W, ROOM_W + WALL_T, 0, ROOM_H, 0, ROOM_D, matVanityWall));
 
-/* Window-wall (north, z = ROOM_D..ROOM_D+WALL_T) — 4 fragments around the
+/* Window-wall (north, z = ROOM_D..ROOM_D+WIN_DEPTH) — 4 fragments around the
    cutout, all sharing matWindowWall + window_wall.png lightmap. Per-mesh
-   uv1 override maps each fragment's -Z face to its sub-region of the bake. */
+   uv1 override maps each fragment's -Z face to its sub-region of the bake.
+   The wall is locally 0.10 m thick here so the window opening has a real
+   recess; the lightmap UVs only care about the -Z face at z=ROOM_D so the
+   thicker wall doesn't break the bake mapping. */
 const NX0 = 0, NX1 = ROOM_W;
-const NZ0 = ROOM_D, NZ1 = ROOM_D + WALL_T;
+const NZ0 = ROOM_D, NZ1 = ROOM_D + WIN_DEPTH;
 const winWallUv = (x, y, z) => [(ROOM_W - x) / ROOM_W, y / ROOM_H];
 const winFragments = [
   wallBox(NX0,    NX1,    0,      WIN_Y0,  NZ0, NZ1, matWindowWall),  /* below */
@@ -703,80 +737,213 @@ for (const f of winFragments) {
   scene.add(f);
 }
 
-/* Window pane — frosted-ish glass + chrome frame */
+/* Recessed window: deep white pocket + frosted glass at the back + white
+   painted casing trim on the inside wall face (~1.5 cm proud). Per a-1 /
+   c-15: pure white reveal, no chrome frame, slight sill ledge.
+
+   Coord layout (z axis goes from inside room toward outside):
+     NZ0 = ROOM_D                = inside wall face   (where casing sits)
+     NZ0..NZ1 = 10 cm reveal pocket
+     NZ1 - 0.005                 = glass plane (just inside outer face)
+*/
+const matReveal = new THREE.MeshPhysicalMaterial({
+  color: 0xfafaf6, roughness: 0.55, metalness: 0,
+  clearcoat: 0.25, clearcoatRoughness: 0.40,
+  envMapIntensity: 0.55,
+});
+/* Procedural micro-pebble noise for frosted glass — small low-frequency
+ * variation in BOTH roughness (so the surface scatters unevenly the way
+ * real 縦すべり obscure-pattern glass does) and normal (faint, so the
+ * sky bounce gets perturbed slightly). Codrops 2025-03-13 pattern. */
+const frostNoiseCanvas = (() => {
+  const c = makeCanvas(256, 256);
+  const ctx = c.getContext('2d');
+  /* Base mid-grey roughness around 0.78, with low-frequency blobs */
+  const img = ctx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      /* 3-octave value noise via cheap sum of cosines */
+      const n =
+        0.50 + 0.30 * Math.sin(x * 0.05 + y * 0.07) * Math.cos(x * 0.03 - y * 0.04)
+             + 0.18 * Math.sin(x * 0.18 + y * 0.13)
+             + 0.08 * Math.sin(x * 0.42 + y * 0.31);
+      const v = Math.max(0.55, Math.min(0.92, n));
+      const i = (y * 256 + x) * 4;
+      const g = Math.round(v * 255);
+      img.data[i] = g; img.data[i + 1] = g; img.data[i + 2] = g; img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+})();
+const frostRoughnessTex = texFromCanvas(frostNoiseCanvas);
+frostRoughnessTex.colorSpace = THREE.NoColorSpace;
+const frostNormalTex = deriveNormalFromCanvas(frostNoiseCanvas, 0.10);
+
+const matGlassFrosted = new THREE.MeshPhysicalMaterial({
+  /* Frosted bathroom glass — true-frosted band (0.65–0.85) but at the
+   * LOW end so the sky behind reads bright through the pane instead of
+   * murky. Per Kumamoto 11 AM rule: cool attenuation tint, not warm. */
+  color: 0xf4f7fa, roughness: 0.62, metalness: 0,
+  roughnessMap: frostRoughnessTex,
+  normalMap: frostNormalTex,
+  normalScale: new THREE.Vector2(0.06, 0.06),
+  transmission: 1.0, ior: 1.50, thickness: 0.005,
+  attenuationColor: new THREE.Color(0xeef2f8),
+  attenuationDistance: 0.10,
+  envMapIntensity: 2.5,
+});
 {
   const winCx = (WIN_X0 + WIN_X1) / 2;
   const winCy = (WIN_Y0 + WIN_Y1) / 2;
-  const winW = WIN_X1 - WIN_X0;
-  const winH = WIN_Y1 - WIN_Y0;
-  const glass = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW, winH),
-    new THREE.MeshPhysicalMaterial({
-      color: 0xeef4f8, roughness: 0.5, metalness: 0,
-      transmission: 0.55, ior: 1.50, thickness: 0.005,
-      envMapIntensity: 0.6,
-    })
-  );
-  glass.position.set(winCx, winCy, NZ0 + WALL_T / 2);
+  const winW  = WIN_X1 - WIN_X0;
+  const winH  = WIN_Y1 - WIN_Y0;
+
+  /* === Four reveal faces inside the cutout (sill, head, jambs) === */
+  /* Sill (faces +Y into the pocket) */
+  const sill = new THREE.Mesh(new THREE.PlaneGeometry(winW, WIN_DEPTH), matReveal);
+  sill.rotation.x = -Math.PI / 2;
+  sill.position.set(winCx, WIN_Y0, (NZ0 + NZ1) / 2);
+  sill.receiveShadow = true;
+  scene.add(sill);
+
+  /* Head (faces -Y) */
+  const head = new THREE.Mesh(new THREE.PlaneGeometry(winW, WIN_DEPTH), matReveal);
+  head.rotation.x = Math.PI / 2;
+  head.position.set(winCx, WIN_Y1, (NZ0 + NZ1) / 2);
+  head.receiveShadow = true;
+  scene.add(head);
+
+  /* Left jamb (faces +X) */
+  const leftJamb = new THREE.Mesh(new THREE.PlaneGeometry(WIN_DEPTH, winH), matReveal);
+  leftJamb.rotation.y = Math.PI / 2;
+  leftJamb.position.set(WIN_X0, winCy, (NZ0 + NZ1) / 2);
+  leftJamb.receiveShadow = true;
+  scene.add(leftJamb);
+
+  /* Right jamb (faces -X) */
+  const rightJamb = new THREE.Mesh(new THREE.PlaneGeometry(WIN_DEPTH, winH), matReveal);
+  rightJamb.rotation.y = -Math.PI / 2;
+  rightJamb.position.set(WIN_X1, winCy, (NZ0 + NZ1) / 2);
+  rightJamb.receiveShadow = true;
+  scene.add(rightJamb);
+
+  /* === Frosted glass — flush with the outer face of the reveal === */
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), matGlassFrosted);
+  glass.position.set(winCx, winCy, NZ1 - 0.005);
   glass.rotation.y = Math.PI;
   scene.add(glass);
 
-  /* Slim chrome frame */
-  const frameT = 0.020, frameP = 0.012;
-  const frames = [
-    [winW + frameT * 2, frameT, frameP, winCx, WIN_Y0 - frameT / 2, NZ0 + WALL_T / 2 + frameP / 2],
-    [winW + frameT * 2, frameT, frameP, winCx, WIN_Y1 + frameT / 2, NZ0 + WALL_T / 2 + frameP / 2],
-    [frameT, winH + frameT * 2, frameP, WIN_X0 - frameT / 2, winCy, NZ0 + WALL_T / 2 + frameP / 2],
-    [frameT, winH + frameT * 2, frameP, WIN_X1 + frameT / 2, winCy, NZ0 + WALL_T / 2 + frameP / 2],
+  /* === White casing trim on the inside wall face — 2 cm wide × 1.5 cm proud ===
+     Picture-frame border that visually anchors the opening in the wall plane. */
+  const casW = 0.025, casD = 0.015;
+  const casZc = NZ0 - casD / 2;
+  const casings = [
+    /* head trim: top of opening + casW above */
+    [winW + casW * 2, casW, casD, winCx, WIN_Y1 + casW / 2, casZc],
+    /* sill trim: bottom of opening + casW below */
+    [winW + casW * 2, casW, casD, winCx, WIN_Y0 - casW / 2, casZc],
+    /* left jamb trim */
+    [casW, winH, casD, WIN_X0 - casW / 2, winCy, casZc],
+    /* right jamb trim */
+    [casW, winH, casD, WIN_X1 + casW / 2, winCy, casZc],
   ];
-  for (const [w, h, d, x, y, z] of frames) {
-    const f = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matWasherChrome);
-    f.position.set(x, y, z);
-    scene.add(f);
+  for (const [w, h, d, x, y, z] of casings) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matReveal);
+    m.position.set(x, y, z);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
   }
+
+  /* Sill ledge — slight projecting shelf at the bottom, ~1 cm proud of the
+     inside wall face (visible bottom ledge in a-1). */
+  const ledge = new THREE.Mesh(
+    new THREE.BoxGeometry(winW + casW * 2, 0.012, 0.030),
+    matReveal
+  );
+  ledge.position.set(winCx, WIN_Y0 - casW - 0.006, NZ0 - 0.015);
+  ledge.castShadow = true; ledge.receiveShadow = true;
+  scene.add(ledge);
 }
 
-/* Outside sky proxy — bright warm rectangle slightly outside the window so
-   it reads as bright daylight regardless of the dimmed environment. */
+/* Daylight rig — Kumamoto, sunny spring, 11:00 AM JST (CLAUDE.md rule).
+ * Sun is at azimuth ≈ 160°, elevation ≈ 60°. The window is on the +Z
+ * (NORTH) wall, opposite the sun — so a north-facing frosted window in
+ * this configuration gets NO direct sun, only cool diffuse sky.
+ * Two pieces, NOT three:
+ *   1. SKY PROXY  — bright COOL pale-blue panel outside the window so the
+ *      frosted glass reads as "looking at clear spring sky".
+ *   2. RECTAREA   — cool-blue area light at the window plane (the ONLY
+ *      window contributor; no DirectionalLight through a north window).
+ *
+ * Cast shadows inside the room come from the ambient bounce + the dim
+ * ceiling spots, NOT a fake "sun through the north window".  */
 {
   const winCx = (WIN_X0 + WIN_X1) / 2;
   const winCy = (WIN_Y0 + WIN_Y1) / 2;
-  const winCz = NZ1 + 0.30;
   const winW = WIN_X1 - WIN_X0;
   const winH = WIN_Y1 - WIN_Y0;
+
+  /* 1. Sky proxy — true HDR-bright (raw color > 1.0) so the frosted glass
+   *    reads as "looking at the sky" instead of "a wall with a tile on
+   *    it". MeshBasicMaterial with toneMapped:false bypasses the shader-
+   *    side ACES so the HDR value reaches the composer; OutputPass then
+   *    tonemaps for display. Bloom threshold 1.0 then picks up the
+   *    overflow as a soft halo around the window. Cool pale-blue per the
+   *    Kumamoto 11 AM rule. */
+  const skyMat = new THREE.MeshBasicMaterial({
+    color: 0xeaf2ff,
+    toneMapped: false,
+  });
+  skyMat.color.multiplyScalar(2.4);     /* lift above bloom threshold without over-driving */
   const sky = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW * 1.6, winH * 1.6),
-    new THREE.MeshBasicMaterial({ color: 0xfff0d8 })
+    new THREE.PlaneGeometry(winW * 1.8, winH * 1.8),
+    skyMat
   );
-  sky.position.set(winCx, winCy, winCz);
-  sky.rotation.y = Math.PI;        /* face into room */
+  sky.position.set(winCx, winCy, NZ1 + 0.30);
+  sky.rotation.y = Math.PI;
   scene.add(sky);
 
-  /* Window light — primary daylight RectAreaLight (warm, big) */
-  const winLight = new THREE.RectAreaLight(0xfff0d8, 11.2, winW, winH);
-  winLight.position.set(winCx, winCy, NZ0 - 0.02);
-  winLight.lookAt(winCx, winCy, NZ0 - 5);     /* face -Z (into room) */
+  /* 2. RectAreaLight — diffuse sky-coloured area fill at the window plane.
+   *    Cool-tinted (no direct sun through a north window per Kumamoto rule)
+   *    but strong enough to be felt across the room. RectAreaLight CAN'T
+   *    cast shadows in WebGL three.js — that's what piece 3 is for. */
+  const winLight = new THREE.RectAreaLight(0xdde6f0, 22.0, winW, winH);
+  winLight.position.set(winCx, winCy, NZ1 - 0.005);
+  winLight.lookAt(winCx, winCy, NZ0 - 5);
   scene.add(winLight);
 
-  /* Window directional — handles the cast shadows (RectAreaLight can't) */
-  const winSun = new THREE.DirectionalLight(0xfff0d8, 1.28);
-  winSun.position.set(winCx + 0.4, winCy + 0.4, NZ0 + 2.0);
-  winSun.target.position.set(winCx, 0.85, 1.20);
-  winSun.castShadow = true;
-  winSun.shadow.mapSize.set(2048, 2048);
-  winSun.shadow.camera.near = 0.5;
-  winSun.shadow.camera.far  = 8;
-  winSun.shadow.camera.left   = -2.0;
-  winSun.shadow.camera.right  =  2.0;
-  winSun.shadow.camera.top    =  2.0;
-  winSun.shadow.camera.bottom = -1.0;
-  winSun.shadow.bias       = -0.00015;
-  winSun.shadow.normalBias =  0.02;
-  winSun.shadow.radius     =  3;
-  scene.add(winSun, winSun.target);
+  /* 3. Window "skylight" DirectionalLight — its job is to give the room
+   *    cast shadows that ground geometry (washer, fixtures) to the floor.
+   *    PHYSICAL MODEL: the bright cool sky outside the north window is
+   *    a directional bright source from the camera's POV — it dominates
+   *    where shadows fall, even though no direct sun ray enters. We
+   *    model that with a DirectionalLight at the window position, COOL
+   *    colour (sky, not sun), wide shadow radius (frosted glass scatters
+   *    rays so edges should be soft), and low intensity (frosted glass
+   *    drops the directional contribution; the RectArea handles the
+   *    main fill). */
+  const winSky = new THREE.DirectionalLight(0xe0e8f4, 0.95);
+  winSky.position.set(winCx, winCy + 0.6, NZ1 + 1.5);
+  winSky.target.position.set(winCx - 0.2, 0.30, 0.80);
+  winSky.castShadow = true;
+  winSky.shadow.mapSize.set(2048, 2048);
+  winSky.shadow.camera.near = 0.5;
+  winSky.shadow.camera.far  = 9;
+  winSky.shadow.camera.left   = -2.5;
+  winSky.shadow.camera.right  =  2.5;
+  winSky.shadow.camera.top    =  2.5;
+  winSky.shadow.camera.bottom = -1.5;
+  winSky.shadow.bias       = -0.00015;
+  winSky.shadow.normalBias =  0.025;
+  winSky.shadow.radius     =  10;   /* very soft — frosted-glass scatter */
+  scene.add(winSky, winSky.target);
 }
 
-/* Ceiling downlights — 3 warm recessed spots above the laundry floor */
+/* Ceiling downlights — kept as visible fixtures, but their contribution is
+ * deliberately low (0.7 vs old 3.0). In the laundry-c-10 photo the daylight
+ * is the dominant light and the recessed downlights barely register against
+ * the wall. Cranking these up washes out the window's daylight read. */
 {
   const downColor = 0xffe1b0;
   const positions = [
@@ -785,7 +952,7 @@ for (const f of winFragments) {
     [1.35, ROOM_H - 0.001, 0.70],
   ];
   for (const [x, y, z] of positions) {
-    const sl = new THREE.SpotLight(downColor, 3.0, 5.0, Math.PI / 4, 0.7, 1.4);
+    const sl = new THREE.SpotLight(downColor, 0.7, 4.5, Math.PI / 4.2, 0.6, 1.6);
     sl.position.set(x, y, z);
     sl.target.position.set(x, 0, z);
     sl.castShadow = true;
@@ -794,11 +961,12 @@ for (const f of winFragments) {
     sl.shadow.normalBias = 0.01;
     scene.add(sl, sl.target);
 
-    /* Visible ceiling fixture (thin emissive disc) */
+    /* Visible ceiling fixture (thin emissive disc) — softer glow so the
+     * fixture reads as "fixture exists" without faking a strong on-light. */
     const fix = new THREE.Mesh(
       new THREE.CylinderGeometry(0.055, 0.055, 0.006, 24),
       new THREE.MeshStandardMaterial({
-        color: 0xfff5e0, emissive: 0xffe1a8, emissiveIntensity: 1.0,
+        color: 0xfff5e0, emissive: 0xffe1a8, emissiveIntensity: 0.45,
         roughness: 0.4, metalness: 0.0,
       })
     );
@@ -808,307 +976,189 @@ for (const f of winFragments) {
 }
 
 /* ====================================================================== */
-/* Washing machine — Sharp ES-11K1 (drum-type front-loader)               */
-/* External dims: W 595 mm × D 732 mm × H 1055 mm                         */
-/* Sits in the north alcove against the vanity-wall (east).               */
+/* Washing machine — Japanese top-loader (per laundry-c-1.webp / c-3.webp).
+ * Generic dims roughly matching Panasonic NA-FA8H / Hitachi BW-V80F class:
+ *   W 600 mm × D 600 mm × H 950 mm (without lid raised).
+ * Sits in the north alcove against the vanity-wall (east). Back of unit
+ * (+X face) flush against the brick. User reaches DOWN through a flat lid
+ * on top; a sloped control-panel strip runs along the back-top edge.    */
 /* ====================================================================== */
 const WASHER = {
-  w: 0.595, d: 0.732, h: 1.055,
-  /* Place against east wall (x = ROOM_W), north portion of room */
-  cx: ROOM_W - 0.732 / 2,         /* centre X — back face flush against vanity-wall */
-  cz: ROOM_D - 0.595 / 2 - 0.05,  /* centre Z — 5 cm clearance from north wall */
+  w: 0.60, d: 0.60, h: 0.95,
+  /* Back face flush against vanity-wall (x = ROOM_W); centred 5 cm from north */
+  cx: ROOM_W - 0.60 / 2,
+  cz: ROOM_D - 0.60 / 2 - 0.05,
 };
 
 function makeWashingMachine(cx, cy, cz, w, d, h) {
+  /* Top-loader. Local axes:
+   *   +X = back (against vanity-wall) ;  -X = front (faces user)
+   *   +Y = up
+   *   +Z = north                       ;  -Z = south
+   * Body is a flat-topped white box. A sloped control-panel strip runs along
+   * the back-top edge (+X end), tilted forward so labels face the user. The
+   * rest of the top face is a square hinged LID with a slim shadow recess
+   * around its perimeter. */
   const g = new THREE.Group();
 
-  /* Body — rounded white box (smooth corners, slight chamfer) */
+  /* === Body === */
   const body = new THREE.Mesh(
-    new RoundedBoxGeometry(d, h, w, 5, 0.020),
+    new RoundedBoxGeometry(d, h, w, 5, 0.018),
     matWasherWhite
   );
   body.position.set(0, h / 2, 0);
   body.castShadow = true; body.receiveShadow = true;
   g.add(body);
 
-  /* === High-res AO map baked on A6000 GPU 1 (Cycles + OptiX, see
-     laundry-test/bake/bake_washer_ao.py). Captures contact shadows from
-     the door bezel, drum cavity, agitator, lint hatch, and control panel.
-     Rendered on a SEPARATE thin plane sitting flush in front of the body's
-     front face — avoids fighting with RoundedBoxGeometry's corner topology
-     (3 prior UV1 override attempts leaked AO onto the side / top faces
-     because the rounded segmentation produced false-positive front
-     vertices). The plane uses PlaneGeometry's natural UVs which already
-     match the bake's mapping (z=-W/2→U=0, y=0→V=0). */
+  /* NOTE: the prior drum-type AO bake at laundry-test/textures/ao/washer_front.png
+   * doesn't apply to a top-loader (front face has no door/agitator/hatch any
+   * more). bake_washer_ao.py needs re-authoring around top-face occluders —
+   * tracked in task #8. Until then the body just relies on PBR + global GI. */
+
+  /* === Control-panel strip — sloped, runs along the back-top edge === */
+  const PANEL_D = 0.140;     /* strip depth in local x (away from user) */
+  const PANEL_H = 0.075;     /* raised height above the body top */
+  const PANEL_TILT = 0.18;   /* radians forward-tilt around z-axis */
+  const panelW_local = w - 0.020;
   {
-    const aoTex = aoLoader.load('laundry-test/textures/ao/washer_front.png');
-    aoTex.colorSpace = THREE.NoColorSpace;
-    aoTex.wrapS = THREE.ClampToEdgeWrapping;
-    aoTex.wrapT = THREE.ClampToEdgeWrapping;
-    aoTex.magFilter = THREE.LinearFilter;
-    aoTex.minFilter = THREE.LinearMipmapLinearFilter;
+    const panelGroup = new THREE.Group();
 
-    /* Front-face material — clone of the body's white so anisotropy /
-       clearcoat / colour all match, plus the AO map. */
-    const matWasherFrontAO = matWasherWhite.clone();
-    matWasherFrontAO.aoMap = aoTex;
-    matWasherFrontAO.aoMapIntensity = 1.0;
-    matWasherFrontAO.needsUpdate = true;
-
-    const frontGeom = new THREE.PlaneGeometry(w, h);
-    /* aoMap reads uv1 (channel 1) by default; PlaneGeometry only generates
-       uv (channel 0). Mirror uv → uv1 so the AO samples cleanly. */
-    frontGeom.setAttribute('uv1', frontGeom.attributes.uv.clone());
-
-    const front = new THREE.Mesh(frontGeom, matWasherFrontAO);
-    /* PlaneGeometry default normal = +Z; rotation.y = -π/2 takes that to -X.
-       After rotation: plane local +X (UV.U axis) → world +Z, plane local +Y
-       (UV.V axis) → world +Y. So z=-w/2 → U=0, z=+w/2 → U=1, y=0 → V=0,
-       y=h → V=1 — matches the bake's UV mapping exactly, no flip needed.
-       The plane sits 0.8 mm proud of the body's front face so it wins the
-       depth test without z-fighting. */
-    front.rotation.y = -Math.PI / 2;
-    front.position.set(-d / 2 - 0.0008, h / 2, 0);
-    front.castShadow = false;
-    front.receiveShadow = true;
-    g.add(front);
-  }
-
-  /* The DOOR is on the front face. Front of the unit faces -X (west, into room).
-     +X = back (touching vanity-wall). */
-  const FRONT_X = -d / 2;
-
-  /* === Top control panel — sloped panel at the top-front, dark with display === */
-  {
-    /* Panel base — small dark sloped strip across top front */
-    const panelW = w - 0.06;
-    const panelD = 0.140;
-    const panelH = 0.025;
-    const panel = new THREE.Mesh(
-      roundedBox(panelD, panelH, panelW, 0.004, 3),
-      matWasherBlack
+    const slab = new THREE.Mesh(
+      roundedBox(PANEL_D, PANEL_H, panelW_local, 0.006, 3),
+      matWasherWhiteSoft
     );
-    panel.position.set(FRONT_X + 0.080, h - panelH / 2 - 0.005, 0);
-    panel.rotation.z = -0.10;        /* tilt up slightly toward the user */
-    g.add(panel);
+    slab.castShadow = true; slab.receiveShadow = true;
+    panelGroup.add(slab);
 
-    /* Display screen — slim white-blue inset on the panel left side */
+    /* Front bezel — thin grey strip so the panel reads as its own module */
+    const bezel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.001, PANEL_H - 0.012, panelW_local - 0.020),
+      new THREE.MeshStandardMaterial({ color: 0xb8b9bb, roughness: 0.6 })
+    );
+    bezel.position.set(-PANEL_D / 2 - 0.0005, 0, 0);
+    panelGroup.add(bezel);
+
+    /* Display — slim blue-tinted rectangle on the left */
     const display = new THREE.Mesh(
-      new THREE.BoxGeometry(0.002, 0.014, 0.080),
+      new THREE.BoxGeometry(0.002, 0.022, 0.085),
       new THREE.MeshStandardMaterial({
-        color: 0xc8d8e8, emissive: 0x4a5a78, emissiveIntensity: 0.6,
+        color: 0xc8d8e8, emissive: 0x4a6a8a, emissiveIntensity: 0.55,
         roughness: 0.4, metalness: 0.0,
       })
     );
-    display.position.set(FRONT_X + 0.040, h - 0.018, -panelW / 2 + 0.075);
-    display.rotation.z = -0.10;
-    g.add(display);
+    display.position.set(-PANEL_D / 2 - 0.001, 0.010, -panelW_local / 2 + 0.085);
+    panelGroup.add(display);
 
-    /* 5 round buttons across the panel right side */
-    for (let i = 0; i < 5; i++) {
-      const t = i / 4;
-      const btnZ = -0.015 + t * 0.250;
+    /* Chrome selector dial on the right */
+    const dial = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.022, 0.022, 0.012, 28),
+      matWasherChrome
+    );
+    dial.rotation.z = Math.PI / 2;
+    dial.position.set(-PANEL_D / 2 - 0.006, 0.008, panelW_local / 2 - 0.080);
+    panelGroup.add(dial);
+
+    /* Row of 4 warm-LED status indicator dots below the display */
+    const matLED = new THREE.MeshStandardMaterial({
+      color: 0xffd070, emissive: 0xffb850, emissiveIntensity: 0.45,
+      roughness: 0.45, metalness: 0,
+    });
+    for (let i = 0; i < 4; i++) {
+      const t = i / 3;
+      const dot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.005, 0.0015, 16),
+        matLED
+      );
+      dot.rotation.z = Math.PI / 2;
+      dot.position.set(-PANEL_D / 2 - 0.001, -0.018,
+        -panelW_local / 2 + 0.055 + t * 0.060);
+      panelGroup.add(dot);
+    }
+
+    /* 3 chrome push-buttons on the bottom-right */
+    for (let i = 0; i < 3; i++) {
+      const t = i / 2;
       const btn = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.010, 0.010, 0.004, 20),
+        new THREE.CylinderGeometry(0.010, 0.010, 0.0035, 20),
         matWasherChrome
       );
-      btn.rotation.x = Math.PI / 2 - 0.10;
-      btn.rotation.z = -0.10;
-      btn.position.set(FRONT_X + 0.040, h - 0.018, btnZ);
-      g.add(btn);
+      btn.rotation.z = Math.PI / 2;
+      btn.position.set(-PANEL_D / 2 - 0.002, -0.020,
+        panelW_local / 2 - 0.190 + t * 0.060);
+      panelGroup.add(btn);
     }
+
+    panelGroup.position.set(d / 2 - PANEL_D / 2 - 0.010, h + PANEL_H / 2 - 0.003, 0);
+    panelGroup.rotation.z = -PANEL_TILT;
+    g.add(panelGroup);
   }
 
-  /* === Door — circular assembly inset on the front face === */
-  const doorR_outer = 0.230;
-  const doorR_inner = 0.205;
-  const doorR_glass = 0.180;
-  const doorY = h * 0.50;
-
-  /* Outer chrome bezel ring (torus) */
+  /* === Top lid — flat square panel, slight inset from body perimeter === */
+  const LID_INSET = 0.012;
+  const lidD = d - PANEL_D - LID_INSET * 2 - 0.004;
+  const lidW = w - LID_INSET * 2;
+  const lidCx = -d / 2 + LID_INSET + lidD / 2;
   {
-    const rim = new THREE.Mesh(
-      new THREE.TorusGeometry(doorR_outer, 0.010, 18, 80),
-      matWasherChrome
+    const lid = new THREE.Mesh(
+      roundedBox(lidD, 0.010, lidW, 0.002, 2),
+      matWasherWhite
     );
-    rim.rotation.y = Math.PI / 2;
-    rim.position.set(FRONT_X - 0.004, doorY, 0);
-    g.add(rim);
-  }
+    lid.position.set(lidCx, h + 0.005, 0);
+    lid.castShadow = true; lid.receiveShadow = true;
+    g.add(lid);
 
-  /* White recessed door plate — slightly proud of the cabinet */
-  {
-    const plate = new THREE.Mesh(
-      new THREE.CylinderGeometry(doorR_outer - 0.008, doorR_outer - 0.008, 0.008, 64),
-      matWasherWhiteSoft
-    );
-    plate.rotation.z = Math.PI / 2;
-    plate.position.set(FRONT_X + 0.002, doorY, 0);
-    g.add(plate);
-  }
-
-  /* Inner chrome ring (the "step down" between plate and glass) */
-  {
-    const innerRim = new THREE.Mesh(
-      new THREE.TorusGeometry(doorR_inner, 0.005, 14, 64),
-      matWasherChrome
-    );
-    innerRim.rotation.y = Math.PI / 2;
-    innerRim.position.set(FRONT_X - 0.001, doorY, 0);
-    g.add(innerRim);
-  }
-
-  /* Door glass — flatter dome (small bulge, not a full hemisphere) */
-  {
-    const glass = new THREE.Mesh(
-      /* phi=π/2..π gives the "front cap" of the sphere */
-      new THREE.SphereGeometry(doorR_glass * 1.20, 48, 32, 0, Math.PI * 2, Math.PI * 0.42, Math.PI * 0.16),
-      matWasherDoorGlass
-    );
-    glass.rotation.z = -Math.PI / 2;
-    glass.position.set(FRONT_X + 0.020, doorY, 0);
-    g.add(glass);
-  }
-
-  /* === Drum interior (visible through glass) === */
-  /* Drum cylinder — perforated (normal map) */
-  {
-    const drum = new THREE.Mesh(
-      new THREE.CylinderGeometry(doorR_glass * 0.95, doorR_glass * 0.95, 0.26, 48, 1, true),
-      matWasherDrumDark
-    );
-    drum.rotation.z = Math.PI / 2;
-    drum.position.set(FRONT_X + 0.150, doorY, 0);
-    g.add(drum);
-
-    /* Drum back cap */
-    const drumBack = new THREE.Mesh(
-      new THREE.CircleGeometry(doorR_glass * 0.95, 48),
-      matWasherDrumDark
-    );
-    drumBack.rotation.y = -Math.PI / 2;
-    drumBack.position.set(FRONT_X + 0.280, doorY, 0);
-    g.add(drumBack);
-  }
-
-  /* === 3-arm Y-shape agitator === Real Sharp drums have 3 curved paddles
-     (not straight bars) radiating from a centre hub, with each paddle
-     shaped like a curved triangle. We approximate with 3 ExtrudeGeometry
-     arcs, each twisted slightly. */
-  {
-    const agX = FRONT_X + 0.105;
-    const matAg = matWasherAgitator;
-    const armLen = doorR_glass * 0.88;
-    const armW   = 0.034;
-    const armT   = 0.028;
-    for (let i = 0; i < 3; i++) {
-      const ang = (i / 3) * Math.PI * 2;
-      const arm = new THREE.Mesh(
-        new THREE.BoxGeometry(armW, armT, armLen),
-        matAg
+    /* Thin shadow gap strips around the lid perimeter — reads as a recess */
+    const matSeam = new THREE.MeshStandardMaterial({ color: 0xb0b1b3, roughness: 0.85 });
+    const seamW = 0.0025;
+    const seams = [
+      [lidD + seamW * 2, seamW, lidCx, -lidW / 2 - seamW / 2],
+      [lidD + seamW * 2, seamW, lidCx, +lidW / 2 + seamW / 2],
+      [seamW, lidW, lidCx - lidD / 2 - seamW / 2, 0],
+      [seamW, lidW, lidCx + lidD / 2 + seamW / 2, 0],
+    ];
+    for (const [sx, sz, px, pz] of seams) {
+      const seam = new THREE.Mesh(
+        new THREE.BoxGeometry(sx, 0.001, sz),
+        matSeam
       );
-      /* Position each arm along its angle around the drum axis */
-      const r = armLen / 2 + 0.012;
-      arm.position.set(
-        agX,
-        doorY + Math.sin(ang) * (r * 0.40),
-        Math.cos(ang) * (r * 0.40)
-      );
-      /* Rotate to point along the radial direction */
-      arm.rotation.set(0, 0, 0);
-      arm.rotation.x = ang;
-      arm.rotation.y = -0.18;            /* slight curve / sweep */
-      g.add(arm);
-
-      /* Each arm has 3 raised parallel ridges along its length */
-      for (let r2 = 0; r2 < 3; r2++) {
-        const ridge = new THREE.Mesh(
-          new THREE.BoxGeometry(0.004, 0.005, armLen * 0.92),
-          matWasherChrome
-        );
-        const offY = (r2 - 1) * 0.010;
-        ridge.position.set(
-          agX,
-          doorY + Math.sin(ang) * (r * 0.40) + offY * Math.cos(ang),
-          Math.cos(ang) * (r * 0.40) - offY * Math.sin(ang)
-        );
-        ridge.rotation.x = ang;
-        ridge.rotation.y = -0.18;
-        g.add(ridge);
-      }
+      seam.position.set(px, h + 0.002, pz);
+      g.add(seam);
     }
-    /* Centre hub */
-    const hub = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.030, 0.030, 0.040, 32),
-      matWasherChrome
+
+    /* Lid finger pull — small chrome lip at the front edge of the lid */
+    const pullMat = new THREE.MeshPhysicalMaterial({
+      color: 0xd8dadd, roughness: 0.30, metalness: 0.85, clearcoat: 0.3,
+    });
+    const pull = new THREE.Mesh(
+      new THREE.BoxGeometry(0.016, 0.005, 0.080),
+      pullMat
     );
-    hub.rotation.z = Math.PI / 2;
-    hub.position.set(agX, doorY, 0);
-    g.add(hub);
+    pull.position.set(lidCx - lidD / 2 + 0.012, h + 0.012, 0);
+    g.add(pull);
   }
 
-  /* === Door hinge nub on the LEFT side (right-opening variant per Sharp ES-11K1-WR) === */
-  {
-    const hinge = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.014, 0.050, 18),
-      matWasherChrome
-    );
-    hinge.rotation.z = Math.PI / 2;
-    hinge.position.set(FRONT_X - 0.012, doorY, -doorR_outer - 0.012);
-    g.add(hinge);
-  }
-
-  /* === Two thin grip slots on the RIGHT side of the door (handle area) === */
-  {
-    for (const sy of [-0.020, +0.020]) {
-      const slot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.006, 0.005, 0.030),
-        matWasherBlack
-      );
-      slot.position.set(FRONT_X - 0.010, doorY + sy, doorR_outer - 0.025);
-      g.add(slot);
-    }
-  }
-
-  /* === Bottom-right lint-filter access hatch === */
-  {
-    const hatchW = 0.030, hatchH = 0.150, hatchD_proud = 0.005;
-    const hatch = new THREE.Mesh(
-      new THREE.BoxGeometry(hatchD_proud, hatchH, hatchW),
-      matWasherWhiteSoft
-    );
-    hatch.position.set(FRONT_X - hatchD_proud / 2, 0.105, w / 2 - 0.080);
-    g.add(hatch);
-    /* Grip slot */
-    const slot = new THREE.Mesh(
-      new THREE.BoxGeometry(0.005, 0.006, 0.045),
-      matWasherBlack
-    );
-    slot.position.set(FRONT_X - hatchD_proud, 0.150, w / 2 - 0.080);
-    g.add(slot);
-  }
-
-  /* === SHARP logo — canvas text, top-left of the front face === */
+  /* === Brand label — generic placeholder text plate on the upper-front
+       face. Photo evidence is not yet brand-specific enough to identify the
+       exact maker; until then the existing canvas-text texture stands in. */
   {
     const logo = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.090, 0.022),
+      new THREE.PlaneGeometry(0.085, 0.020),
       matWasherLogoText
     );
-    logo.rotation.y = -Math.PI / 2;          /* face -X */
-    logo.position.set(FRONT_X - 0.001, h - 0.085, -w / 2 + 0.090);
+    logo.rotation.y = -Math.PI / 2;          /* face -X (into room) */
+    logo.position.set(-d / 2 - 0.001, h - 0.060, -w / 2 + 0.080);
     g.add(logo);
   }
 
-  /* === Visible cabinet seam line where the front face meets the side panels === */
+  /* === Vertical cabinet seam lines on the front-corner edges === */
   {
     const matSeam = new THREE.MeshStandardMaterial({ color: 0xb8b9bb, roughness: 0.6 });
-    /* Vertical seams on either side of the front face */
     for (const sz of [-w / 2 + 0.001, +w / 2 - 0.001]) {
       const seam = new THREE.Mesh(
         new THREE.BoxGeometry(0.001, h - 0.060, 0.001),
         matSeam
       );
-      seam.position.set(FRONT_X + 0.001, h / 2, sz);
+      seam.position.set(-d / 2 + 0.001, h / 2, sz);
       g.add(seam);
     }
   }
@@ -1127,6 +1177,7 @@ function makeWashingMachine(cx, cy, cz, w, d, h) {
         fh / 2,
         sz * (w / 2 - 0.040)
       );
+      foot.castShadow = true; foot.receiveShadow = true;
       g.add(foot);
     }
   }
@@ -1143,21 +1194,18 @@ scene.add(washer);
 /* ====================================================================== */
 const PRODUCTS = {
   'washer-001': {
-    name: 'Sharp ES-11K1 drum-type washer-dryer',
-    meta: 'wash 11 kg / dry 6 kg · released 2025-09-18',
+    name: 'Japanese top-loading washing machine',
+    meta: 'class: full-auto top-loader · ~8 kg capacity',
     spec: [
-      ['Body width',     '595 mm (645 mm including drain hose)'],
-      ['Depth',          '732 mm'],
-      ['Body height',    '1,055 mm'],
-      ['Weight',         '~71 kg'],
-      ['Door swing',     '~100°, right- or left-opening variants'],
-      ['Power, dry',     '1,140 W'],
-      ['Wash cycle',     '~45 min for 11 kg'],
-      ['Wash + dry',     '~150 min for 6 kg dry load'],
+      ['Body width',     '600 mm'],
+      ['Depth',          '600 mm'],
+      ['Body height',    '950 mm (excluding raised lid)'],
+      ['Configuration',  'top-loader · hinged lid · back-edge control panel'],
+      ['Brand',          'TBD — photo evidence not yet brand-specific'],
     ],
-    refUrl: 'https://jp.sharp/sentaku/products/es11k1/spec/',
-    /* World position for the dot — centred slightly above the door */
-    pos: [WASHER.cx - WASHER.d / 2 + 0.010, WASHER.h * 0.50, WASHER.cz - 0.10],
+    refUrl: '#',
+    /* World position for the dot — just above the control panel front edge */
+    pos: [WASHER.cx - WASHER.d / 2 + 0.140, WASHER.h + 0.05, WASHER.cz],
   },
 };
 
@@ -1217,8 +1265,30 @@ function projectHotspots() {
   }
 }
 
+/* ====================================================================== */
+/* Postprocessing — subtle UnrealBloom on the bright frosted window for   */
+/* the "backlit glow" Agent 4 called out (May 2026 research). OutputPass  */
+/* reads renderer.toneMapping / .toneMappingExposure, so we KEEP those on */
+/* the renderer (already set above) — same pattern as kitchen-test.html.  */
+/* ====================================================================== */
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+composer.setSize(window.innerWidth, window.innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+/* Bloom — threshold tuned so only the bright sky-through-glass and emissive
+ * ceiling discs trigger it. Slightly punchier than kitchen-test's 0.14/1.05
+ * because the backlit-frosted-window read is THE goal here. */
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  /* strength */ 0.16,
+  /* radius   */ 0.70,
+  /* threshold*/ 1.00      /* above all non-emissive specular peaks — sky-proxy + LEDs trigger */
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
 function tick() {
-  renderer.render(scene, camera);
+  composer.render();
   projectHotspots();
   requestAnimationFrame(tick);
 }
@@ -1228,6 +1298,8 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloom.setSize(window.innerWidth, window.innerHeight);
 });
 </script>
 </body>

@@ -25,8 +25,8 @@ ROOM_W = 1.80
 ROOM_D = 2.70
 ROOM_H = 2.50
 
-WIN_X0, WIN_X1 = 0.40, 1.40
-WIN_Y0, WIN_Y1 = 1.80, 2.20
+WIN_X0, WIN_X1 = 0.60, 1.20
+WIN_Y0, WIN_Y1 = 1.50, 1.80
 
 # Washing-machine occluder
 WASHER_W = 0.595
@@ -73,6 +73,15 @@ def configure_cycles():
     scene.cycles.device = 'GPU'
     scene.cycles.samples = SAMPLES
     scene.cycles.use_denoising = True
+    # Per May-2026 best practice (Agent 1 research): for STATIC lightmap
+    # bakes prefer OIDN over OptiX denoiser — OIDN gives cleaner static
+    # output without OptiX's temporal-tuned bias. OIDN 2.4 (GPU) is current.
+    try:
+        scene.cycles.denoiser = 'OPENIMAGEDENOISE'
+        scene.cycles.denoising_input_passes = 'RGB_ALBEDO_NORMAL'
+        scene.cycles.denoising_prefilter = 'ACCURATE'
+    except (TypeError, AttributeError):
+        pass   # older Blender — falls back to default denoiser
     scene.cycles.bake_type = 'COMBINED'
     scene.render.bake.use_pass_direct = True
     scene.render.bake.use_pass_indirect = True
@@ -91,7 +100,13 @@ def configure_cycles():
 
 
 def configure_world():
-    """Warm sky-colored world background — drives indirect ambient in the bake."""
+    """Sky-Texture (Nishita) world background — physically-grounded sky model.
+    Per May-2026 Cycles best practice (Cycles 5.1 manual, BlenderArtists
+    interior threads): for a small north-facing window, Sky Texture in the
+    world + a Light Portal at the window aperture is more accurate than a
+    sun lamp + colored background. The portal gives MIS for sky sampling
+    through the small opening, killing the speckle that a closed-room bake
+    otherwise gets at low sample counts."""
     world = bpy.context.scene.world
     world.use_nodes = True
     nt = world.node_tree
@@ -99,40 +114,78 @@ def configure_world():
         nt.nodes.remove(n)
     out = nt.nodes.new('ShaderNodeOutputWorld')
     bg = nt.nodes.new('ShaderNodeBackground')
-    bg.inputs['Color'].default_value = (0.55, 0.62, 0.72, 1.0)   # cool sky
-    bg.inputs['Strength'].default_value = 0.5
+    sky = nt.nodes.new('ShaderNodeTexSky')
+    sky.sky_type = 'NISHITA'
+    # Kumamoto (lat 32.8°N), sunny spring, 11:00 AM JST → solar azimuth ≈ 160°
+    # (SSE, 20° east of south), elevation ≈ 60°. Per CLAUDE.md interior-
+    # render daylight rule. Sky_texture sun_rotation is measured from south
+    # going clockwise viewed from above; +160°-180° = -20° → +20° in Blender
+    # convention. Tune if the runtime feels off.
+    sky.sun_elevation = math.radians(60.0)
+    sky.sun_rotation  = math.radians(-20.0)
+    sky.sun_intensity = 1.0
+    sky.altitude = 0.0
+    sky.air_density = 1.0
+    sky.dust_density = 0.3
+    sky.ozone_density = 1.0
+    nt.links.new(sky.outputs['Color'], bg.inputs['Color'])
+    bg.inputs['Strength'].default_value = 1.2
     nt.links.new(bg.outputs['Background'], out.inputs['Surface'])
 
 
-def add_lights():
-    """Window sun + ceiling spots — match the runtime laundry-test.html lighting."""
-    # Sun lamp coming through the north window
+def add_window_portal():
+    """Light Portal (mesh-area-light with portal flag) flush with the window
+    aperture. Gates MIS sampling so the sky reaches the bake efficiently —
+    biggest single quality lever for a small-opening interior in Cycles."""
     win_cx = (WIN_X0 + WIN_X1) / 2
     win_cy = (WIN_Y0 + WIN_Y1) / 2
+    win_w  = WIN_X1 - WIN_X0
+    win_h  = WIN_Y1 - WIN_Y0
+    light_data = bpy.data.lights.new(name='win_portal', type='AREA')
+    light_data.shape = 'RECTANGLE'
+    light_data.size = win_w
+    light_data.size_y = win_h
+    light_data.cycles.is_portal = True       # the magic flag
+    light_data.energy = 0.0                  # portals don't emit; they sample the world
+    obj = bpy.data.objects.new('win_portal_obj', light_data)
+    bpy.context.collection.objects.link(obj)
+    # Place at the window's OUTER face, normal pointing -Z into the room.
+    # Three.js Y-up; Blender area-light default normal is -Z (same axis), so
+    # no rotation needed beyond yaw to face into the room.
+    obj.location = (win_cx, win_cy, ROOM_D + 0.10)
+    obj.rotation_euler = (0.0, 0.0, 0.0)
+
+
+def add_lights():
+    """Kumamoto 11 AM spring SUN lamp — neutral-cool direct disc at
+    azimuth ≈ 160° (SSE), elevation ≈ 60°. Does NOT enter through the
+    north window; it lights the south/east outside of the building. The
+    portal lets the diffuse sky reach the room; the SUN gives any south-
+    facing object cast-shadows that bounce indirect into the room."""
     sun_data = bpy.data.lights.new(name='sun', type='SUN')
-    sun_data.energy = 4.0
-    sun_data.color = (1.0, 0.95, 0.85)
-    sun_data.angle = math.radians(2.0)
+    sun_data.energy = 3.5
+    sun_data.color = (1.0, 0.985, 0.96)     # ≈ 5500 K neutral-cool daylight
+    sun_data.angle = math.radians(0.5)      # crisp disc — clear sky
     sun = bpy.data.objects.new('sun_obj', sun_data)
     bpy.context.collection.objects.link(sun)
-    # Aim from outside the window toward the floor centre
-    direction = (
-        (ROOM_W / 2) - (win_cx + 0.4),
-        0.85 - (win_cy + 0.4),
-        1.20 - (ROOM_D + 2.0),
-    )
-    L = math.sqrt(sum(c * c for c in direction))
-    sun.rotation_euler = (
-        math.atan2(-direction[1], math.sqrt(direction[0] ** 2 + direction[2] ** 2)),
-        0.0,
-        math.atan2(direction[0], -direction[2]),
-    )
-    sun.location = (win_cx + 0.4, win_cy + 0.4, ROOM_D + 2.0)
+    # Aim from azimuth 160° (SSE), elevation 60°. In three.js coords
+    # (+Z = north, -Z = south, +X = east, +Y = up): sun position direction =
+    #   x = sin(160°)·cos(60°) ≈ +0.171  (slightly east)
+    #   y = sin(60°)            ≈ +0.866 (high overhead)
+    #   z = cos(160°)·cos(60°) ≈ -0.470  (mostly south)
+    # Sun light direction is -position, so the lamp points from +pos toward 0.
+    import mathutils
+    sun_dir = mathutils.Vector((0.171, 0.866, -0.470))
+    sun.location = sun_dir * 6.0            # 6 m offset away from origin
+    # SUN lamp default points -Z in its local frame; rotate so -Z lines up
+    # with -sun_dir (lamp shines from sun toward origin).
+    sun.rotation_euler = (-sun_dir).to_track_quat('-Z', 'Y').to_euler()
 
-    # 3 ceiling area lights (mimic the warm spot fills)
+    # 3 ceiling area lights (mimic the warm spot fills) — dimmed to match
+    # runtime; daylight from the window is the dominant contributor now.
     for x, z in [(0.45, 0.70), (0.90, 1.55), (1.35, 0.70)]:
         d = bpy.data.lights.new(name=f'spot_{x}_{z}', type='AREA')
-        d.energy = 8.0
+        d.energy = 2.0
         d.color = (1.0, 0.88, 0.69)
         d.size = 0.25
         o = bpy.data.objects.new(f'spot_obj_{x}_{z}', d)
@@ -347,6 +400,7 @@ def main():
     reset_scene()
     configure_cycles()
     configure_world()
+    add_window_portal()
     add_lights()
 
     # Washer occluder — diffuse white, will catch + reflect the brick wall

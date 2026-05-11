@@ -23,8 +23,8 @@ ROOM_D = 2.70
 ROOM_H = 2.50
 
 # Window cutout on north wall (z = ROOM_D)
-WIN_X0, WIN_X1 = 0.40, 1.40
-WIN_Y0, WIN_Y1 = 1.80, 2.20
+WIN_X0, WIN_X1 = 0.60, 1.20
+WIN_Y0, WIN_Y1 = 1.50, 1.80
 
 # Washing-machine occluder (Sharp ES-11K1)
 WASHER_W = 0.595          # cabinet width along Z
