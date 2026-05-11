@@ -223,8 +223,27 @@ item is a small material-level change.
 **Deferred** — needed but not yet done:
 - ✅ 2F bedroom walls — DONE (see Phase 7.8 below).
 - ✅ Front door upgrade — DONE (see Phase 7.9 below).
-- Kitchen detail pass (sink, faucet, cooktop, range hood, fridge,
-  upper cabinets, subway tile). Complex.
+- ✅ Kitchen detail pass — DONE 2026-05-11. Rebuilt against the
+  4-corner kitchen photos. Fridge-wall: white raised-panel lower
+  cabinets with brass swing-bail pulls, dark walnut counter, grey-white
+  brick feature wall up to ceiling, fridge tucked into the NE alcove.
+  Counter-top split into LDK-side light maple bar + kitchen-interior
+  stainless work counter. White キッチンパネル behind the cooktop's
+  east half. Pass-through bulkhead (south header) with two recessed
+  downlights on the underside. Gas cooktop with cast-iron grates +
+  control knobs (replacing the flat IH). Stainless utensil rod with
+  hooks above the cooktop. Whitewashed wood-plank ceiling continues
+  from the LDK into the kitchen. Smoke detector on the kitchen
+  ceiling. Also fixed a missing-kitchen-floor regression from the
+  2026-05-08 1F LDK clip refactor (kitchen now has its own light oak
+  floor entry).
+- ⏳ Kitchen exterior window — `kitchen/room-map.md` describes a
+  small frosted window high on the "east window-wall". With the
+  blueprint X-mirror, the kitchen's only exterior wall is the
+  building's WEST (x=0). The existing `F1_WIN_LEFT[1]` casement at
+  z=3.30..3.56 sits inside the kitchen footprint and is the most
+  likely match. Needs visual confirmation against `kitchen-b-2` to
+  decide whether to re-shape it (smaller / higher / frosted).
 
 ### Phase 7.8 — Bedroom wall paint (taupe-grey)
 
