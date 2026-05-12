@@ -60,7 +60,16 @@ corner ids list walls in alphabetical order (room-1 convention).
 
 ## room layout (top-down, with compass orientation: window-wall=N, ac-wall=E, closet-wall=W, entrance-wall=S)
 
-✓ compass orientation locked in by Phase C global coords (`blueprints/global-coords.md`). The relative positions below are also confirmed by the photos.
+⚠ **KNOWN INCONSISTENCY — flagged 2026-05-11** ⚠
+
+This compass mapping (window=N, ac=E, closet=W, entrance=S, taken from `blueprints/global-coords.md`) **disagrees with the existing folder/corner naming on disk and with the room-2 runtime build in `ozu-test.html`**:
+
+- `global-coords.md` says: window↔entrance are opposite walls (N↔S, z axis), ac↔closet are opposite walls (E↔W, x axis). The 4 corners should then alphabetically be: corner-ac-entrance, corner-ac-window, corner-closet-entrance, corner-closet-window.
+- **The actual folders on disk are:** corner-ac-closet, corner-ac-window, corner-closet-entrance, corner-entrance-window. Two of these (`corner-ac-closet`, `corner-entrance-window`) cannot exist as corners under the compass above — they pair walls that are supposed to be opposite.
+- The room-2 runtime build (`ozu-test.html` `registerScene('room-2')`) is consistent with the folder names: closet at x=0 / window at x=RW (opposite), entrance at z=0 / ac at z=RD (opposite). I.e. window↔closet pair and ac↔entrance pair.
+- The handoff `handoff-2026-05-11-130507.md` flagged this as "room-map compass diagram is internally inconsistent — corner list + photos are correct" and built room-2 against the folder names / runtime convention.
+
+**Resolution required from user:** either the global-coords.md wall assignments for room-2 are wrong (two walls mis-identified), or the on-disk folder names mis-pair walls that are actually opposite. Until resolved, runtime code follows the folder-name convention (window↔closet opp, ac↔entrance opp) because that's what the photo evidence supports. Trust the corner list + folder names + photos over the compass diagram below.
 
 ```
                        window-wall  (large sliding window + curtains)

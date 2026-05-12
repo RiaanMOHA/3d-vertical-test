@@ -34,9 +34,14 @@ request.
 - ⏳ Back-of-house garden side — is the secondary opening a sliding
   door or a window? Still open until the blueprint gets re-read at
   high resolution.
-- ⏳ Frosted privacy window on **room-4's outside wall** — currently
-  missing (the window is modelled inside the room but the exterior
-  wall isn't pierced)
+- ✅ Frosted privacy window on **room-4's outside wall** — already
+  pierced. Verified 2026-05-11 in code:
+  - Exterior scene: `solidWall(W, 1.670, W, 1.930, F1H, F1H+1.10, ...)` +
+    `solidWall(W, 1.670, W, 1.930, F1H+2.00, F1H+F2H, ...)` (sill + header
+    blocks, gap at y=F1H+1.10..F1H+2.00)
+  - Interior scene: `F2_WIN_RIGHT[0]` at z=1.670..1.930, y=1.10..2.00
+    feeds `wallZ(W, ..., F2_WIN_RIGHT.map(...))` + `addWinFlex` for the
+    pane. Master-plan note was stale.
 
 ### Interior — Living / Dining / Kitchen — done
 - ✅ Sofa, dining table, coffee table, TV console, kitchen counter,
@@ -237,13 +242,16 @@ item is a small material-level change.
   ceiling. Also fixed a missing-kitchen-floor regression from the
   2026-05-08 1F LDK clip refactor (kitchen now has its own light oak
   floor entry).
-- ⏳ Kitchen exterior window — `kitchen/room-map.md` describes a
-  small frosted window high on the "east window-wall". With the
-  blueprint X-mirror, the kitchen's only exterior wall is the
-  building's WEST (x=0). The existing `F1_WIN_LEFT[1]` casement at
-  z=3.30..3.56 sits inside the kitchen footprint and is the most
-  likely match. Needs visual confirmation against `kitchen-b-2` to
-  decide whether to re-shape it (smaller / higher / frosted).
+- ✅ Kitchen exterior window — DONE 2026-05-11. Photo (`kitchen/b/kitchen-b-11.webp`)
+  confirms the existing `F1_WIN_LEFT[1]` 縦すべり 02609 casement at
+  z=3.30..3.56, y=1.00..1.90 IS the kitchen exterior window — narrow
+  vertical, mounted on the kitchen's only exterior wall (real-world
+  east, code x=0). Window is CLEAR (blue sky visible through it),
+  NOT frosted — `kitchen/room-map.md` previously said "frosted-or-clear",
+  now resolved to clear. No code change required. Photo shows the
+  window mounted slightly higher on the wall than the modelled y range
+  suggests; left as-is for MVP, future polish item if it reads wrong
+  in-room.
 
 ### Phase 7.8 — Bedroom wall paint (taupe-grey)
 

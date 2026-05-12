@@ -35,8 +35,12 @@ assumed (to confirm):
 - opposite: counter-wall
 
 ### window-wall (east)
-- exterior wall
-- one small frosted-or-clear window high on the wall
+- exterior wall (the kitchen's only exterior wall — real-world east,
+  code x=0 after blueprint X-mirror)
+- one small CLEAR (not frosted) narrow vertical window high on the
+  wall — confirmed 2026-05-11 from `b/kitchen-b-11.webp` (blue sky
+  visible through the pane). 縦すべり 02609 type per blueprint, modelled
+  in `ozu-test.html` as `F1_WIN_LEFT[1]` at z=3.30..3.56, y=1.00..1.90.
 - opposite: entry-wall
 
 ### entry-wall (west)
@@ -146,7 +150,7 @@ done
 - exact kitchen footprint dimensions (read from blueprint at 400 dpi)
 - ceiling height (assumed 2.4–2.5 m)
 - ceiling finish (whitewashed wood-plank from LDK, or flat in kitchen — TBD by photos)
-- exact small-window dimensions and type (frosted vs clear, hinge vs fixed) on window-wall
+- exact small-window dimensions confirmed (縦すべり 02609, ~0.26 wide × 0.90 tall); type confirmed clear (not frosted) — see window-wall entry above
 - whether the entry-wall has a hinged door or just an open archway to the corridor
 - door type (per phase E)
 - exact placement of stove vs sink along the counter-wall (stove appears east, sink west — to confirm)
