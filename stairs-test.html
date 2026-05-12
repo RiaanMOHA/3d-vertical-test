@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<title>stairs-test — 3D projects</title>
+<style>
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #back-link {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: rgba(28,28,30,0.78);
+    color: #fff; text-decoration: none;
+    font-size: 20px; line-height: 1;
+    border: 1px solid rgba(255,255,255,0.16);
+    z-index: 100;
+  }
+  #hint {
+    position: absolute;
+    left: 50%; top: calc(14px + var(--safe-top));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 120px - var(--safe-left) - var(--safe-right));
+    padding: 8px 14px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    font-size: 12px; line-height: 1.3;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    pointer-events: none;
+    z-index: 90;
+  }
+  #vantage {
+    position: absolute;
+    left: calc(14px + var(--safe-left));
+    bottom: calc(14px + var(--safe-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap;
+    max-width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
+    z-index: 100;
+  }
+  .v-btn {
+    padding: 8px 12px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .v-btn:hover { background: rgba(60,60,67,0.85); }
+</style>
+</head>
+<body>
+<a id="back-link" href="index.html" aria-label="back">←</a>
+<div id="hint">drag to orbit · wheel to zoom · click a vantage to match a photo</div>
+<div id="app"></div>
+<div id="vantage">
+  <button class="v-btn" data-v="iso">iso</button>
+  <button class="v-btn" data-v="bottom">bottom (LDK)</button>
+  <button class="v-btn" data-v="bend">L-bend</button>
+  <button class="v-btn" data-v="upper">upper-flight</button>
+  <button class="v-btn" data-v="top">top (2F)</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.min.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { HDRLoader }                from './vendor/three/examples/jsm/loaders/HDRLoader.js';
+import { RoundedBoxGeometry }       from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import { EffectComposer }           from './vendor/three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }               from './vendor/three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass }          from './vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass }               from './vendor/three/examples/jsm/postprocessing/OutputPass.js';
+RectAreaLightUniformsLib.init();
+
+/* ====================================================================== */
+/* Stair-test sandbox — geometry rebuilt 2026-05-12 from blueprint+photos.*/
+/*                                                                        */
+/* SOURCES (and nothing else):                                            */
+/*   - ozu-test/blueprints/ozu-1-blueprint.pdf (rendered at 400 DPI)      */
+/*   - ozu-test/blueprints/ozu-1-blueprint-updated.jpeg                   */
+/*   - ozu-test/interior-images/stairs/stairs-1.webp .. stairs-27.webp    */
+/*                                                                        */
+/* L-shape stair, 13 risers (5 lower + 2 winders + 6 upper).              */
+/* Blueprint readout:                                                     */
+/*   - 1F panel labels "1 2 3 4 5" + UP arrow (lower flight ascends N)    */
+/*   - 2F panel labels "8 9 10 11 12 13" west→east (upper flight goes E)  */
+/*   - 階段 area = 1.42 m² = 0.9 × (5+2) × 0.225  (footprint check ✓)     */
+/*   - Diagonal-winder edge at the WEST end of 2F panel (L-bend at NE     */
+/*     corner of lower shaft, turning 90° CW to ascend east)              */
+/*                                                                        */
+/* Local frame: origin = SW corner of 1F lower-flight shaft, 1F floor.    */
+/*   +X = east  (upper-flight ascent direction)                           */
+/*   +Y = up                                                              */
+/*   +Z = north (lower-flight ascent direction)                           */
+/*                                                                        */
+/* Photo evidence (key frames):                                           */
+/*   - stairs-9, -23: handrail on the LEFT ascending lower flight =       */
+/*     mounted on the WEST wall (x=0)                                     */
+/*   - stairs-1, -2, -3, -6: white-cap PARAPET half-wall visible on the   */
+/*     SOUTH side of upper flight; rail mounts on its inside face         */
+/*   - stairs-17, -6: two triangular winders with diagonal joint visible  */
+/*   - stairs-25: mid-flight CHROME SCARF FERRULE on upper rail; chrome   */
+/*     brackets every ~600mm                                              */
+/* ====================================================================== */
+const F1H = 2.50;                           /* floor-to-floor */
+const TOTAL_RISERS = 13;
+const RISE = F1H / TOTAL_RISERS;            /* 0.1923 m */
+const TREAD = 0.225;                        /* tread depth (run per step) */
+const TREAD_T = 0.040;                      /* tread thickness */
+const NOSING = 0.025;                       /* nosing overhang past riser face */
+const STAIR_W = 0.90;                       /* stair clear width */
+const WT = 0.10;                            /* wall thickness */
+
+/* Lower flight zone — 3 straight risers ascending +Z (north). Blueprint
+ * 1F panel at 400 DPI shows steps 1/2/3 rectangular; 4/5 are winders.    */
+const LF_Z_END = 3 * TREAD;                 /* 0.675 — north edge of step 3 tread */
+
+/* Winder zone — 4 winders in a 0.9 × 0.9 SQUARE, NE of lower flight,
+ * fanning from the SE pivot at (STAIR_W, LF_Z_END). Each winder turns
+ * 22.5°; together they make the 90° L-bend. Boundaries radiate from the
+ * pivot at theta = 180° (south wall, step 3→winder 4 boundary),
+ * 157.5° (winder 4→5), 135° (winder 5→6, exact diagonal), 112.5°
+ * (winder 6→7), and 90° (east wall, winder 7→step 8 boundary).          */
+const WB_Z0 = LF_Z_END;                     /* 0.675 — south edge of winder zone */
+const WB_Z1 = WB_Z0 + 4 * TREAD;            /* 1.575 — north edge (0.9 m square) */
+
+/* Upper flight — 6 risers ascending +X (east), extending EAST from the
+ * L-bend. Step 8 west edge at UF_X0 (just east of winder 7). Step 13
+ * east edge at UF_X1 lands onto the 2F corridor floor. */
+const UF_X0 = STAIR_W;                      /* 0.90 — step 8 west edge */
+const UF_X1 = UF_X0 + 6 * TREAD;            /* 2.25 — step 13 east edge / 2F floor */
+
+/* 2F upper-flight shaft footprint (where the high plank ceiling sits) */
+const SH_X0 = 0;                            /* west boundary (above winder zone) */
+const SH_X1 = UF_X1;                        /* east boundary (step 13 landing) */
+const SH_Z0 = WB_Z0;                        /* south boundary (parapet line) */
+const SH_Z1 = WB_Z1;                        /* north boundary */
+
+/* Ceiling heights */
+const CEIL_LOW = F1H;                       /* 2.50 — taupe ceiling above lower flight (= underside of 2F floor) */
+const CEIL_HIGH = F1H + 1.95;               /* 4.45 — whitewashed-pine plank ceiling above upper flight */
+const BULKHEAD_Z = WB_Z0;                   /* z = 1.125 — bulkhead step boundary */
+
+/* ====================================================================== */
+/* Renderer + Scene + Camera                                              */
+/* ====================================================================== */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.68;        /* Kumamoto 11 AM clear-sky exposure (per CLAUDE.md rule) */
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a1a);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 50);
+const TARGET = new THREE.Vector3(1.10, 1.40, 1.10);  /* roughly the L-bend center (winder zone middle) */
+camera.position.set(3.50, 2.60, -1.30);
+camera.lookAt(TARGET);
+
+/* ====================================================================== */
+/* Inline OrbitControls — Mac-trackpad phantom-zoom guard                 */
+/* ====================================================================== */
+class OrbitControls {
+  constructor(cam, el) {
+    this.cam = cam; this.el = el;
+    this.target = TARGET.clone();
+    this.spherical = new THREE.Spherical();
+    this.minDistance = 0.40; this.maxDistance = 12.0;
+    this.minPolar = 0.10; this.maxPolar = Math.PI * 0.49;
+    this._dragging = false; this._lastMouseupAt = 0;
+    this._x0 = 0; this._y0 = 0;
+    this._update();
+    el.addEventListener('mousedown', e => this._down(e));
+    el.addEventListener('wheel', e => this._wheel(e), { passive: false });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('mousemove', e => this._move(e));
+    window.addEventListener('mouseup', () => this._up());
+    el.addEventListener('touchstart', e => this._tdown(e), { passive: false });
+    el.addEventListener('touchmove',  e => this._tmove(e), { passive: false });
+    el.addEventListener('touchend',   () => this._tup());
+  }
+  setTarget(t, camPos) {
+    this.target.copy(t);
+    if (camPos) this.cam.position.copy(camPos);
+    this.spherical.radius = 0;
+    this._update();
+  }
+  _down(e) { this._dragging = true; this._x0 = e.clientX; this._y0 = e.clientY; }
+  _up()    { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _move(e) {
+    if (!this._dragging) return;
+    const dx = e.clientX - this._x0, dy = e.clientY - this._y0;
+    this._x0 = e.clientX; this._y0 = e.clientY;
+    this.spherical.theta -= dx * 0.005;
+    this.spherical.phi   -= dy * 0.005;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _wheel(e) {
+    if (this._dragging) return;
+    if (performance.now() - this._lastMouseupAt < 400) return;
+    e.preventDefault();
+    const f = Math.exp(e.deltaY * 0.0015);
+    this.spherical.radius *= f;
+    this.spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.spherical.radius));
+    this._update();
+  }
+  _tdown(e) { if (e.touches.length === 1) { this._dragging = true; this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY; } }
+  _tmove(e) {
+    if (!this._dragging || e.touches.length !== 1) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - this._x0, dy = e.touches[0].clientY - this._y0;
+    this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY;
+    this.spherical.theta -= dx * 0.006;
+    this.spherical.phi   -= dy * 0.006;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _tup() { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _update() {
+    const offset = new THREE.Vector3().subVectors(this.cam.position, this.target);
+    if (this.spherical.radius === 0) {
+      this.spherical.setFromVector3(offset);
+    } else {
+      offset.setFromSpherical(this.spherical);
+    }
+    this.cam.position.copy(this.target).add(offset);
+    this.cam.lookAt(this.target);
+  }
+}
+const controls = new OrbitControls(camera, renderer.domElement);
+
+/* ====================================================================== */
+/* HDRI environment for ambient PBR reflections                          */
+/* ====================================================================== */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+new HDRLoader().load('ozu-test/hdri/kloppenheim_06_puresky_2k.hdr', (hdr) => {
+  scene.environment = pmrem.fromEquirectangular(hdr).texture;
+  scene.environmentIntensity = 0.25;        /* reduced from 0.55 — was too bright */
+  scene.environmentRotation = new THREE.Euler(0, 0.80, 0);
+  hdr.dispose();
+});
+
+/* ====================================================================== */
+/* PHASE 2 LIGHTING — Kumamoto, sunny spring, 11:00 AM JST.               */
+/*                                                                        */
+/* The stair shaft has NO direct window of its own. Per CLAUDE.md daylight*/
+/* rule, sun is at azimuth ≈ 160° (SSE), elevation ≈ 60° — but the sun    */
+/* never enters the shaft directly. Light arrives via TWO openings:       */
+/*   - Top exit (x = SH_X0 plane) → daylight scattered in from 2F         */
+/*     corridor (cool, indirect, dominant — visible in stairs-10/13/19/22)*/
+/*   - Bottom exit (z = 0 plane) → diffuse fill from 1F LDK (cooler still,*/
+/*     LDK back-window is north-facing)                                   */
+/*                                                                        */
+/* Three pieces per the rule:                                             */
+/*   1. SUN     → DirectionalLight at Kumamoto direction, COOL since      */
+/*                indirect (not warm 5500K, the warmth is filtered out by */
+/*                the corridor walls before reaching the shaft)           */
+/*   2. SKY     → HemisphereLight + HDRI (already loaded above) + 2 sky   */
+/*                proxy planes outside the openings + 2 RectAreaLights at */
+/*                the openings for diffuse area fill                      */
+/*   3. SHADOW  → SAME DirectionalLight as piece 1 (castShadow=true,      */
+/*                wide shadow.radius for indirect-light softness)         */
+/* ====================================================================== */
+
+/* Piece 2a — Hemisphere fill. Cool pale-blue sky bias + warm floor bounce.
+ * Reduced 0.45 → 0.20 (was contributing to overall over-bright look).    */
+scene.add(new THREE.HemisphereLight(0xc8d6e8, 0xa89878, 0.20));
+
+/* Sky proxy planes (pieces 2b, 2c) removed — visible as bright planes in
+ * the "stairs only" view; not needed when there are no walls.            */
+
+/* Piece 2d — RectAreaLight at the TOP exit. Cool diffuse area fill,     */
+/* sized to the corridor opening cross-section. Strong (the corridor is   */
+/* the dominant light source for the upper flight per the photos).        */
+{
+  const W = SH_Z1 - SH_Z0;             /* 0.90 — opening width along Z */
+  const H = 1.60;                      /* opening height above 2F floor */
+  /* RectAreaLight just east of step 13 landing, emitting -X back into shaft. */
+  const winLight = new THREE.RectAreaLight(0xdfe6ef, 6.0, W, H);    /* reduced 18 → 6 */
+  winLight.position.set(SH_X1 + 0.05, F1H + H / 2 + 0.05, (SH_Z0 + SH_Z1) / 2);
+  winLight.lookAt(SH_X1 - 1.5, F1H + H / 2, (SH_Z0 + SH_Z1) / 2);
+  scene.add(winLight);
+}
+
+/* Piece 2e — RectAreaLight at the BOTTOM exit (LDK side). Cooler-warm    */
+/* (LDK has wood floor bouncing some warmth back, but the back window is  */
+/* N-facing so net is cool-neutral). Lower intensity than top — the LDK   */
+/* light has further to travel to reach the shaft.                        */
+{
+  const W = STAIR_W - 0.10;            /* 0.80 — opening width along X */
+  const H = 1.80;
+  const winLight = new THREE.RectAreaLight(0xe6ebf0, 3.0, W, H);  /* reduced 9 → 3 */
+  winLight.position.set(STAIR_W / 2, H / 2 + 0.05, -0.05);
+  winLight.lookAt(STAIR_W / 2, H / 2, 1.0);
+  scene.add(winLight);
+}
+
+/* Pieces 1 + 3 — Indirect daylight DirectionalLight from outside the TOP */
+/* exit. Cool tint (light has scattered through the corridor — no warm    */
+/* 5500K direct sun reaches the shaft). Position chosen so its rays come  */
+/* through the top opening at ~60° elevation, casting useful contact      */
+/* shadows on the upper flight + winders + 2F floor edge. Wide            */
+/* shadow.radius for soft "indirect light" feel.                          */
+const corridorSun = new THREE.DirectionalLight(0xe0e8f4, 0.55);  /* reduced 1.30 → 0.55 */
+corridorSun.position.set(SH_X1 + 2.5, F1H + 3.5, (SH_Z0 + SH_Z1) / 2);
+corridorSun.target.position.set(0.50, 0.80, (SH_Z0 + SH_Z1) / 2);
+corridorSun.castShadow = true;
+corridorSun.shadow.mapSize.set(2048, 2048);
+corridorSun.shadow.camera.near = 0.5;
+corridorSun.shadow.camera.far  = 14;
+corridorSun.shadow.camera.left   = -4.0;
+corridorSun.shadow.camera.right  =  4.0;
+corridorSun.shadow.camera.top    =  4.0;
+corridorSun.shadow.camera.bottom = -4.0;
+corridorSun.shadow.bias       = -0.00015;
+corridorSun.shadow.normalBias =  0.025;
+corridorSun.shadow.radius     =  10;       /* soft — indirect/scattered light */
+scene.add(corridorSun, corridorSun.target);
+
+/* Secondary directional from the BOTTOM exit — much weaker, just for    */
+/* light-direction balance so the lower-flight shadows aren't all coming */
+/* from the top. */
+const ldkLight = new THREE.DirectionalLight(0xe6ebf0, 0.25);  /* reduced 0.55 → 0.25 */
+ldkLight.position.set(STAIR_W / 2, 2.5, -3.0);
+ldkLight.target.position.set(STAIR_W / 2, 0.80, 1.20);
+scene.add(ldkLight, ldkLight.target);
+
+/* ====================================================================== */
+/* Materials — Phase 3 + Phase 4. Phase 3: per-material PBR maps from     */
+/* A6000 Cycles bakes (treads, handrail, nosing, brackets, parapet body + */
+/* cap). Phase 4: per-surface AO + Combined-pass lightmap (Cycles on      */
+/* A6000) wired into MeshStandardMaterial.aoMap + lightMap for 6 targets: */
+/* east_wall, west_wall_1f, north_wall (2F), plank_ceiling, parapet body, */
+/* floor_2f (corridor patch). Each target gets its own planar uv1 attr    */
+/* (via setPlanarUV1) so the same projection used in the bake is used at  */
+/* runtime — no SmartUV mismatch.                                         */
+/* Bake source scripts: stairs-test/bake/bake_{treads,handrail,nosing,    */
+/*   brackets,parapet,room_ao,room_lightmap}.py                           */
+/* ====================================================================== */
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+const phLoader = new THREE.TextureLoader();
+
+/* Cache base textures per slug — clone per material for individual repeat */
+function loadPbrSet(dir, slug) {
+  const base = `stairs-test/textures/${dir}/${slug}`;
+  const albedo = phLoader.load(`${base}/${slug}_albedo.png`);
+  albedo.colorSpace = THREE.SRGBColorSpace;
+  albedo.wrapS = albedo.wrapT = THREE.RepeatWrapping;
+  albedo.anisotropy = MAX_ANISO;
+  const normal = phLoader.load(`${base}/${slug}_normal.png`);
+  normal.colorSpace = THREE.NoColorSpace;
+  normal.wrapS = normal.wrapT = THREE.RepeatWrapping;
+  normal.anisotropy = MAX_ANISO;
+  const rough = phLoader.load(`${base}/${slug}_roughness.png`);
+  rough.colorSpace = THREE.NoColorSpace;
+  rough.wrapS = rough.wrapT = THREE.RepeatWrapping;
+  rough.anisotropy = MAX_ANISO;
+  return { albedo, normal, rough };
+}
+
+function cloneTex(t, rx, ry) {
+  const c = t.clone();
+  c.needsUpdate = true;
+  c.repeat.set(rx, ry);
+  c.anisotropy = MAX_ANISO;
+  return c;
+}
+
+/* Per-surface AO + lightmap (Cycles bake on A6000, planar UV projection).
+ * Each PNG is a single non-tiling map keyed to its surface — no .repeat.
+ * Source: stairs-test/bake/bake_room_{ao,lightmap}.py — both scripts use
+ * the same planar projection (TARGET_AXES), which `setPlanarUV1` below
+ * mirrors on the runtime BoxGeometry's uv1 attribute. */
+function loadRoomMap(kind, slug) {
+  const t = phLoader.load(`stairs-test/textures/${kind}/${slug}.png`);
+  t.colorSpace = (kind === 'lightmap') ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.anisotropy = MAX_ANISO;
+  t.wrapS = THREE.ClampToEdgeWrapping;
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.generateMipmaps = false;
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.channel = 1;   /* sample geometry.attributes.uv1 (the planar projection) */
+  return t;
+}
+
+/* Add a uv1 attribute to a BoxGeometry (or any geometry) using the same
+ * planar projection the bake script used for this surface. `axis` is the
+ * inside-face normal axis ('x', 'y', or 'z'). All 6 box faces get the same
+ * projection — only the visible inside face is sampled at runtime. */
+function setPlanarUV1(geom, axis) {
+  geom.computeBoundingBox();
+  const bb = geom.boundingBox;
+  const pos = geom.attributes.position;
+  const uv1 = new Float32Array(pos.count * 2);
+  const rx = bb.max.x - bb.min.x;
+  const ry = bb.max.y - bb.min.y;
+  const rz = bb.max.z - bb.min.z;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    let u, v;
+    if (axis === 'x')      { u = (z - bb.min.z) / rz; v = (y - bb.min.y) / ry; }
+    else if (axis === 'y') { u = (x - bb.min.x) / rx; v = (z - bb.min.z) / rz; }
+    else                   { u = (x - bb.min.x) / rx; v = (y - bb.min.y) / ry; }
+    uv1[i * 2]     = u;
+    uv1[i * 2 + 1] = v;
+  }
+  geom.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
+}
+
+function pbrMat(set, repeat, opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    map:          cloneTex(set.albedo, repeat[0], repeat[1]),
+    normalMap:    cloneTex(set.normal, repeat[0], repeat[1]),
+    normalScale:  new THREE.Vector2(opts.normalScale ?? 0.5, opts.normalScale ?? 0.5),
+    roughnessMap: cloneTex(set.rough,  repeat[0], repeat[1]),
+    color:        opts.color ?? 0xffffff,
+    roughness:    1.0,
+    metalness:    opts.metalness ?? 0.0,
+    envMapIntensity: opts.envMapIntensity ?? 0.40,
+  });
+}
+
+const pbrMaple   = loadPbrSet('treads',   'light_maple');
+const pbrCream   = loadPbrSet('handrail', 'painted_cream');
+const pbrWalnut  = loadPbrSet('nosing',   'dark_walnut');
+const pbrChrome  = loadPbrSet('brackets', 'brushed_chrome');
+const pbrPaint   = loadPbrSet('parapet',  'white_paint');
+const pbrCapWood = loadPbrSet('parapet',  'white_cap_wood');
+
+/* Treads + risers: light maple PBR. Repeat tuned to ~1 m per pattern. */
+const matWoodTread = pbrMat(pbrMaple, [2.0, 1.0]);
+const matWoodRiser = pbrMat(pbrMaple, [2.0, 0.5], { color: 0xf0e0c0 });
+/* Nosing inlay strips — very small surface, single-tile repeat is fine */
+const matNosing    = pbrMat(pbrWalnut, [0.8, 0.3]);
+/* Handrail rail */
+const matRailPaint = pbrMat(pbrCream, [3.0, 1.0]);
+/* Brushed chrome — brackets + joint ferrules. Higher metalness, slightly */
+/* dimmer envMap so the chrome doesn't punch through bloom on every view. */
+const matRailFerrule = pbrMat(pbrChrome, [1.5, 1.0], { metalness: 1.0, normalScale: 0.2, envMapIntensity: 0.55 });
+const matBracket     = pbrMat(pbrChrome, [1.0, 1.0], { metalness: 1.0, normalScale: 0.2, envMapIntensity: 0.55 });
+/* Parapet body (white paint) + wood cap (faint grain). */
+const matWhite     = pbrMat(pbrPaint,   [3.0, 2.0]);
+const matCapWood   = pbrMat(pbrCapWood, [4.0, 1.0]);
+
+/* Walls / ceilings / floors / details — flat MeshStandardMaterial.       */
+/* Six surfaces below get Cycles-baked AO + lightmap (Phase 4):           */
+/*   east_wall, west_wall_1f, north_wall (2F), plank_ceiling, parapet,    */
+/*   floor_2f. Each lit material is a clone with aoMap + lightMap added,  */
+/*   sampled via a uv1 attribute installed by setPlanarUV1 at call site.  */
+const matTaupe     = new THREE.MeshStandardMaterial({ color: 0xb5a895, roughness: 0.92, metalness: 0.0 });
+const matCeilingTaupe = matTaupe;
+const matPlankCeil = new THREE.MeshStandardMaterial({ color: 0xddd2bd, roughness: 0.88, metalness: 0.0 });
+const matPlankTrim = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.75, metalness: 0.0 });
+const matFloor2F   = matWoodTread;            /* 2F floor matches tread wood */
+const matFloor1F   = new THREE.MeshStandardMaterial({ color: 0xc9b89a, roughness: 0.70, metalness: 0.0 });
+const matBaseboard = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.80, metalness: 0.0 });
+const matSwitch    = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.50, metalness: 0.0 });
+const matDetector  = new THREE.MeshStandardMaterial({ color: 0xf5f4ee, roughness: 0.65, metalness: 0.0 });
+const matCorridorWall = matWhite;             /* corridor proxy beyond top exit */
+
+/* Lightmap-lit per-surface materials. `LIGHTMAP_INTENSITY` is reduced from
+ * 1.0 because the dynamic Kumamoto rig (hemisphere + RectAreaLights + HDRI
+ * env + corridorSun) still illuminates these surfaces — the lightmap adds
+ * indirect GI on top, not the full lighting. Tune 0.5..0.9 per QA. */
+const LIGHTMAP_INTENSITY = 0.65;
+const AOMAP_INTENSITY    = 1.0;
+function withRoomMaps(baseMat, slug) {
+  const m = baseMat.clone();
+  m.aoMap = loadRoomMap('ao', slug);
+  m.aoMapIntensity = AOMAP_INTENSITY;
+  m.lightMap = loadRoomMap('lightmap', slug);
+  m.lightMapIntensity = LIGHTMAP_INTENSITY;
+  return m;
+}
+const matEastWallLit    = withRoomMaps(matTaupe,     'east_wall');
+const matWestWall1FLit  = withRoomMaps(matTaupe,     'west_wall_1f');
+const matNorthWall2FLit = withRoomMaps(matTaupe,     'north_wall');
+const matPlankCeilLit   = withRoomMaps(matPlankCeil, 'plank_ceiling');
+const matParapetLit     = withRoomMaps(matWhite,     'parapet');
+const matFloor2FLit     = withRoomMaps(matWoodTread, 'floor_2f');
+
+/* ====================================================================== */
+/* Helpers                                                                */
+/* ====================================================================== */
+function box(w, h, d, mat) {
+  return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+}
+function place(mesh, x, y, z, opts = {}) {
+  mesh.position.set(x, y, z);
+  mesh.castShadow = opts.cast ?? true;
+  mesh.receiveShadow = opts.recv ?? true;
+  scene.add(mesh);
+  return mesh;
+}
+function wallBox(x0, x1, y0, y1, z0, z1, mat) {
+  const m = box(x1 - x0, y1 - y0, z1 - z0, mat);
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+
+/* SHAFT WALLS — removed for "stairs only" view.
+ * The wall blocks (west / east / north / 2F walls / under-upper-flight /
+ * LDK back wall) hid the actual stair geometry inside an enclosed shaft.
+ * Restore from git history when the full interior view is needed.        */
+
+/* FLOORS — removed for "stairs only" view. No 1F slab, no 2F corridor
+ * floor, no LDK proxy. The stair geometry hangs free at its true height. */
+
+/* ====================================================================== */
+/* STAIR — Lower Flight (3 risers, 1..3, ascending +Z)                    */
+/* Steps 1/2/3 are rectangular treads. Steps 4..7 are winders (next block).*/
+/* Tread N top at y = N × RISE, z range = [(N-1) × TREAD, N × TREAD + NOSING].*/
+/* ====================================================================== */
+function nosingStrips(treadX0, treadX1, treadZ_front, yTop) {
+  /* Two parallel dark inlay strips along the front edge of every tread,
+   * recessed ~0.5 mm into the tread top. Strip 1 closer to the front edge,
+   * strip 2 ~25 mm back from strip 1. */
+  const stripW = treadX1 - treadX0;
+  const stripD = 0.005;          /* strip width (depth into tread, in z) */
+  const stripT = 0.003;          /* strip protrusion above tread (visual) */
+  const offsets = [0.012, 0.025];
+  for (const off of offsets) {
+    const m = box(stripW, stripT, stripD, matNosing);
+    m.position.set((treadX0 + treadX1) / 2, yTop + stripT / 2, treadZ_front + off);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+
+for (let i = 1; i <= 3; i++) {
+  const z0 = (i - 1) * TREAD;
+  const yTop = i * RISE;
+  /* Tread (with nosing overhang on the south face — ascender-facing) */
+  const tread = box(STAIR_W, TREAD_T, TREAD + NOSING, matWoodTread);
+  tread.position.set(STAIR_W / 2, yTop - TREAD_T / 2, z0 + (TREAD + NOSING) / 2 - NOSING);
+  tread.castShadow = true; tread.receiveShadow = true;
+  scene.add(tread);
+  /* Riser at the back of step i (facing south, full stair width) */
+  const riser = box(STAIR_W, RISE, 0.020, matWoodRiser);
+  riser.position.set(STAIR_W / 2, yTop - RISE / 2, z0 + 0.010);
+  riser.castShadow = true; riser.receiveShadow = true;
+  scene.add(riser);
+  /* Nosing inlay strips on the tread top */
+  nosingStrips(0, STAIR_W, z0 - NOSING, yTop);
+}
+
+/* Lower-flight soffit removed — closes the underside as a slab, not part of
+ * the stair geometry. Restore from git history if a closed Japanese boxed-
+ * stair look is wanted later. */
+
+/* ====================================================================== */
+/* STAIR — Winders (steps 4..7, L-bend turning 90° CW)                    */
+/* Per blueprint 1F panel at 400 DPI: steps 4, 5 are clearly winders      */
+/* (diagonal lines crossing the tread plan). Steps 6, 7 continue the      */
+/* turn — total of 4 winders fanning from the SE pivot at (STAIR_W, WB_Z0)*/
+/* in a 0.9 × 0.9 square winder zone. Each winder turns 22.5°.             */
+/* Boundaries (radiating CCW from pivot):                                  */
+/*   theta=180° (south wall): step 3 → winder 4                            */
+/*   theta=157.5°:             winder 4 → 5                                */
+/*   theta=135°  (diagonal):   winder 5 → 6  (hits NW corner)              */
+/*   theta=112.5°:             winder 6 → 7                                */
+/*   theta=90°  (east wall):   winder 7 → step 8                           */
+/* ====================================================================== */
+function makeWinder(verts2D, yTop, mat) {
+  /* verts2D: [[x, z], [x, z], [x, z]] — three vertices in world XZ coords.
+   * Build the triangular prism directly with BufferGeometry so the (x, z)
+   * pairs end up at the same world (x, z) (the previous extrude+rotate path
+   * mirrored z and flipped the prism upside-down). */
+  const yBot = yTop - TREAD_T;
+  const positions = new Float32Array([
+    verts2D[0][0], yTop, verts2D[0][1],   /* 0 — top a */
+    verts2D[1][0], yTop, verts2D[1][1],   /* 1 — top b */
+    verts2D[2][0], yTop, verts2D[2][1],   /* 2 — top c */
+    verts2D[0][0], yBot, verts2D[0][1],   /* 3 — bot a */
+    verts2D[1][0], yBot, verts2D[1][1],   /* 4 — bot b */
+    verts2D[2][0], yBot, verts2D[2][1],   /* 5 — bot c */
+  ]);
+  /* verts2D order (pivot → outer1 → outer2) is CCW from above when projected
+   * to the XZ plane (verified by cross product), so (0, 1, 2) is the top face
+   * with normal +Y. Each side face is a quad (top-edge, bot-edge) split into
+   * two triangles whose outward normals point away from the triangle interior. */
+  const indices = [
+    0, 1, 2,                     /* top, normal +Y */
+    3, 5, 4,                     /* bottom, normal -Y */
+    0, 4, 1,  0, 3, 4,           /* side a-b */
+    1, 4, 5,  1, 5, 2,           /* side b-c */
+    2, 3, 0,  2, 5, 3,           /* side c-a */
+  ];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+
+/* Winder zone constants — pivot + the four boundary-line outer endpoints. */
+const TAN22 = Math.tan(Math.PI / 8);                                /* 0.4142 */
+const P_PIVOT = [STAIR_W, WB_Z0];                                    /* SE of winder zone */
+const P_SW    = [0,       WB_Z0];                                    /* SW corner */
+const P_W_157 = [0,       WB_Z0 + STAIR_W * TAN22];                  /* on west wall at theta=157.5° */
+const P_NW    = [0,       WB_Z1];                                    /* NW corner (theta=135°) */
+const P_N_112 = [STAIR_W - (WB_Z1 - WB_Z0) * TAN22, WB_Z1];          /* on north wall at theta=112.5° */
+const P_NE    = [STAIR_W, WB_Z1];                                    /* NE corner */
+
+/* Winder 4 — wedge between theta=180° (south wall) and theta=157.5°.
+ * Vertices CCW from above: pivot → SW corner → P_W_157 → pivot.       */
+makeWinder([P_PIVOT, P_SW, P_W_157], 4 * RISE, matWoodTread);
+/* Winder 5 — theta=157.5° to 135°. CCW: pivot → P_W_157 → NW corner.  */
+makeWinder([P_PIVOT, P_W_157, P_NW], 5 * RISE, matWoodTread);
+/* Winder 6 — theta=135° to 112.5°. CCW: pivot → NW corner → P_N_112.  */
+makeWinder([P_PIVOT, P_NW, P_N_112], 6 * RISE, matWoodTread);
+/* Winder 7 — theta=112.5° to 90°. CCW: pivot → P_N_112 → NE corner.   */
+makeWinder([P_PIVOT, P_N_112, P_NE], 7 * RISE, matWoodTread);
+
+/* Riser between step 3 and winder 4 — south wall, full stair width,
+ * vertical from y=3×RISE to y=4×RISE.                                  */
+{
+  const m = box(STAIR_W, RISE, 0.020, matWoodRiser);
+  m.position.set(STAIR_W / 2, 3.5 * RISE, WB_Z0 + 0.010);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+
+/* Helper: radial riser along the line from pivot to outer point.       */
+function makeRadialRiser(pivot, outer, yBottom, mat) {
+  const dx = outer[0] - pivot[0];
+  const dz = outer[1] - pivot[1];
+  const len = Math.hypot(dx, dz);
+  const yaw = Math.atan2(dz, dx);
+  const m = box(len, RISE, 0.020, mat);
+  m.position.set((pivot[0] + outer[0]) / 2, yBottom + RISE / 2, (pivot[1] + outer[1]) / 2);
+  m.rotation.y = -yaw;
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+/* 3 radial risers between adjacent winders */
+makeRadialRiser(P_PIVOT, P_W_157, 4 * RISE, matWoodRiser);   /* 4→5 */
+makeRadialRiser(P_PIVOT, P_NW,    5 * RISE, matWoodRiser);   /* 5→6 */
+makeRadialRiser(P_PIVOT, P_N_112, 6 * RISE, matWoodRiser);   /* 6→7 */
+/* Riser 7→8 (between winder 7 and step 8 of the upper flight) is created
+ * by the upper-flight loop's i=8 riser at x = UF_X0 + 0.010.            */
+
+/* Nosing inlay strips along each winder's leading edge. */
+nosingStrips(0, STAIR_W, WB_Z0, 4 * RISE);   /* winder 4 — straight south edge */
+
+function radialNosingStrips(pivot, outer, yTop) {
+  /* Two parallel dark-walnut strips along the radial leading edge.    */
+  const dx = outer[0] - pivot[0];
+  const dz = outer[1] - pivot[1];
+  const len = Math.hypot(dx, dz);
+  const yaw = Math.atan2(dz, dx);
+  /* Perpendicular into the next winder (CCW from radial direction).   */
+  const perpX = -dz / len;
+  const perpZ =  dx / len;
+  const stripD = 0.005, stripT = 0.003;
+  const offsets = [0.012, 0.025];
+  for (const off of offsets) {
+    const m = box(len, stripT, stripD, matNosing);
+    const cx = (pivot[0] + outer[0]) / 2 + perpX * off;
+    const cz = (pivot[1] + outer[1]) / 2 + perpZ * off;
+    m.position.set(cx, yTop + stripT / 2, cz);
+    m.rotation.y = -yaw;
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+radialNosingStrips(P_PIVOT, P_W_157, 5 * RISE);    /* winder 5 leading edge */
+radialNosingStrips(P_PIVOT, P_NW,    6 * RISE);    /* winder 6 leading edge (diagonal) */
+radialNosingStrips(P_PIVOT, P_N_112, 7 * RISE);    /* winder 7 leading edge */
+
+/* Winder soffit removed — covers the underside as a flat slab, not part of
+ * the stair geometry. Restore from git history if needed. */
+
+/* ====================================================================== */
+/* STAIR — Upper Flight (6 risers, 8..13, ascending +X / east)            */
+/*                                                                        */
+/* Step 8 west edge at x = UF_X0 = 0.90 (just east of winder 7).          */
+/* Step 13 east edge at x = UF_X1 = 2.25 lands onto 2F corridor floor.    */
+/* Tread width perpendicular to ascent = SH_Z1 - SH_Z0 = 0.45 m.          */
+/* Per blueprint 2F panel labels "8 9 10 11 12 13" reading west→east.     */
+/* ====================================================================== */
+for (let i = 8; i <= 13; i++) {
+  const stepIdx = i - 8;                              /* 0..5 */
+  const xLeft  = UF_X0 + stepIdx * TREAD;             /* west edge of step i tread */
+  const xRight = xLeft + TREAD;                       /* east edge */
+  const yTop = i * RISE;
+  /* Tread — depth = TREAD in x, width = SH_Z1-SH_Z0 in z.
+   * Step 13 (i==13) lands on 2F floor; we skip its tread (the 2F floor
+   * is the tread surface). The riser at the back of step 13 still exists.*/
+  if (i < 13) {
+    const tread = box(TREAD + NOSING, TREAD_T, SH_Z1 - SH_Z0, matWoodTread);
+    /* Nosing overhangs the WEST face (the ascender's leading edge —
+     * climbing east, you step ONTO the tread from its WEST face). */
+    tread.position.set(xLeft + (TREAD + NOSING) / 2 - NOSING, yTop - TREAD_T / 2, (SH_Z0 + SH_Z1) / 2);
+    tread.castShadow = true; tread.receiveShadow = true;
+    scene.add(tread);
+  }
+  /* Riser — vertical FRONT face of step i (the face you see while ascending).
+   * Riser i is the wall between step i-1 (or winder 7 for i=8) and step i,
+   * at x = xLeft (the west edge of the tread).                            */
+  const riser = box(0.020, RISE, SH_Z1 - SH_Z0, matWoodRiser);
+  riser.position.set(xLeft + 0.010, yTop - RISE / 2, (SH_Z0 + SH_Z1) / 2);
+  riser.castShadow = true; riser.receiveShadow = true;
+  scene.add(riser);
+  /* Nosing inlay strips along the front (west) edge of each tread. */
+  if (i < 13) {
+    const stripD = 0.005, stripT = 0.003;
+    const offsets = [0.012, 0.025];
+    for (const off of offsets) {
+      const m = box(stripD, stripT, SH_Z1 - SH_Z0, matNosing);
+      m.position.set(xLeft - NOSING + off, yTop + stripT / 2, (SH_Z0 + SH_Z1) / 2);
+      m.castShadow = true; m.receiveShadow = true;
+      scene.add(m);
+    }
+  }
+}
+
+/* Upper-flight soffit removed — large trapezoid wedge from floor up to the
+ * underside of the treads. Not part of the stair itself. Restore from git
+ * history when the closed Japanese boxed-stair look is wanted. */
+
+/* CEILINGS + PARAPET — removed for "stairs only" view. The low taupe
+ * ceiling, the high whitewashed-pine plank panel with white trim, the
+ * bulkhead step, and the south parapet half-wall are all part of the
+ * shaft shell, not the stair itself. Restore from git history when the
+ * full interior view is needed.                                          */
+const PARAPET_H = 1.05;            /* kept as constants for handrail math  */
+const PARAPET_T = 0.06;
+
+/* ====================================================================== */
+/* HANDRAIL — multi-section cream-painted wood + brushed-chrome ferrules. */
+/* Per photo audit (stairs-9, 23, 25, 1, 2, 3, 6):                         */
+/*   - Lower flight: rail on WEST wall (x=0), left side as you ascend +Z. */
+/*   - L-bend: chrome ferrule + curved bend connects the two flights at   */
+/*     the corner (visible in stairs-1/2/3, with a wrap-around arc).      */
+/*   - Upper flight: rail on SOUTH PARAPET inside face (z = SH_Z0), with  */
+/*     a mid-flight chrome scarf ferrule (stairs-25).                     */
+/*   - Brackets: brushed-chrome escutcheon disc + slim stem + grip collar,*/
+/*     ~3 per flight (~600 mm spacing).                                   */
+/* ====================================================================== */
+const RAIL_R = 0.020;        /* radius (40 mm Ø) */
+const RAIL_INSET = 0.05;     /* distance from wall face */
+const RAIL_HEIGHT_ABOVE_TREAD = 0.85;
+
+function makeBracket(wallAxis, wallSign, wallC, posY, posOnWall) {
+  /* wallAxis: 'x' or 'z' — which axis the wall lies along.
+   *   wallAxis='x' means wall extends along Z axis at fixed X (e.g. east/west wall).
+   *   wallAxis='z' means wall extends along X axis at fixed Z (e.g. parapet).
+   * wallSign: +1 or -1 — which side the bracket projects.
+   * wallC: coordinate of the wall surface.
+   * posY: height of the bracket center.
+   * posOnWall: position along the wall axis. */
+  /* Escutcheon disc against wall */
+  const esc = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.024, 0.024, 0.005, 16),
+    matBracket
+  );
+  esc.rotation.z = Math.PI / 2;
+  if (wallAxis === 'x') {
+    esc.rotation.z = Math.PI / 2;
+    esc.position.set(wallC + wallSign * 0.0025, posY, posOnWall);
+  } else {
+    esc.rotation.x = Math.PI / 2;
+    esc.rotation.z = 0;
+    esc.position.set(posOnWall, posY, wallC + wallSign * 0.0025);
+  }
+  esc.castShadow = true; esc.receiveShadow = true;
+  scene.add(esc);
+  /* Slim stem — thin cylinder from wall outward */
+  const stemLen = RAIL_INSET - 0.01;
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.006, 0.006, stemLen, 8),
+    matBracket
+  );
+  if (wallAxis === 'x') {
+    stem.rotation.z = Math.PI / 2;
+    stem.position.set(wallC + wallSign * stemLen / 2, posY, posOnWall);
+  } else {
+    stem.rotation.x = Math.PI / 2;
+    stem.position.set(posOnWall, posY, wallC + wallSign * stemLen / 2);
+  }
+  stem.castShadow = true; stem.receiveShadow = true;
+  scene.add(stem);
+  /* Grip collar — slim ring around the rail */
+  const collar = new THREE.Mesh(
+    new THREE.CylinderGeometry(RAIL_R + 0.004, RAIL_R + 0.004, 0.020, 16),
+    matBracket
+  );
+  if (wallAxis === 'x') {
+    collar.rotation.z = Math.PI / 2;
+    collar.position.set(wallC + wallSign * RAIL_INSET, posY, posOnWall);
+    /* Will be rotated to align with rail slope by caller — OK for short collar */
+  } else {
+    collar.rotation.x = Math.PI / 2;
+    collar.position.set(posOnWall, posY, wallC + wallSign * RAIL_INSET);
+  }
+  collar.castShadow = true; collar.receiveShadow = true;
+  scene.add(collar);
+}
+
+function makeFerrule(p1, p2, atFraction) {
+  /* Brushed-metal cylindrical sleeve at a joint between two rail sections.
+   * Models a ~30 mm long sleeve wrapping the rail at the joint location. */
+  const t = atFraction;
+  const px = p1.x + (p2.x - p1.x) * t;
+  const py = p1.y + (p2.y - p1.y) * t;
+  const pz = p1.z + (p2.z - p1.z) * t;
+  const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+  const ferrule = new THREE.Mesh(
+    new THREE.CylinderGeometry(RAIL_R + 0.003, RAIL_R + 0.003, 0.030, 24),
+    matRailFerrule
+  );
+  /* Orient cylinder along dir */
+  const up = new THREE.Vector3(0, 1, 0);
+  const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+  ferrule.quaternion.copy(quat);
+  ferrule.position.set(px, py, pz);
+  ferrule.castShadow = true; ferrule.receiveShadow = true;
+  scene.add(ferrule);
+}
+
+function makeRailSegment(p1, p2, mat) {
+  const len = p1.distanceTo(p2);
+  const cyl = new THREE.Mesh(
+    new THREE.CylinderGeometry(RAIL_R, RAIL_R, len, 18),
+    mat
+  );
+  const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+  const up = new THREE.Vector3(0, 1, 0);
+  const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+  cyl.quaternion.copy(quat);
+  cyl.position.copy(p1).add(p2).multiplyScalar(0.5);
+  cyl.castShadow = true; cyl.receiveShadow = true;
+  scene.add(cyl);
+  return cyl;
+}
+
+/* Lower-flight rail: along west wall (x = 0), mounted RAIL_INSET out (x = +RAIL_INSET).
+ * Bottom point above step 1 nosing, top point above step 5 / start of winders. */
+{
+  const wallC = 0;            /* west wall surface */
+  const wallSign = +1;        /* rail projects into the +x direction */
+  const railX = wallC + wallSign * RAIL_INSET;
+  const yBottom = 1 * RISE + RAIL_HEIGHT_ABOVE_TREAD;     /* above step 1 */
+  const yTop    = 5 * RISE + RAIL_HEIGHT_ABOVE_TREAD;     /* above step 5 */
+  const zBottom = 0.5 * TREAD;                             /* center of step 1 */
+  const zTop    = 4.5 * TREAD;                             /* center of step 5 */
+  const p1 = new THREE.Vector3(railX, yBottom, zBottom);
+  const p2 = new THREE.Vector3(railX, yTop, zTop);
+  makeRailSegment(p1, p2, matRailPaint);
+  /* Brackets along the rail — every ~0.45 m of rail length */
+  const railLen = p1.distanceTo(p2);
+  const nBrackets = 3;
+  for (let i = 0; i < nBrackets; i++) {
+    const t = (i + 0.5) / nBrackets;
+    const px = p1.x + (p2.x - p1.x) * t;
+    const py = p1.y + (p2.y - p1.y) * t;
+    const pz = p1.z + (p2.z - p1.z) * t;
+    makeBracket('x', wallSign, wallC, py, pz);
+  }
+}
+
+/* Upper-flight rail: mounted on south parapet INSIDE face (z = SH_Z0),
+ * projecting +Z into the upper-flight shaft. Upper flight ascends +X
+ * (east), so rail goes from above step 8 (west, near L-bend) to above
+ * step 13 (east, at 2F landing). */
+{
+  const wallC = SH_Z0;            /* parapet inside face */
+  const wallSign = +1;            /* rail projects into +z direction (into shaft) */
+  const railZ = wallC + wallSign * RAIL_INSET;
+  const yBottom = 8 * RISE + RAIL_HEIGHT_ABOVE_TREAD;
+  const yTop    = 13 * RISE + RAIL_HEIGHT_ABOVE_TREAD;     /* above 2F floor */
+  const xBottom = UF_X0 + 0.5 * TREAD;                      /* step 8 center */
+  const xTop    = UF_X0 + 5.5 * TREAD;                      /* near step 13 */
+  const p1 = new THREE.Vector3(xBottom, yBottom, railZ);
+  const p2 = new THREE.Vector3(xTop, yTop, railZ);
+  makeRailSegment(p1, p2, matRailPaint);
+  /* Mid-flight scarf-joint chrome ferrule (per stairs-25 photo). */
+  makeFerrule(p1, p2, 0.5);
+  /* Brackets along the rail */
+  const nBrackets = 3;
+  for (let i = 0; i < nBrackets; i++) {
+    const t = (i + 0.5) / nBrackets;
+    const px = p1.x + (p2.x - p1.x) * t;
+    const py = p1.y + (p2.y - p1.y) * t;
+    const pz = p1.z + (p2.z - p1.z) * t;
+    makeBracket('z', wallSign, wallC, py, px);
+  }
+}
+
+/* L-bend ferrule — placed at the geometric corner where the lower-rail
+ * top would meet the upper-rail bottom. Lower rail ends near
+ * (RAIL_INSET, 5*RISE+0.85, 1.0125); upper rail starts near
+ * (1.0125, 8*RISE+0.85, SH_Z0+RAIL_INSET). For Phase 1 we mark the L-bend
+ * with a single short chrome sleeve at the inside corner. A curved-elbow
+ * piece would be a Phase 4 polish. */
+{
+  const ferrule = new THREE.Mesh(
+    new THREE.CylinderGeometry(RAIL_R + 0.003, RAIL_R + 0.003, 0.060, 24),
+    matRailFerrule
+  );
+  ferrule.position.set(RAIL_INSET, 7 * RISE + RAIL_HEIGHT_ABOVE_TREAD, SH_Z0 + RAIL_INSET);
+  ferrule.castShadow = true; ferrule.receiveShadow = true;
+  scene.add(ferrule);
+}
+
+/* ====================================================================== */
+/* WHITE SKIRTING BASEBOARD — photo references in stairs-views-and-angles */
+/* show a continuous ~80 mm white-painted skirting tracing every edge     */
+/* where the stair meets a wall. Critical for the photographic silhouette */
+/* even in stairs-only mode (no walls): the white outline reads as the    */
+/* boundary between stair and (invisible) wall.                            */
+/* ====================================================================== */
+const SKIRT_H = 0.080;              /* height perpendicular to slope */
+const SKIRT_T = 0.015;              /* thickness (offset from wall surface) */
+const matSkirt = new THREE.MeshStandardMaterial({ color: 0xfafaf0, roughness: 0.70 });
+
+/* Sloped skirt on a wall at x=const (slope in YZ plane). sign=+1 projects +X,
+ * sign=-1 projects -X. (y0,z0)=bottom of slope, (y1,z1)=top. */
+function slopedSkirtX(x, sign, y0, z0, y1, z1) {
+  const dz = z1 - z0, dy = y1 - y0;
+  const length = Math.hypot(dz, dy);
+  const angle = Math.atan2(dy, dz);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(SKIRT_T, SKIRT_H, length), matSkirt);
+  m.position.set(
+    x + sign * SKIRT_T / 2,
+    (y0 + y1) / 2 + Math.cos(angle) * SKIRT_H / 2,
+    (z0 + z1) / 2 - Math.sin(angle) * SKIRT_H / 2
+  );
+  m.rotation.x = -angle;
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+
+/* Sloped skirt on a wall at z=const (slope in XY plane). */
+function slopedSkirtZ(z, sign, y0, x0, y1, x1) {
+  const dx = x1 - x0, dy = y1 - y0;
+  const length = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(length, SKIRT_H, SKIRT_T), matSkirt);
+  m.position.set(
+    (x0 + x1) / 2 - Math.sin(angle) * SKIRT_H / 2,
+    (y0 + y1) / 2 + Math.cos(angle) * SKIRT_H / 2,
+    z + sign * SKIRT_T / 2
+  );
+  m.rotation.z = angle;
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+
+/* Horizontal skirt at x=const wall, running along z, at height y. */
+function flatSkirtX(x, sign, y, z0, z1) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(SKIRT_T, SKIRT_H, z1 - z0), matSkirt);
+  m.position.set(x + sign * SKIRT_T / 2, y + SKIRT_H / 2, (z0 + z1) / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+
+/* Horizontal skirt at z=const wall, running along x, at height y. */
+function flatSkirtZ(z, sign, y, x0, x1) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, SKIRT_H, SKIRT_T), matSkirt);
+  m.position.set((x0 + x1) / 2, y + SKIRT_H / 2, z + sign * SKIRT_T / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+
+/* WEST WALL (x=0) — wall is at x=0, room at x>0. Skirt projects +X. */
+slopedSkirtX(0, +1, 0, -NOSING, 3 * RISE, 3 * TREAD);                          /* lower flight slope */
+flatSkirtX  (0, +1, 4 * RISE, WB_Z0, WB_Z0 + STAIR_W * TAN22);                  /* winder 4 west horizontal */
+flatSkirtX  (0, +1, 5 * RISE, WB_Z0 + STAIR_W * TAN22, WB_Z1);                  /* winder 5 west horizontal */
+
+/* EAST WALL OF LOWER FLIGHT (x=STAIR_W) — wall at x=0.9, room at x<0.9. */
+slopedSkirtX(STAIR_W, -1, 0, -NOSING, 3 * RISE, 3 * TREAD);                    /* lower flight east slope */
+
+/* NORTH WALL (z=WB_Z1) — wall at z=1.575, room at z<1.575. */
+flatSkirtZ  (WB_Z1, -1, 6 * RISE, 0,                    STAIR_W - STAIR_W * TAN22);  /* winder 6 north */
+flatSkirtZ  (WB_Z1, -1, 7 * RISE, STAIR_W - STAIR_W * TAN22, STAIR_W);                /* winder 7 north */
+slopedSkirtZ(WB_Z1, -1, 7 * RISE, UF_X0, 13 * RISE, UF_X1);                    /* upper flight north slope */
+
+/* SOUTH PARAPET BASE (z=SH_Z0) — parapet would be at z=0.675, climber to north. */
+slopedSkirtZ(SH_Z0, +1, 7 * RISE, UF_X0, 13 * RISE, UF_X1);                    /* upper flight south slope */
+
+/* EAST WALL OF UPPER FLIGHT (x=UF_X1) — landing wall, room at x<2.25, horizontal. */
+flatSkirtX  (UF_X1, -1, 13 * RISE, SH_Z0, SH_Z1);                               /* top landing east edge */
+
+/* DETAIL ITEMS (wall switch, smoke detector, corridor proxy, baseboard)
+ * — removed for "stairs only" view. They were attached to walls/ceiling
+ * that no longer exist. Restore from git history when the shell returns.*/
+
+/* ====================================================================== */
+/* Vantage button handlers (camera presets matching photo viewpoints)     */
+/* ====================================================================== */
+const VANTAGES = {
+  iso:    { tgt: [1.00, 1.20, 1.00], pos: [4.50, 3.20, -2.50] },          /* full stair, SE iso */
+  bottom: { tgt: [0.45, 0.60, 0.50], pos: [0.45, 0.30, -1.50] },          /* below step 1, looking up lower flight */
+  bend:   { tgt: [0.45, 1.30, 1.10], pos: [-0.80, 2.80, 1.10] },          /* above L-bend, looking down on winders */
+  upper:  { tgt: [1.50, 1.90, 1.10], pos: [0.30, 1.30, 1.10] },           /* L-bend, looking east up the upper flight */
+  top:    { tgt: [1.10, 2.20, 1.10], pos: [UF_X1 + 1.00, 3.00, 1.10] },   /* above step 13, looking back west */
+};
+document.querySelectorAll('.v-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = VANTAGES[btn.dataset.v];
+    if (!v) return;
+    controls.setTarget(
+      new THREE.Vector3().fromArray(v.tgt),
+      new THREE.Vector3().fromArray(v.pos),
+    );
+  });
+});
+
+/* ====================================================================== */
+/* Postprocessing — light bloom for daylight reads.                       */
+/* ====================================================================== */
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+composer.setSize(window.innerWidth, window.innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.12, 0.55, 1.10,
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+function tick() {
+  composer.render();
+  requestAnimationFrame(tick);
+}
+tick();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloom.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
