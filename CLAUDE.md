@@ -97,6 +97,28 @@ The non-negotiable pipeline for every object pass:
 
 A run that improves visual quality but skips the A6000 bake does not meet the rule. If the user explicitly says "no bake this time" the bake is deferred — but the bake script still gets written so it's ready when they greenlight it. Saving the script alone is not enough — it must actually be run on the A6000 before the work counts as done.
 
+### `box()` helper gotcha — shared PBR materials need a scoped helper
+
+The `box(w, h, d, cx, cy, cz, color, extra)` helper inside each `registerScene` build function **creates a brand-new `MeshStandardMaterial` per call** (from the supplied color). It does NOT accept a shared material instance.
+
+Consequence for PBR conversion: when converting a furniture group from flat colors to PBR (e.g. baking painted wood for a hutch, then loading the albedo + normal + roughness + AO maps into `matHutch`), the existing `box(..., 0x95a8b8, {...})` calls in that group do NOT pick up `matHutch`. Each call still constructs its own flat-color material. The surfaces will render with the old flat color and the PBR maps will appear unused.
+
+**Fix pattern (used in the room-2 hutch and room-4 cabinet PBR conversions):** at the top of the affected scope, add a tiny inline helper that shares the PBR material:
+
+```js
+const matFoo = pbrFromBase(...);
+const fooBox = (w, h, d, cx, cy, cz) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matFoo);
+  m.position.set(cx, cy, cz);
+  S.group.add(m);
+  return m;
+};
+```
+
+Then replace every `box(..., COL.foo, {...})` call in that group with `fooBox(...)`. Audit every call site — a single missed call will render with the old flat color and break the visual.
+
+Currently in place: `hutchBox()` in `registerScene('room-2')` (shares `matHutch`), `woodBox()` in `registerScene('room-4')` (shares `matCabWood`). Future PBR object passes (iron beds, mattress, AC plastic, etc.) MUST add their own `<x>Box()` helper if the surfaces are built via `box()` calls.
+
 ## Interior-render daylight rule — Kumamoto, sunny spring, 11:00 AM JST
 
 **This rule applies ONLY to "inside the room" renders — camera placed inside an interior space looking around at walls / floor / ceiling / furniture. It does NOT apply to exterior shots (camera outside the building looking at the facade) — those have their own real-photo references.**

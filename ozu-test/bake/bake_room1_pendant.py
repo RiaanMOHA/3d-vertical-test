@@ -140,7 +140,13 @@ def make_wood_material(name='wood_stained_pine'):
 
 
 def make_linen_material(name='linen_burlap'):
-    """Warm cream linen with visible warp/weft weave."""
+    """Coarse warm-cream linen weave with HIGHLY VISIBLE warp/weft pattern.
+
+    Photo-matched against room-1/corner-ac-entrance/03-05: the pendant
+    shades show a distinct chunky cross-hatch weave clearly visible in
+    color (not just bump). Threads are ~3mm thick, alternating warm
+    cream warp threads with slightly darker weft threads.
+    """
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -149,40 +155,90 @@ def make_linen_material(name='linen_burlap'):
     out = nt.nodes.new('ShaderNodeOutputMaterial')
     bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
     tc = nt.nodes.new('ShaderNodeTexCoord')
+
+    # BIG coarse-linen weave — runtime uses repU=1, so this 8×10 tile gives
+    # ~8 threads around the shade circumference and ~10 along its height,
+    # matching the chunky burlap-style weave clearly visible in the photos.
     mp = nt.nodes.new('ShaderNodeMapping')
-    mp.inputs['Scale'].default_value = (40.0, 60.0, 1.0)
+    mp.inputs['Scale'].default_value = (8.0, 10.0, 1.0)
     nt.links.new(tc.outputs['UV'], mp.inputs['Vector'])
-    # Wave nodes — warp (horizontal) + weft (vertical) for checker bumps.
+
+    # Warp = horizontal bands (vertical threads); Weft = vertical bands.
     warp = nt.nodes.new('ShaderNodeTexWave')
     warp.wave_type = 'BANDS'
     warp.bands_direction = 'X'
+    warp.wave_profile = 'SIN'
     warp.inputs['Scale'].default_value = 1.0
-    warp.inputs['Distortion'].default_value = 0.0
+    warp.inputs['Distortion'].default_value = 0.15
+    warp.inputs['Detail'].default_value = 0.0
     nt.links.new(mp.outputs['Vector'], warp.inputs['Vector'])
+
     weft = nt.nodes.new('ShaderNodeTexWave')
     weft.wave_type = 'BANDS'
     weft.bands_direction = 'Y'
+    weft.wave_profile = 'SIN'
     weft.inputs['Scale'].default_value = 1.0
+    weft.inputs['Distortion'].default_value = 0.15
     nt.links.new(mp.outputs['Vector'], weft.inputs['Vector'])
-    # Combine warp + weft → checker pattern.
+
+    # Combined cross-hatch: ADD warp + weft and clamp so high-contrast
+    # cross-hatch pattern emerges (where threads cross = brightest).
     combo = nt.nodes.new('ShaderNodeMath')
-    combo.operation = 'MULTIPLY'
+    combo.operation = 'ADD'
     nt.links.new(warp.outputs['Color'], combo.inputs[0])
     nt.links.new(weft.outputs['Color'], combo.inputs[1])
-    # Slight noise overlay for randomized thread color.
-    noi = nt.nodes.new('ShaderNodeTexNoise')
-    noi.inputs['Scale'].default_value = 200.0
-    noi.inputs['Detail'].default_value = 2.0
-    nt.links.new(mp.outputs['Vector'], noi.inputs['Vector'])
-    # Base color: warm cream burlap.
-    cmix = nt.nodes.new('ShaderNodeMix')
-    cmix.data_type = 'RGBA'
-    cmix.inputs['A'].default_value = (0.90, 0.83, 0.66, 1)
-    cmix.inputs['B'].default_value = (0.80, 0.70, 0.50, 1)
-    nt.links.new(noi.outputs['Fac'], cmix.inputs['Factor'])
-    nt.links.new(cmix.outputs['Result'], bsdf.inputs['Base Color'])
+
+    # Difference of warp - weft gives a TARTAN-style colour separation: where
+    # warp threads are visible (top of bump) we see one colour; where weft
+    # threads are visible (perpendicular) we see another. This is what makes
+    # the weave appear in the ALBEDO not just the normal map.
+    warp_weft_diff = nt.nodes.new('ShaderNodeMath')
+    warp_weft_diff.operation = 'SUBTRACT'
+    nt.links.new(warp.outputs['Color'], warp_weft_diff.inputs[0])
+    nt.links.new(weft.outputs['Color'], warp_weft_diff.inputs[1])
+
+    # Map diff (-1..1) to 0..1 for use as mix factor
+    diff_remap = nt.nodes.new('ShaderNodeMapRange')
+    diff_remap.interpolation_type = 'LINEAR'
+    diff_remap.inputs['From Min'].default_value = -1.0
+    diff_remap.inputs['From Max'].default_value = 1.0
+    diff_remap.inputs['To Min'].default_value = 0.0
+    diff_remap.inputs['To Max'].default_value = 1.0
+    nt.links.new(warp_weft_diff.outputs[0], diff_remap.inputs['Value'])
+
+    # Slight per-thread color noise for natural variation
+    thread_noi = nt.nodes.new('ShaderNodeTexNoise')
+    thread_noi.inputs['Scale'].default_value = 80.0
+    thread_noi.inputs['Detail'].default_value = 3.0
+    nt.links.new(mp.outputs['Vector'], thread_noi.inputs['Vector'])
+
+    # WARP threads colour (raised threads — bright cream)
+    warp_col = nt.nodes.new('ShaderNodeMix')
+    warp_col.data_type = 'RGBA'
+    warp_col.inputs['A'].default_value = (0.95, 0.88, 0.72, 1)
+    warp_col.inputs['B'].default_value = (0.88, 0.80, 0.62, 1)
+    nt.links.new(thread_noi.outputs['Fac'], warp_col.inputs['Factor'])
+
+    # WEFT threads colour (recessed threads — deeper tan, ~30% darker)
+    weft_col = nt.nodes.new('ShaderNodeMix')
+    weft_col.data_type = 'RGBA'
+    weft_col.inputs['A'].default_value = (0.62, 0.50, 0.34, 1)
+    weft_col.inputs['B'].default_value = (0.55, 0.42, 0.28, 1)
+    nt.links.new(thread_noi.outputs['Fac'], weft_col.inputs['Factor'])
+
+    # Mix warp vs weft colour by which thread is on top at this pixel
+    weave_color = nt.nodes.new('ShaderNodeMix')
+    weave_color.data_type = 'RGBA'
+    nt.links.new(diff_remap.outputs[0], weave_color.inputs['Factor'])
+    nt.links.new(weft_col.outputs['Result'], weave_color.inputs['A'])
+    nt.links.new(warp_col.outputs['Result'], weave_color.inputs['B'])
+
+    nt.links.new(weave_color.outputs['Result'], bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.95
-    # Bump from the combined wave pattern.
+
+    # Moderate bump — too strong (1.0) produced radial spike artefacts when
+    # the shade is viewed nearly edge-on (top-down). 0.5 reads as visible
+    # weave from side angles without exaggerating at oblique views.
     bump = nt.nodes.new('ShaderNodeBump')
     bump.inputs['Strength'].default_value = 0.5
     nt.links.new(combo.outputs[0], bump.inputs['Height'])

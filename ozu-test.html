@@ -2012,6 +2012,19 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       addWallTrim('Z', W,    4.50, 6.30, -1, 0, F1H, []);
       addWallTrim('Z', 4.50, 5.40, 5.65, +1, 0, F1H, []);
 
+      // 2F corridor perimeter — L-shape: mid-corridor (x=2.70..SX0, z=3.60..4.50)
+      // joined to corridor stub (x=2.70..3.60, z=4.50..5.85). Door cuts at room-1
+      // corridor entrance (x=3.80..4.40), 2F toilet entrance (x=2.85..3.45), and
+      // room-2 corridor entrance (z=5.10..5.70). Closet bi-folds into the bedrooms
+      // are NOT cut here — the bi-fold panels fill the wall gap from the corridor
+      // side too, so trim runs continuously past closets.
+      addWallTrim('X', 3.60, 2.70, SX0,  -1, F1H, F2H, []);                    // mid south (closet col + room-4 north stub)
+      addWallTrim('X', 4.50, 2.70, SX0,  +1, F1H, F2H, [[3.80, 4.40]]);        // mid north (room-1 entrance cut)
+      addWallTrim('Z', 2.70, 3.60, 4.50, +1, F1H, F2H, []);                    // mid west (closet east edge)
+      addWallTrim('X', 5.85, 2.70, 3.60, -1, F1H, F2H, [[2.85, 3.45]]);        // stub north (toilet entrance cut)
+      addWallTrim('Z', 2.70, 4.50, 5.85, +1, F1H, F2H, [[5.10, 5.70]]);        // stub west (room-2 entrance cut)
+      addWallTrim('Z', 3.60, 4.50, 5.85, -1, F1H, F2H, []);                    // stub east (room-1 west, no corridor entrance)
+
       // ───────────────── 2F WALL PAINT (taupe-grey overlay) ─────────────────
       // All 2F walls (bedrooms + corridor + toilet) get a taupe-grey paint overlay on
       // the interior face. Door panels (y=[0, 2.0]) and window glass (y=[w.y0, w.y1])
@@ -3394,6 +3407,27 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
         return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
       }
+      // pbrFromBase — for Cycles-baked materials (4 PNGs per material:
+      // albedo / normal / roughness / ao). Pass full base path including
+      // file-prefix, e.g. 'ozu-test/room-1-textures/bed/white_iron/white_iron'.
+      function pbrFromBase(base, repU, repV, extras = {}) {
+        const loader = new THREE.TextureLoader();
+        const map = loader.load(`${base}_albedo.png`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        const normalMap = loader.load(`${base}_normal.png`);
+        const roughnessMap = loader.load(`${base}_roughness.png`);
+        const aoMap = loader.load(`${base}_ao.png`);
+        const aniso = renderer.capabilities.getMaxAnisotropy();
+        for (const t of [map, normalMap, roughnessMap, aoMap]) {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(repU, repV);
+          t.anisotropy = aniso;
+        }
+        return new THREE.MeshStandardMaterial({
+          map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
+        });
+      }
       // Cloth shader — adds a subtle fresnel-edge "sheen" to fabric materials
       // (pillows, sheet, curtains). r128 has no native sheen; we inject a
       // simple fresnel highlight via onBeforeCompile. Keep strength low —
@@ -3457,66 +3491,15 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         material.needsUpdate = true;
       }
       const matFloorR1 = pbrMatR1('wood_floor',           RW / 1.7, RD / 1.7, { roughness: 0.7 });
-      // Whitewashed-plank ceiling — built with plankTex so we get plank seam
-      // lines + grain at a pale base colour. Tinting the brown wood_floor map
-      // by white can't actually lighten it, hence the procedural texture.
-      // Weathered whitewashed plank ceiling — wider shade variance, stronger
-      // grain, occasional darker (weathered) plank, and knots.
-      const ceilTexR1 = (() => {
-        const cvs = document.createElement('canvas');
-        cvs.width = 1024; cvs.height = 1024;
-        const ctx = cvs.getContext('2d');
-        ctx.fillStyle = '#e8dfcf';
-        ctx.fillRect(0, 0, 1024, 1024);
-        let s = 13;
-        const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-        const planks = 9, ph = 1024 / planks;
-        for (let i = 0; i < planks; i++) {
-          const weather = rnd() < 0.25;
-          const shade = weather ? -55 : (rnd() - 0.5) * 26;
-          const r = Math.max(0, (232 + shade) | 0);
-          const g = Math.max(0, (223 + shade) | 0);
-          const b = Math.max(0, (207 + shade) | 0);
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.fillRect(0, i * ph, 1024, ph);
-          ctx.fillStyle = 'rgba(45,30,18,0.55)';
-          ctx.fillRect(0, i * ph, 1024, 2);
-          ctx.lineWidth = 1;
-          for (let j = 0; j < 80; j++) {
-            ctx.strokeStyle = `rgba(60,40,22,${0.10 + rnd() * 0.10})`;
-            const y = i * ph + rnd() * ph;
-            const x1 = rnd() * 1024;
-            const x2 = x1 + 60 + rnd() * 220;
-            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y + (rnd() - 0.5) * 3); ctx.stroke();
-          }
-          const nKnots = (rnd() * 3) | 0;
-          for (let k = 0; k < nKnots; k++) {
-            const kx = rnd() * 1024;
-            const ky = i * ph + ph * (0.3 + rnd() * 0.4);
-            const kr = 7 + rnd() * 12;
-            const g1 = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
-            g1.addColorStop(0, 'rgba(60,38,20,0.85)');
-            g1.addColorStop(0.6, 'rgba(75,52,28,0.4)');
-            g1.addColorStop(1, 'rgba(90,65,40,0)');
-            ctx.fillStyle = g1;
-            ctx.beginPath(); ctx.ellipse(kx, ky, kr, kr * 0.65, 0, 0, Math.PI * 2); ctx.fill();
-          }
-        }
-        const tex = new THREE.CanvasTexture(cvs);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        // Procedural plank has high-frequency noise (knots, grain, color
-        // variation). Mipmapping that on WebGPU produces visible moiré /
-        // speckle on the ceiling's top face. Skip mipmaps; sample full-res.
-        tex.generateMipmaps = false;
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return tex;
-      })();
-      ceilTexR1.repeat.set(1.5, 1.5);
-      ceilTexR1.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      const matCeilR1 = new THREE.MeshStandardMaterial({ map: ceilTexR1, roughness: 0.85 });
+      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake from
+      // ozu-test/bake/bake_room1_ceiling.py (Cycles + OptiX on A6000).
+      // Photo-confirmed identical across all 4 rooms in
+      // ozu-test/interior-images/room-{1,2,3,4}/. 8 planks per 1.35 m tile;
+      // RW/1.35 × RD/1.35 gives ~17 cm plank width across the ceiling.
+      const matCeilR1 = pbrFromBase(
+        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
+        RW / 1.35, RD / 1.35,
+      );
       // Smooth painted walls — neutral cool grey, matches the real photos
       // in interior-images/room-1/. Walls stay on MeshBasicMaterial with
       // toneMapped:false so the LITERAL paint colour `#afa299` is rendered
@@ -3963,23 +3946,32 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // AC unit on z=D (ac-wall) — split-system look:
-      // body + bottom louver flap + recessed grille + vent slit + LED
+      // body + bottom louver flap + recessed grille + vent slit + LED.
+      // Body + flap share the Cycles-baked abs_plastic PBR material; grille +
+      // slit stay flat because they're small accent details.
       {
         const acCx = 2.1, acCy = 2.27;
         const acW = 0.82, acH = 0.26, acD = 0.18;
         const acBackZ  = RD - BIAS;            // back face (against wall)
         const acFrontZ = acBackZ - acD;        // front face (into room)
-        // main body — matte ABS plastic, NOT glossy. 0.45 was reading as wet/painted
-        // under the new RectAreaLight; bumping to 0.7 settles the body into matte plastic.
-        box(acW, acH, acD, acCx, acCy, acFrontZ + acD/2, 0xf6f6f4, { roughness: 0.7 });
-        // bottom louver flap — hangs slightly below body and forward,
-        // creates the visible "bottom edge" of a real AC
-        box(acW * 0.94, 0.04, acD * 0.6, acCx, acCy - acH/2 - 0.01, acFrontZ + acD * 0.45,
-            0xeceae6, { roughness: 0.7 });
-        // front grille (slightly recessed, slightly darker)
+        // Shared PBR material for AC body + flap. Per CLAUDE.md `box()`
+        // gotcha: box() creates a fresh material per call, so we use an
+        // inline acBox() helper that re-uses the shared PBR material.
+        const matACPlastic = pbrFromBase('ozu-test/room-1-textures/ac/abs/abs', 1, 1);
+        const acBox = (w, h, d, cx, cy, cz) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matACPlastic);
+          m.position.set(cx, cy, cz);
+          S.group.add(m);
+          return m;
+        };
+        // main body — abs_plastic PBR
+        acBox(acW, acH, acD, acCx, acCy, acFrontZ + acD/2);
+        // bottom louver flap — abs_plastic PBR
+        acBox(acW * 0.94, 0.04, acD * 0.6, acCx, acCy - acH/2 - 0.01, acFrontZ + acD * 0.45);
+        // front grille (slightly recessed, slightly darker — stays flat)
         box(acW * 0.86, acH * 0.55, 0.003, acCx, acCy + 0.02, acFrontZ - 0.002,
             0xc6c3bd, { roughness: 0.7 });
-        // dark vent slit just above the bottom flap
+        // dark vent slit just above the bottom flap (stays flat)
         box(acW * 0.92, 0.02, 0.006, acCx, acCy - acH/2 + 0.02, acFrontZ - 0.003,
             0x252525, { roughness: 0.4 });
       }
@@ -4001,7 +3993,20 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // bed — April 22 v4: along ac-wall (z=D); head at corner-ac-window (x=W), foot at corner-ac-entrance (x=0.7)
       // Pulled back 3 cm from both walls so posts (radius 24 mm) don't poke
       // through the ac-wall and the mattress doesn't z-fight at the surface.
-      aabb({ x1: 0.7, x2: 2.67, z1: 1.7, z2: 2.67, y1: 0.1, y2: 0.5 }, COL.mattress);
+      // Mattress slab — mostly covered by the more elaborate matSheet (sheen
+      // + displacement) further down, but the foot end + sides are visible.
+      // Use shared cream_cotton PBR material directly (not via aabb/box which
+      // would create a fresh material — see CLAUDE.md `box()` gotcha note).
+      {
+        const matMattressR1 = pbrFromBase('ozu-test/room-1-textures/mattress/cream_cotton/cream_cotton', 2, 2);
+        const mr = { x1: 0.7, x2: 2.67, z1: 1.7, z2: 2.67, y1: 0.1, y2: 0.5 };
+        const mat_mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(mr.x2 - mr.x1, mr.y2 - mr.y1, mr.z2 - mr.z1),
+          matMattressR1,
+        );
+        mat_mesh.position.set((mr.x1+mr.x2)/2, (mr.y1+mr.y2)/2, (mr.z1+mr.z2)/2);
+        S.group.add(mat_mesh);
+      }
       // Pipe-style headboard / footboard, matching the photo reference at
       //   ozu-test/interior-images/room-1/corner-cabinet-window/
       //     room-1-corner-cabinet-window-08.webp
@@ -4010,7 +4015,10 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // cap on top. Replaces the previous separate "ball finials" block —
       // caps are now integral to the frame so they always touch the post.
       const IRON = { roughness: 0.45, metalness: 0.6 };
-      const ironMat = new THREE.MeshStandardMaterial({ color: COL.ironDark, ...IRON });
+      // Bed iron now uses the Cycles-baked black_iron PBR (originally baked
+      // for room-3's shelf). Shared across room-1, room-3, room-4 — same
+      // dark-iron appearance in the photos for all three rooms.
+      const ironMat = pbrFromBase('ozu-test/room-3-textures/shelf/black_iron/black_iron', 1, 1, { metalness: 0.6 });
       function pipeFrame(panel, topRail, botRail, nBars) {
         const w = panel.x2 - panel.x1, d = panel.z2 - panel.z1;
         const cx = (panel.x1 + panel.x2) / 2, cz = (panel.z1 + panel.z2) / 2;
@@ -4649,9 +4657,12 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           cap.position.set(cx, fY - barT - 0.005, cz);
           S.group.add(cap);
         }
-        // Linen shade material (PBR linen with woven normal+roughness).
+        // Linen shade material (PBR linen with woven normal+roughness +
+        // visible cross-hatch in albedo). repU=1 means the bake's full
+        // ~18-thread weave wraps once around the shade circumference, so
+        // the chunky cross-hatch reads clearly from any viewing distance.
         // emissiveMap reuses the albedo so the shade glows woven when lights on.
-        const matShade = pendantMat('linen', 3, 1, {
+        const matShade = pendantMat('linen', 1, 1, {
           side: THREE.DoubleSide,
           emissive: 0xfff0d8, emissiveIntensity: 0,
         });
@@ -4662,24 +4673,50 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         // Lights-toggle wiring — calibrated for AgX tone mapping.
         S.lampMaterial   = matShade;
         S.bulbMaterial   = matBulb;
-        S.lampOnIntensity = 0.5;
-        S.bulbOnIntensity = 1.8;
-        S.lampsOn        = false;
-        const shadeGeom  = new THREE.CylinderGeometry(sDia/2, sDia/2, sH, 24, 1, true);
+        S.lampOnIntensity  = 0.5;
+        S.lampOffIntensity = 0.18;   // baseline glow so shade interior never reads as pitch-black void
+        S.bulbOnIntensity  = 1.8;
+        S.lampsOn          = false;
+        // Slight conical taper — wider at bottom (1.10× top) matches the
+        // gently flared shape visible in the photos. Top stays at sDia/2 so
+        // the cap and brass collar still fit.
+        const sDiaBot = sDia * 1.10;
+        // 48 radial segments (was 24) — smoother cylinder profile from
+        // top-down views where each facet would otherwise read as a flat
+        // band radiating from centre.
+        const shadeGeom  = new THREE.CylinderGeometry(sDia/2, sDiaBot/2, sH, 48, 1, true);
+        // Top cap disk — closes the cylinder top so we don't see the dark
+        // interior + floor through the open top from above. Same linen
+        // material as the side wall so the cap glows with the rest of the
+        // shade when lights on. Slightly larger than cylinder inner radius
+        // so it fully overlaps the rim with no gap.
+        const shadeCapGeom = new THREE.CircleGeometry(sDia/2 + 0.001, 48);
         const bulbGeom   = new THREE.SphereGeometry(0.042, 18, 14);
-        const collarGeom = new THREE.CylinderGeometry(sDia/2 + 0.006, sDia/2 + 0.006, 0.022, 24);
+        const collarGeom = new THREE.CylinderGeometry(sDia/2 + 0.006, sDia/2 + 0.006, 0.022, 48);
         S.lampPointLights = [];
         for (const dx of [-sOff, sOff])
           for (const dz of [-sOff, sOff]) {
-            // Linen shade.
+            // Linen shade body (open both ends; cap closes the top).
             const sh = new THREE.Mesh(shadeGeom, matShade);
             sh.position.set(cx + dx, sBotY + sH/2, cz + dz);
             S.group.add(sh);
-            // Brass collar at top of shade (where it meets crossbar).
+            // Linen cap at top of shade — FACING UP so its lit front face
+            // is what the camera sees from above. CircleGeometry default
+            // normal is +Z; rotating -π/2 around X puts the normal at +Y.
+            const cap = new THREE.Mesh(shadeCapGeom, matShade);
+            cap.position.set(cx + dx, sBotY + sH + 0.002, cz + dz);
+            cap.rotation.x = -Math.PI / 2;   // face up
+            S.group.add(cap);
+            // Brass collar — positioned INSIDE the cylinder, BELOW the cap,
+            // so it's hidden from straight-above views (the cap covers it).
+            // Visible only from the side / below, where it's lit normally.
+            // Brass with metallic=1.0 reads as pitch black from above when
+            // there's no sky reflection (ceiling 5cm above blocks HDRI), so
+            // hiding it from above prevents the unwanted "black ring".
             const collar = new THREE.Mesh(collarGeom, matBrassPBR);
-            collar.position.set(cx + dx, sBotY + sH - 0.005, cz + dz);
+            collar.position.set(cx + dx, sBotY + sH - 0.022, cz + dz);
             S.group.add(collar);
-            // Bulb sphere — visible from below through the open-ended shade.
+            // Bulb sphere — visible from below through the open bottom.
             const bulb = new THREE.Mesh(bulbGeom, matBulb);
             bulb.position.set(cx + dx, sBotY + 0.05, cz + dz);
             S.group.add(bulb);
@@ -4914,62 +4951,34 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
         return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
       }
-      // Whitewashed plank ceiling — same procedural pattern as room-1's,
-      // locally scoped so each scene owns its own CanvasTexture.
-      const ceilTexR2 = (() => {
-        const cvs = document.createElement('canvas');
-        cvs.width = 1024; cvs.height = 1024;
-        const ctx = cvs.getContext('2d');
-        ctx.fillStyle = '#e8dfcf';
-        ctx.fillRect(0, 0, 1024, 1024);
-        // Different seed than room-1 (s = 23 vs 13) so the plank pattern doesn't
-        // read as a clone of the room-1 ceiling when both scenes are compared.
-        let s = 23;
-        const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-        const planks = 9, ph = 1024 / planks;
-        for (let i = 0; i < planks; i++) {
-          const weather = rnd() < 0.25;
-          const shade = weather ? -55 : (rnd() - 0.5) * 26;
-          const r = Math.max(0, (232 + shade) | 0);
-          const g = Math.max(0, (223 + shade) | 0);
-          const b = Math.max(0, (207 + shade) | 0);
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.fillRect(0, i * ph, 1024, ph);
-          ctx.fillStyle = 'rgba(45,30,18,0.55)';
-          ctx.fillRect(0, i * ph, 1024, 2);
-          ctx.lineWidth = 1;
-          for (let j = 0; j < 80; j++) {
-            ctx.strokeStyle = `rgba(60,40,22,${0.10 + rnd() * 0.10})`;
-            const y = i * ph + rnd() * ph;
-            const x1 = rnd() * 1024;
-            const x2 = x1 + 60 + rnd() * 220;
-            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y + (rnd() - 0.5) * 3); ctx.stroke();
-          }
-          const nKnots = (rnd() * 3) | 0;
-          for (let k = 0; k < nKnots; k++) {
-            const kx = rnd() * 1024;
-            const ky = i * ph + ph * (0.3 + rnd() * 0.4);
-            const kr = 7 + rnd() * 12;
-            const g1 = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
-            g1.addColorStop(0, 'rgba(60,38,20,0.85)');
-            g1.addColorStop(0.6, 'rgba(75,52,28,0.4)');
-            g1.addColorStop(1, 'rgba(90,65,40,0)');
-            ctx.fillStyle = g1;
-            ctx.beginPath(); ctx.ellipse(kx, ky, kr, kr * 0.65, 0, 0, Math.PI * 2); ctx.fill();
-          }
+      // pbrFromBase — for Cycles-baked materials (4 PNGs per material:
+      // albedo / normal / roughness / ao). Pass full base path including
+      // file-prefix, e.g. 'ozu-test/room-1-textures/bed/white_iron/white_iron'.
+      function pbrFromBase(base, repU, repV, extras = {}) {
+        const loader = new THREE.TextureLoader();
+        const map = loader.load(`${base}_albedo.png`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        const normalMap = loader.load(`${base}_normal.png`);
+        const roughnessMap = loader.load(`${base}_roughness.png`);
+        const aoMap = loader.load(`${base}_ao.png`);
+        const aniso = renderer.capabilities.getMaxAnisotropy();
+        for (const t of [map, normalMap, roughnessMap, aoMap]) {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(repU, repV);
+          t.anisotropy = aniso;
         }
-        const tex = new THREE.CanvasTexture(cvs);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        tex.generateMipmaps = false;
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        return tex;
-      })();
-      ceilTexR2.repeat.set(1.5, 1.5);
+        return new THREE.MeshStandardMaterial({
+          map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
+        });
+      }
+      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake (see
+      // bake_room1_ceiling.py). Photo-identical across all 4 rooms.
       const matFloorR2 = pbrMatR2('wood_floor', RW / 1.7, RD / 1.7, { roughness: 0.7 });
-      const matCeilR2  = new THREE.MeshStandardMaterial({ map: ceilTexR2, roughness: 0.85 });
+      const matCeilR2  = pbrFromBase(
+        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
+        RW / 1.35, RD / 1.35,
+      );
       // Painted walls — literal taupe-grey paint, no light-direction tinting.
       // Corner darkening is added via per-wall AO maps once Phase 4 bake runs.
       const wallPaintArgs = { color: COL.wall, toneMapped: false };
@@ -5316,13 +5325,26 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // Long axis along +x, headboard at x≈0.05, foot at x=2.05. Width 1.00 m
       // in z, centered on the bi-fold closet doors (z=[0.85, 1.85]).
       // Mattress 0.20 m thick, frame 0.30 m above floor.
+      //
+      // Intentional overlap with the bi-fold closet doors (closet bi-fold
+      // panel sits at x≈0.043, bed headboard back-face at x=0.05): the bed
+      // nestles in front of the closet so the doors could not actually open
+      // without moving the bed. This matches the real staging visible in
+      // `corner-closet-entrance/01`. Per the "photos win over functional
+      // concerns" rule, don't reposition the bed to "free" the doors.
       const bX0 = 0.05, bX1 = 2.05;
       const bZ0 = 0.85, bZ1 = 1.85;
       const FRAME_Y_BOT = 0.30, MAT_TOP = 0.50;
       const mBox = { x1: bX0, x2: bX1, z1: bZ0, z2: bZ1 };
       {
-        const matIron = new THREE.MeshStandardMaterial({ color: 0xfafaf4, roughness: 0.45, metalness: 0.25 });
-        const matMattress = new THREE.MeshStandardMaterial({ color: 0xf5eedd, roughness: 0.95 });
+        // Bed iron: Cycles-baked white_iron PBR (painted white iron with
+        // subtle brushed grain + paint mottling). metalness 0.25 keeps the
+        // painted appearance (lower than raw metal). Unique to room-2 — the
+        // only sandbox with white iron bed.
+        const matIron = pbrFromBase('ozu-test/room-1-textures/bed/white_iron/white_iron', 1, 1, { metalness: 0.25 });
+        // Mattress: Cycles-baked cream_cotton PBR (tight cream cotton weave).
+        // Shared across all 4 room sandboxes.
+        const matMattress = pbrFromBase('ozu-test/room-1-textures/mattress/cream_cotton/cream_cotton', 2, 2);
         // Mattress (BoxGeometry with rounded edges).
         const mattress = new THREE.Mesh(
           new RoundedBoxGeometry(bX1 - bX0, MAT_TOP - FRAME_Y_BOT, bZ1 - bZ0, 2, 0.015),
@@ -5649,7 +5671,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // positioned near corner-ac-window (x=[1.60, 2.40]).
       {
         const acX0 = 1.60, acX1 = 2.40, acY0 = 1.95, acY1 = 2.20;
-        const matAC = new THREE.MeshStandardMaterial({ color: 0xf5f4ef, roughness: 0.55 });
+        // AC body: Cycles-baked abs_plastic PBR (smooth white ABS with subtle
+        // injection-mold micro-grain). Shared across all 4 rooms.
+        const matAC = pbrFromBase('ozu-test/room-1-textures/ac/abs/abs', 1, 1);
         const matACDark = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 0.7 });
         // Main body.
         feat('z', RD, -1, { a1: acX0, a2: acX1, b1: acY0, b2: acY1 }, matAC);
@@ -5871,8 +5895,12 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
   //   - Iron-frame bed with DARK iron rails + DARK WOOD HEADBOARD INSET
   //   - GREY accent pillow (not pink, not grey-velour)
   //   - Rattan/woven pendant ceiling light (single shade, not 4-spot cluster)
-  //   - 3-camera sweep (not 4) — corner-closet-window (SW) skipped; bed-head
-  //     against window-wall + closet-wall blocks tripod placement there.
+  //   - 3-camera sweep (not 4) — corner-closet-window (SW) is INTENTIONALLY
+  //     skipped, NOT a missing photo set. The bed-head sits in the SW corner
+  //     against window-wall + closet-wall and physically blocks tripod
+  //     placement there. Only 3 corner-* folders exist on disk for room-3:
+  //     corner-frosted-window, corner-closet-entrance, corner-entrance-frosted.
+  //     Don't add a 4th chip / viewpoint for the absent corner.
   // Window-wall faces SOUTH at 11 AM JST → direct warm sun streams in.
   registerScene('room-3', {
     orbitPos: new THREE.Vector3(6.5, 4.5, 7.5),
@@ -5954,56 +5982,32 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
         return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
       }
-      const ceilTexR3 = (() => {
-        const cvs = document.createElement('canvas');
-        cvs.width = 1024; cvs.height = 1024;
-        const ctx = cvs.getContext('2d');
-        ctx.fillStyle = '#e8dfcf';
-        ctx.fillRect(0, 0, 1024, 1024);
-        let s = 31;  // distinct seed from room-1 (13) and room-2 (23)
-        const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-        const planks = 9, ph = 1024 / planks;
-        for (let i = 0; i < planks; i++) {
-          const weather = rnd() < 0.25;
-          const shade = weather ? -55 : (rnd() - 0.5) * 26;
-          const r = Math.max(0, (232 + shade) | 0);
-          const g = Math.max(0, (223 + shade) | 0);
-          const b = Math.max(0, (207 + shade) | 0);
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.fillRect(0, i * ph, 1024, ph);
-          ctx.fillStyle = 'rgba(45,30,18,0.55)';
-          ctx.fillRect(0, i * ph, 1024, 2);
-          ctx.lineWidth = 1;
-          for (let j = 0; j < 80; j++) {
-            ctx.strokeStyle = `rgba(60,40,22,${0.10 + rnd() * 0.10})`;
-            const y = i * ph + rnd() * ph;
-            const x1 = rnd() * 1024;
-            const x2 = x1 + 60 + rnd() * 220;
-            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y + (rnd() - 0.5) * 3); ctx.stroke();
-          }
-          const nKnots = (rnd() * 3) | 0;
-          for (let k = 0; k < nKnots; k++) {
-            const kx = rnd() * 1024;
-            const ky = i * ph + ph * (0.3 + rnd() * 0.4);
-            const kr = 7 + rnd() * 12;
-            const g1 = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
-            g1.addColorStop(0, 'rgba(60,38,20,0.85)');
-            g1.addColorStop(0.6, 'rgba(75,52,28,0.4)');
-            g1.addColorStop(1, 'rgba(90,65,40,0)');
-            ctx.fillStyle = g1;
-            ctx.beginPath(); ctx.ellipse(kx, ky, kr, kr * 0.65, 0, 0, Math.PI * 2); ctx.fill();
-          }
+      // pbrFromBase — for Cycles-baked materials (4 PNGs per material).
+      function pbrFromBase(base, repU, repV, extras = {}) {
+        const loader = new THREE.TextureLoader();
+        const map = loader.load(`${base}_albedo.png`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        const normalMap = loader.load(`${base}_normal.png`);
+        const roughnessMap = loader.load(`${base}_roughness.png`);
+        const aoMap = loader.load(`${base}_ao.png`);
+        const aniso = renderer.capabilities.getMaxAnisotropy();
+        for (const t of [map, normalMap, roughnessMap, aoMap]) {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(repU, repV);
+          t.anisotropy = aniso;
         }
-        const tex = new THREE.CanvasTexture(cvs);
-        tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        tex.generateMipmaps = false;
-        tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
-        return tex;
-      })();
-      ceilTexR3.repeat.set(RW / 1.8, RD / 1.8);
+        return new THREE.MeshStandardMaterial({
+          map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
+        });
+      }
+      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake (see
+      // bake_room1_ceiling.py). Photo-identical across all 4 rooms.
       const matFloorR3 = pbrMatR3('wood_floor', RW / 1.7, RD / 1.7, { roughness: 0.7 });
-      const matCeilR3  = new THREE.MeshStandardMaterial({ map: ceilTexR3, roughness: 0.85 });
+      const matCeilR3  = pbrFromBase(
+        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
+        RW / 1.35, RD / 1.35,
+      );
       const wallPaintArgs = { color: COL.wall, toneMapped: false };
       const matWall_x0 = new THREE.MeshBasicMaterial(wallPaintArgs);  // closet-wall
       const matWall_xW = new THREE.MeshBasicMaterial(wallPaintArgs);  // frosted-wall
@@ -6252,7 +6256,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // x=[0.20, 0.90], y=[1.85, 2.10] — left end of window-wall above the sill.
       {
         const acX0 = 0.20, acX1 = 0.90, acY0 = 1.85, acY1 = 2.10;
-        const matAC = new THREE.MeshStandardMaterial({ color: 0xf5f4ef, roughness: 0.55 });
+        // AC body: Cycles-baked abs_plastic PBR (smooth white ABS with subtle
+        // injection-mold micro-grain). Shared across all 4 rooms.
+        const matAC = pbrFromBase('ozu-test/room-1-textures/ac/abs/abs', 1, 1);
         const matACDark = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 0.7 });
         feat('z', RD, -1, { a1: acX0, a2: acX1, b1: acY0, b2: acY1 }, matAC);
         feat('z', RD, -1, { a1: acX0 + 0.04, a2: acX1 - 0.04, b1: acY0 - 0.012, b2: acY0 + 0.005 }, matACDark);
@@ -6271,9 +6277,12 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       const bX0 = 0.85, bX1 = 1.85, bZ0 = 1.60, bZ1 = 3.55;
       const FRAME_Y_BOT = 0.30, MAT_TOP = 0.50;
       {
-        const matIron = new THREE.MeshStandardMaterial({ color: COL.ironDark, roughness: 0.45, metalness: 0.4 });
+        // Bed iron: Cycles-baked black_iron PBR (originally baked for the
+        // shelf in this room). Shared with room-1 and room-4 beds.
+        const matIron = pbrFromBase('ozu-test/room-3-textures/shelf/black_iron/black_iron', 1, 1, { metalness: 0.4 });
         const matWoodInset = new THREE.MeshStandardMaterial({ color: COL.woodDark, roughness: 0.7 });
-        const matMattress = new THREE.MeshStandardMaterial({ color: 0xf5eedd, roughness: 0.95 });
+        // Mattress: Cycles-baked cream_cotton PBR (shared across 4 rooms).
+        const matMattress = pbrFromBase('ozu-test/room-1-textures/mattress/cream_cotton/cream_cotton', 2, 2);
         // Mattress.
         const mattress = new THREE.Mesh(
           new RoundedBoxGeometry(bX1 - bX0, MAT_TOP - FRAME_Y_BOT, bZ1 - bZ0, 2, 0.015),
@@ -6615,8 +6624,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
   //     foot at S (window-wall side) — opposite of room-3.
   //   - 4-camera sweep (corner-frosted-entrance, corner-closet-entrance,
   //     corner-frosted-window, corner-closet-window) — no skipped corner.
-  //   - Ceiling fixture not clearly visible in photos — using a simple
-  //     flush-mount round fixture as a placeholder pending phase-D confirm.
+  //   - Ceiling fixture: 4-cone spotlight cluster on wood + crossbar with
+  //     central black hub + pull-chain — identical to room-2's fixture.
+  //     Photo-confirmed from corner-closet-window/05 (mid-sweep frame).
   registerScene('room-4', {
     orbitPos: new THREE.Vector3(6.5, 4.5, 7.5),
     orbitTarget: new THREE.Vector3(1.35, 1.0, 1.80),
@@ -6697,56 +6707,32 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
         return new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, ...extras });
       }
-      const ceilTexR4 = (() => {
-        const cvs = document.createElement('canvas');
-        cvs.width = 1024; cvs.height = 1024;
-        const ctx = cvs.getContext('2d');
-        ctx.fillStyle = '#e8dfcf';
-        ctx.fillRect(0, 0, 1024, 1024);
-        let s = 41;  // distinct seed
-        const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-        const planks = 9, ph = 1024 / planks;
-        for (let i = 0; i < planks; i++) {
-          const weather = rnd() < 0.25;
-          const shade = weather ? -55 : (rnd() - 0.5) * 26;
-          const r = Math.max(0, (232 + shade) | 0);
-          const g = Math.max(0, (223 + shade) | 0);
-          const b = Math.max(0, (207 + shade) | 0);
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.fillRect(0, i * ph, 1024, ph);
-          ctx.fillStyle = 'rgba(45,30,18,0.55)';
-          ctx.fillRect(0, i * ph, 1024, 2);
-          ctx.lineWidth = 1;
-          for (let j = 0; j < 80; j++) {
-            ctx.strokeStyle = `rgba(60,40,22,${0.10 + rnd() * 0.10})`;
-            const y = i * ph + rnd() * ph;
-            const x1 = rnd() * 1024;
-            const x2 = x1 + 60 + rnd() * 220;
-            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y + (rnd() - 0.5) * 3); ctx.stroke();
-          }
-          const nKnots = (rnd() * 3) | 0;
-          for (let k = 0; k < nKnots; k++) {
-            const kx = rnd() * 1024;
-            const ky = i * ph + ph * (0.3 + rnd() * 0.4);
-            const kr = 7 + rnd() * 12;
-            const g1 = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
-            g1.addColorStop(0, 'rgba(60,38,20,0.85)');
-            g1.addColorStop(0.6, 'rgba(75,52,28,0.4)');
-            g1.addColorStop(1, 'rgba(90,65,40,0)');
-            ctx.fillStyle = g1;
-            ctx.beginPath(); ctx.ellipse(kx, ky, kr, kr * 0.65, 0, 0, Math.PI * 2); ctx.fill();
-          }
+      // pbrFromBase — for Cycles-baked materials (4 PNGs per material).
+      function pbrFromBase(base, repU, repV, extras = {}) {
+        const loader = new THREE.TextureLoader();
+        const map = loader.load(`${base}_albedo.png`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        const normalMap = loader.load(`${base}_normal.png`);
+        const roughnessMap = loader.load(`${base}_roughness.png`);
+        const aoMap = loader.load(`${base}_ao.png`);
+        const aniso = renderer.capabilities.getMaxAnisotropy();
+        for (const t of [map, normalMap, roughnessMap, aoMap]) {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(repU, repV);
+          t.anisotropy = aniso;
         }
-        const tex = new THREE.CanvasTexture(cvs);
-        tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        tex.generateMipmaps = false;
-        tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
-        return tex;
-      })();
-      ceilTexR4.repeat.set(RW / 1.8, RD / 1.8);
+        return new THREE.MeshStandardMaterial({
+          map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
+        });
+      }
+      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake (see
+      // bake_room1_ceiling.py). Photo-identical across all 4 rooms.
       const matFloorR4 = pbrMatR4('wood_floor', RW / 1.7, RD / 1.7, { roughness: 0.7 });
-      const matCeilR4  = new THREE.MeshStandardMaterial({ map: ceilTexR4, roughness: 0.85 });
+      const matCeilR4  = pbrFromBase(
+        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
+        RW / 1.35, RD / 1.35,
+      );
       const wallPaintArgs = { color: COL.wall, toneMapped: false };
       const matWall_x0 = new THREE.MeshBasicMaterial(wallPaintArgs);  // frosted-wall
       const matWall_xW = new THREE.MeshBasicMaterial(wallPaintArgs);  // closet-wall
@@ -6984,7 +6970,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // ---- AC unit on window-wall (z=RD), near corner-frosted-window (x=small) ----
       {
         const acX0 = 0.20, acX1 = 0.90, acY0 = 1.85, acY1 = 2.10;
-        const matAC = new THREE.MeshStandardMaterial({ color: 0xf5f4ef, roughness: 0.55 });
+        // AC body: Cycles-baked abs_plastic PBR (smooth white ABS with subtle
+        // injection-mold micro-grain). Shared across all 4 rooms.
+        const matAC = pbrFromBase('ozu-test/room-1-textures/ac/abs/abs', 1, 1);
         const matACDark = new THREE.MeshStandardMaterial({ color: 0x9a9a92, roughness: 0.7 });
         feat('z', RD, -1, { a1: acX0, a2: acX1, b1: acY0, b2: acY1 }, matAC);
         feat('z', RD, -1, { a1: acX0 + 0.04, a2: acX1 - 0.04, b1: acY0 - 0.012, b2: acY0 + 0.005 }, matACDark);
@@ -7097,8 +7085,11 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       const bX0 = 0.85, bX1 = 1.85, bZ0 = 0.30, bZ1 = 2.30;
       const FRAME_Y_BOT = 0.30, MAT_TOP = 0.50;
       {
-        const matIron = new THREE.MeshStandardMaterial({ color: COL.ironDark, roughness: 0.45, metalness: 0.4 });
-        const matMattress = new THREE.MeshStandardMaterial({ color: 0xf5eedd, roughness: 0.95 });
+        // Bed iron: Cycles-baked black_iron PBR (originally for room-3 shelf).
+        // Shared with room-1 and room-3 beds.
+        const matIron = pbrFromBase('ozu-test/room-3-textures/shelf/black_iron/black_iron', 1, 1, { metalness: 0.4 });
+        // Mattress: Cycles-baked cream_cotton PBR (shared across 4 rooms).
+        const matMattress = pbrFromBase('ozu-test/room-1-textures/mattress/cream_cotton/cream_cotton', 2, 2);
         const mattress = new THREE.Mesh(
           new RoundedBoxGeometry(bX1 - bX0, MAT_TOP - FRAME_Y_BOT, bZ1 - bZ0, 2, 0.015),
           matMattress
@@ -7214,35 +7205,75 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // Ceiling fixture — simple flush-mount placeholder
+      // Ceiling fixture — 4-cone spotlight cluster on wood + crossbar
       // ============================================================
-      // Photos didn't clearly show the room-4 ceiling fixture, so this is a
-      // generic white round flush-mount with a warm bulb. Replace in QA pass
-      // once a clearer reference frame is identified.
+      // Photo-confirmed from corner-closet-window/05 (mid-sweep frame):
+      // identical fixture to room-2's. Wood + crossbar (+ shape), central
+      // black hub, 4 dark cone shades pointing down/outward, pull-chain.
+      // Same construction pattern as room-2's spotlight cluster.
       {
-        const cX = RW/2, cZ = RD/2, ceilY = RH - 0.015;
-        const matCase = new THREE.MeshStandardMaterial({ color: 0xf5f4ef, roughness: 0.55 });
+        const cX = RW / 2, cZ = RD / 2, ceilY = RH - 0.015;
+        const matWood = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.55 });
+        const matBlack = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
         const matBulb = new THREE.MeshStandardMaterial({
-          color: 0xfff4e0, emissive: 0xfff4e0, emissiveIntensity: 1.0,
+          color: 0xfff4e0, emissive: 0xfff4e0, emissiveIntensity: 1.2,
         });
-        const cover = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.18, 0.20, 0.06, 24),
-          matCase
+        const matChain = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.7, roughness: 0.4 });
+        const armLen = 0.50;
+        // Crossbar — 2 perpendicular boxes (+ shape), wood color.
+        const arm1 = new THREE.Mesh(new THREE.BoxGeometry(armLen, 0.04, 0.06), matWood);
+        arm1.position.set(cX, ceilY - 0.05, cZ);
+        S.group.add(arm1);
+        const arm2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, armLen), matWood);
+        arm2.position.set(cX, ceilY - 0.05, cZ);
+        S.group.add(arm2);
+        // Central hub.
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 16), matBlack);
+        hub.position.set(cX, ceilY - 0.10, cZ);
+        S.group.add(hub);
+        // 4 dark cone shades at the ends of the 4 arms.
+        const lampMaterial = new THREE.MeshStandardMaterial({
+          color: 0x2a2520, roughness: 0.6, metalness: 0.1,
+          emissive: 0x1a1410, emissiveIntensity: 0.0,
+        });
+        const bulbMaterial = matBulb;
+        const lampPointLights = [];
+        const shadeOffsets = [
+          [ armLen/2 - 0.05, 0],
+          [-armLen/2 + 0.05, 0],
+          [0,  armLen/2 - 0.05],
+          [0, -armLen/2 + 0.05],
+        ];
+        for (const [ox, oz] of shadeOffsets) {
+          const sx = cX + ox, sz = cZ + oz;
+          const shadeY = ceilY - 0.18;
+          const shade = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.045, 0.080, 0.12, 18, 1, true),
+            lampMaterial
+          );
+          shade.position.set(sx, shadeY, sz);
+          S.group.add(shade);
+          const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 14, 10), bulbMaterial);
+          bulb.position.set(sx, shadeY - 0.04, sz);
+          S.group.add(bulb);
+          const pl = new THREE.PointLight(0xffb16e, 0, 0, 2);
+          pl.position.set(sx, shadeY - 0.05, sz);
+          S.group.add(pl);
+          lampPointLights.push(pl);
+        }
+        // Pull-chain hanging from hub.
+        const chain = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.002, 0.002, 0.40, 6),
+          matChain
         );
-        cover.position.set(cX, ceilY - 0.03, cZ);
-        S.group.add(cover);
-        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), matBulb);
-        bulb.position.set(cX, ceilY - 0.10, cZ);
-        S.group.add(bulb);
-        const pl = new THREE.PointLight(0xffd9a0, 1.3, 0, 2);
-        pl.position.set(cX, ceilY - 0.12, cZ);
-        S.group.add(pl);
-        S.lampMaterial = matCase;
-        S.bulbMaterial = matBulb;
-        S.lampOnIntensity = 0.3;
-        S.bulbOnIntensity = 1.0;
-        S.lampPointOnIntensity = 1.3;
-        S.lampPointLights = [pl];
+        chain.position.set(cX + 0.04, ceilY - 0.30, cZ);
+        S.group.add(chain);
+        S.lampMaterial = lampMaterial;
+        S.bulbMaterial = bulbMaterial;
+        S.lampOnIntensity = 1.0;
+        S.bulbOnIntensity = 1.5;
+        S.lampPointOnIntensity = 1.2;
+        S.lampPointLights = lampPointLights;
         S.lampsOn = true;
       }
 
@@ -7886,7 +7917,11 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       const on = S.lampsOn !== false;
       lightsBtn.classList.toggle('active', on);
       lightsBtn.setAttribute('aria-pressed', String(on));
-      if (S.lampMaterial) S.lampMaterial.emissiveIntensity = on ? S.lampOnIntensity : 0;
+      // Linen shade keeps a small baseline emissive even when lights are off
+      // so the shade interior (visible through the open bottom from below)
+      // reads as soft cream fabric instead of a black void. Real-life
+      // lampshades in daylight look like soft glowing cream too.
+      if (S.lampMaterial) S.lampMaterial.emissiveIntensity = on ? S.lampOnIntensity : (S.lampOffIntensity ?? 0);
       if (S.bulbMaterial) S.bulbMaterial.emissiveIntensity = on ? S.bulbOnIntensity : 0;
       if (S.lampPointLights) for (const pl of S.lampPointLights) pl.intensity = on ? S.lampPointOnIntensity : 0;
       if (_room1Bloom) _room1Bloom.enabled = on;
@@ -7903,7 +7938,7 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
     const S = scenes[activeScene];
     if (!S || !S.lampMaterial) return;
     S.lampsOn = !S.lampsOn;
-    S.lampMaterial.emissiveIntensity = S.lampsOn ? S.lampOnIntensity : 0;
+    S.lampMaterial.emissiveIntensity = S.lampsOn ? S.lampOnIntensity : (S.lampOffIntensity ?? 0);
     if (S.bulbMaterial) S.bulbMaterial.emissiveIntensity = S.lampsOn ? S.bulbOnIntensity : 0;
     if (S.lampPointLights) for (const pl of S.lampPointLights) pl.intensity = S.lampsOn ? S.lampPointOnIntensity : 0;
     // Bloom is room-1-only for now; room-2 doesn't have a bloom composer.
