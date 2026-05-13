@@ -1,0 +1,53 @@
+00:00.472  cycles           | WARNING HIPEW initialization failed: Error opening HIP dynamic library
+/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py:221: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py:362: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  mat.use_nodes = True
+/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py:344: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  mat.use_nodes = True
+Blender 5.1.1 (hash b70da489d7f4 built 2026-04-14 01:31:31)
+=== living-dining-test (LDK) LIGHTMAP bake start ===
+  res=1024, samples=512
+  output: /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap
+=== Cycles devices ===
+  device: NVIDIA RTX A6000  type=OPTIX  use=True
+  device: AMD Ryzen Threadripper 3990X 64-Core Processor  type=CPU  use=False
+  device: NVIDIA RTX A6000  type=CUDA  use=False
+Built 17 bake-target surfaces.
+  baking floor_east -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/floor_east.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking floor_south -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/floor_south.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking ceiling_east -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/ceiling_east.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking ceiling_south -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/ceiling_south.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking garden_wall_left -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/garden_wall_left.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking garden_wall_right -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/garden_wall_right.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking brick_wall -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/brick_wall.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking kitchen_wall_west -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/kitchen_wall_west.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking kitchen_wall_above_door -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/kitchen_wall_above_door.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking kitchen_wall_mid -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/kitchen_wall_mid.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking kitchen_wall_below_pt -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/kitchen_wall_below_pt.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking kitchen_wall_above_pt -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/kitchen_wall_above_pt.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking kitchen_wall_east -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/kitchen_wall_east.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking alcove_brick -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/alcove_brick.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking stairs_wall -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/stairs_wall.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking stairwell_part_south -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/stairwell_part_south.png
+Info: Baking map saved to internal image, save it externally or pack it
+  baking stairwell_part_east -> /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap/stairwell_part_east.png
+Info: Baking map saved to internal image, save it externally or pack it
+=== living-dining-test (LDK) LIGHTMAP bake done ===
+
+Blender quit

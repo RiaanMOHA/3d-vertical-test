@@ -1,0 +1,3307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<title>living-dining-test — 3D projects</title>
+<style>
+  :root {
+    --hotspot-surface: rgba(255, 255, 255, 0.92);
+    --hotspot-text-primary: #000000;
+    --hotspot-text-secondary: rgba(60, 60, 67, 0.6);
+    --hotspot-separator: rgba(60, 60, 67, 0.18);
+    --hotspot-tint: #007AFF;
+    --hotspot-scrim: rgba(0, 0, 0, 0.4);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --hotspot-surface: rgba(28, 28, 30, 0.92);
+      --hotspot-text-primary: #ffffff;
+      --hotspot-text-secondary: rgba(235, 235, 245, 0.6);
+      --hotspot-separator: rgba(84, 84, 88, 0.65);
+      --hotspot-tint: #0A84FF;
+      --hotspot-scrim: rgba(0, 0, 0, 0.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #back-link {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: rgba(28,28,30,0.78);
+    color: #fff; text-decoration: none;
+    font-size: 20px; line-height: 1;
+    border: 1px solid rgba(255,255,255,0.16);
+    z-index: 100;
+  }
+  #hint {
+    position: absolute;
+    left: 50%; top: calc(14px + var(--safe-top));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 120px - var(--safe-left) - var(--safe-right));
+    padding: 8px 14px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    font-size: 12px; line-height: 1.3;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    pointer-events: none;
+    z-index: 90;
+  }
+  #hotspots-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+  .hotspot {
+    position: absolute; left: 0; top: 0;
+    width: 44px; height: 44px;
+    padding: 0; border: 0; margin: 0;
+    background: transparent; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    pointer-events: auto;
+    will-change: transform;
+  }
+  .hotspot__dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--hotspot-tint);
+    box-shadow:
+      0 0 0 3px rgba(255,255,255,0.85),
+      0 2px 6px rgba(0,0,0,0.35);
+    animation: hotspot-pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes hotspot-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(0.85); opacity: 0.7; }
+  }
+  #popover-scrim {
+    position: fixed; inset: 0;
+    background: var(--hotspot-scrim);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    display: none;
+  }
+  #popover-scrim.open { display: block; }
+  #popover {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(380px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: var(--hotspot-surface);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 14px;
+    color: var(--hotspot-text-primary);
+    z-index: 210;
+    display: none;
+    padding: 18px;
+  }
+  #popover.open { display: block; }
+  #popover h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  #popover .meta { font-size: 12px; color: var(--hotspot-text-secondary); margin-bottom: 12px; }
+  #popover dl { margin: 0; }
+  #popover dt { font-size: 11px; color: var(--hotspot-text-secondary); margin-top: 8px; text-transform: none; }
+  #popover dd { margin: 2px 0 0; font-size: 13px; }
+  #popover .actions { display: flex; gap: 8px; margin-top: 16px; }
+  #popover .btn {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--hotspot-separator);
+    background: transparent;
+    color: var(--hotspot-text-primary);
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    text-align: center;
+  }
+  #popover .btn.primary {
+    background: var(--hotspot-tint);
+    color: #fff;
+    border-color: transparent;
+  }
+</style>
+</head>
+<body>
+<a id="back-link" href="index.html" aria-label="back">←</a>
+<div id="hint">click a dot · drag to orbit · wheel to zoom</div>
+<div id="app"></div>
+<div id="hotspots-layer"></div>
+<div id="popover-scrim"></div>
+<div id="popover" role="dialog" aria-modal="true">
+  <h2 id="pv-name"></h2>
+  <div class="meta" id="pv-meta"></div>
+  <dl id="pv-spec"></dl>
+  <div class="actions">
+    <a class="btn" id="pv-ref" target="_blank" rel="noopener">spec</a>
+    <button class="btn primary" id="pv-close">close</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.min.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { HDRLoader }                from './vendor/three/examples/jsm/loaders/HDRLoader.js';
+import { RoundedBoxGeometry }       from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import { EffectComposer }           from './vendor/three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }               from './vendor/three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass }          from './vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass }               from './vendor/three/examples/jsm/postprocessing/OutputPass.js';
+RectAreaLightUniformsLib.init();
+
+/* ====================================================================== */
+/* LDK (Living-Dining-Kitchen) — full-room reconstruction sandbox.        */
+/*                                                                         */
+/* Coords: +X east, +Y up, +Z north (recipe convention).                  */
+/* Walls (feature-named per ozu-test/interior-images/living-dining/        */
+/* room-map.md):                                                           */
+/*   garden-wall   — south (z=0)        EXTERIOR — 2 sliding glass doors  */
+/*   kitchen-wall  — north (z=ROOM_D)   INTERIOR — counter pass + entry   */
+/*   stairs-wall   — west  (x=0)        EXTERIOR — open stair at NW       */
+/*   brick-wall    — east  (x=ROOM_W)   EXTERIOR — full brick + 1 window  */
+/*                                                                         */
+/* Lighting follows the CLAUDE.md Kumamoto / sunny spring / 11 AM JST     */
+/* rule (sun azimuth ≈ 160°, elevation ≈ 60°). Garden-wall = south =      */
+/* direct sun. Brick-wall = east = oblique morning sun.                   */
+/* ====================================================================== */
+
+const ROOM_W = 6.30;   // E-W (along +X) — long axis
+const ROOM_D = 4.50;   // N-S (along +Z)
+const ROOM_H = 2.50;   // up   (along +Y)
+const WALL_T = 0.05;
+
+/* ====================================================================== */
+/* Renderer + Scene + Camera                                              */
+/* ====================================================================== */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.68;        /* Kumamoto 11 AM clear sky — recipe sweet spot */
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0e10);
+
+/* Camera placed in the LIVING zone (south-west half), seated eye-level,
+ * looking northeast toward the TV / dining area. */
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 60);
+camera.position.set(1.40, 1.45, 1.40);
+camera.lookAt(3.80, 1.20, 3.20);
+
+/* ====================================================================== */
+/* Inline OrbitControls — Mac-trackpad phantom-zoom guard                 */
+/* ====================================================================== */
+class OrbitControls {
+  constructor(cam, el) {
+    this.cam = cam; this.el = el;
+    this.target = new THREE.Vector3(3.80, 1.20, 3.20);
+    this.spherical = new THREE.Spherical();
+    this.minDistance = 0.40; this.maxDistance = 12.0;
+    this.minPolar = 0.10; this.maxPolar = Math.PI * 0.49;
+    this._dragging = false; this._lastMouseupAt = 0;
+    this._x0 = 0; this._y0 = 0;
+    this._update();
+    el.addEventListener('mousedown', e => this._down(e));
+    el.addEventListener('wheel', e => this._wheel(e), { passive: false });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('mousemove', e => this._move(e));
+    window.addEventListener('mouseup', () => this._up());
+    /* Touch */
+    el.addEventListener('touchstart', e => this._tdown(e), { passive: false });
+    el.addEventListener('touchmove',  e => this._tmove(e), { passive: false });
+    el.addEventListener('touchend',   () => this._tup());
+  }
+  _down(e) { this._dragging = true; this._x0 = e.clientX; this._y0 = e.clientY; }
+  _up()    { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _move(e) {
+    if (!this._dragging) return;
+    const dx = e.clientX - this._x0, dy = e.clientY - this._y0;
+    this._x0 = e.clientX; this._y0 = e.clientY;
+    this.spherical.theta -= dx * 0.005;
+    this.spherical.phi   -= dy * 0.005;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _wheel(e) {
+    /* Block wheel during drag and 400 ms post-mouseup (Mac trackpad guard) */
+    if (this._dragging) return;
+    if (performance.now() - this._lastMouseupAt < 400) return;
+    e.preventDefault();
+    const f = Math.exp(e.deltaY * 0.0015);
+    this.spherical.radius *= f;
+    this.spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.spherical.radius));
+    this._update();
+  }
+  _tdown(e) { if (e.touches.length === 1) { this._dragging = true; this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY; } }
+  _tmove(e) {
+    if (!this._dragging || e.touches.length !== 1) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - this._x0, dy = e.touches[0].clientY - this._y0;
+    this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY;
+    this.spherical.theta -= dx * 0.006;
+    this.spherical.phi   -= dy * 0.006;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _tup() { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _update() {
+    const offset = new THREE.Vector3().subVectors(this.cam.position, this.target);
+    if (this.spherical.radius === 0) {
+      this.spherical.setFromVector3(offset);
+    } else {
+      offset.setFromSpherical(this.spherical);
+    }
+    this.cam.position.copy(this.target).add(offset);
+    this.cam.lookAt(this.target);
+  }
+}
+const controls = new OrbitControls(camera, renderer.domElement);
+
+/* ====================================================================== */
+/* HDRI for IBL — kloppenheim puresky, filtered through PMREM.            */
+/* environmentRotation aligns the HDRI sun zone with world azimuth 160°.  */
+/* ====================================================================== */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+
+new HDRLoader().load('ozu-test/hdri/kloppenheim_06_puresky_2k.hdr', (hdr) => {
+  const envMap = pmrem.fromEquirectangular(hdr).texture;
+  scene.environment = envMap;
+  scene.environmentIntensity = 0.60;
+  scene.environmentRotation = new THREE.Euler(0, 0.80, 0);
+  hdr.dispose();
+});
+
+/* ====================================================================== */
+/* Hemisphere fill — Kumamoto clear-spring sky bias.                      */
+/* ====================================================================== */
+scene.add(new THREE.HemisphereLight(0xc8d6e8, 0xa89878, 0.55));
+
+/* ====================================================================== */
+/* Texture helpers (parity with laundry-test).                            */
+/* ====================================================================== */
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+function makeCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return c;
+}
+
+function texFromCanvas(canvas, opts = {}) {
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (opts.repeat) t.repeat.set(opts.repeat[0], opts.repeat[1]);
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+
+function cloneTex(tex, rx, ry, ox = 0, oy = 0) {
+  const c = tex.clone();
+  c.needsUpdate = true;
+  c.repeat.set(rx, ry);
+  c.offset.set(ox, oy);
+  c.anisotropy = MAX_ANISO;
+  return c;
+}
+
+function deriveNormalFromCanvas(canvas, strength = 1.0) {
+  const w = canvas.width, h = canvas.height;
+  const ctx2 = canvas.getContext('2d');
+  const src = ctx2.getImageData(0, 0, w, h).data;
+  const dst = new Uint8ClampedArray(w * h * 4);
+  const lum = (i) => 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const xL = (x - 1 + w) % w, xR = (x + 1) % w;
+      const yU = (y - 1 + h) % h, yD = (y + 1) % h;
+      const dx = (lum((y * w + xR) * 4) - lum((y * w + xL) * 4)) * strength;
+      const dy = (lum((yD * w + x) * 4) - lum((yU * w + x) * 4)) * strength;
+      const nx = -dx, ny = -dy, nz = 255;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      dst[i]     = (nx / len) * 127 + 128;
+      dst[i + 1] = (ny / len) * 127 + 128;
+      dst[i + 2] = (nz / len) * 127 + 128;
+      dst[i + 3] = 255;
+    }
+  }
+  const out = makeCanvas(w, h);
+  out.getContext('2d').putImageData(new ImageData(dst, w, h), 0, 0);
+  const t = new THREE.CanvasTexture(out);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+
+/* ====================================================================== */
+/* Lightmap loader (placeholder — bake PNGs land in                       */
+/* living-dining-test/textures/lightmap/<slug>.png after Phase 7).        */
+/* ====================================================================== */
+function loadLightmap(slug, opts = {}) {
+  const tex = new THREE.TextureLoader().load(`living-dining-test/textures/lightmap/${slug}.png`);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.channel = opts.channel ?? 0;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.anisotropy = MAX_ANISO;
+  const rx = opts.flipU ? -1 : 1;
+  const ry = opts.flipV ? -1 : 1;
+  tex.repeat.set(rx, ry);
+  tex.offset.set(opts.flipU ? 1 : 0, opts.flipV ? 1 : 0);
+  return tex;
+}
+
+/* Per-mesh UV1 override — see laundry-test.html for the full pattern. */
+function setLightmapUV1(mesh, faceAxis, faceSign, worldToUv) {
+  const pos = mesh.geometry.attributes.position;
+  const norm = mesh.geometry.attributes.normal;
+  const uv1 = new Float32Array(pos.count * 2);
+  const cx = mesh.position.x, cy = mesh.position.y, cz = mesh.position.z;
+  for (let i = 0; i < pos.count; i++) {
+    const n = (faceAxis === 'x' ? norm.getX(i)
+             : faceAxis === 'y' ? norm.getY(i)
+             :                    norm.getZ(i));
+    if (n * faceSign > 0.5) {
+      const wx = pos.getX(i) + cx;
+      const wy = pos.getY(i) + cy;
+      const wz = pos.getZ(i) + cz;
+      const [u, v] = worldToUv(wx, wy, wz);
+      uv1[i * 2]     = u;
+      uv1[i * 2 + 1] = v;
+    } else {
+      uv1[i * 2]     = -1;
+      uv1[i * 2 + 1] = -1;
+    }
+  }
+  mesh.geometry.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
+}
+
+/* ====================================================================== */
+/* Photo-driven canvas textures — paint, brick, whitewashed plank.        */
+/* Floor reuses the Poly Haven laminate_floor_02 PBR set (already         */
+/* downloaded under kitchen-test/textures/).                              */
+/* ====================================================================== */
+
+/* Wall paint — warm grey-beige (lighter / cleaner than laundry-test
+ * taupe; matches the LDK photos: photos in dining/b/01 + dining/c/01
+ * show a fairly clean cream-beige with subtle stipple). */
+const paintCanvas = (() => {
+  const c = makeCanvas(256, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#cdc4b3';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1800; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    const v = 195 + Math.random() * 30;
+    ctx.fillStyle = `rgba(${v},${v - 8},${v - 18},0.06)`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  return c;
+})();
+const paintNormalTex = deriveNormalFromCanvas(paintCanvas, 0.5);
+
+/* Brick — warm red-brown terracotta with white mortar grid, matching the
+ * brick-wall in dining/a/01 + dining/b/01 + living/a/35. Bricks read
+ * narrow & long (Japanese 化粧ブリック / decorative-brick format). */
+const brickCanvas = (() => {
+  const c = makeCanvas(512, 512);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e8e2d4';      /* cream-white mortar */
+  ctx.fillRect(0, 0, 512, 512);
+  const bw = 56, bh = 22, mortar = 3;
+  for (let row = 0; row < 512 / bh + 1; row++) {
+    const offset = (row % 2) * (bw / 2);
+    for (let col = -1; col <= 512 / bw + 1; col++) {
+      const x = col * bw + offset;
+      const y = row * bh;
+      /* Each brick varies between a few warm-earth bands */
+      const baseR = 120 + Math.floor(Math.random() * 38);
+      const baseG = 64  + Math.floor(Math.random() * 22);
+      const baseB = 48  + Math.floor(Math.random() * 18);
+      ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+      ctx.fillRect(x + mortar / 2, y + mortar / 2, bw - mortar, bh - mortar);
+      /* Speckle on each brick — micro variation */
+      for (let i = 0; i < 22; i++) {
+        const sx = x + mortar / 2 + Math.random() * (bw - mortar);
+        const sy = y + mortar / 2 + Math.random() * (bh - mortar);
+        const dv = -22 + Math.random() * 44;
+        const r = Math.max(0, Math.min(255, baseR + dv));
+        const g = Math.max(0, Math.min(255, baseG + dv));
+        const b = Math.max(0, Math.min(255, baseB + dv));
+        ctx.fillStyle = `rgba(${r},${g},${b},0.55)`;
+        ctx.fillRect(sx, sy, 1, 1);
+      }
+    }
+  }
+  return c;
+})();
+const brickNormalTex = deriveNormalFromCanvas(brickCanvas, 1.6);
+
+/* Whitewashed wood-plank ceiling — light cream base, parallel plank
+ * lines, weathered grey streaks. Plank long axis runs along U (which
+ * gets oriented E-W in world via the texture's repeat). */
+const ceilingPlankCanvas = (() => {
+  const c = makeCanvas(512, 512);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e9dfcd';      /* whitewash base */
+  ctx.fillRect(0, 0, 512, 512);
+  /* Plank divisions — 6 horizontal planks across V */
+  const NPLANKS = 6;
+  const plankH = 512 / NPLANKS;
+  for (let p = 0; p < NPLANKS; p++) {
+    const y0 = p * plankH;
+    /* Per-plank base colour */
+    const tint = 215 + Math.floor(Math.random() * 22);
+    ctx.fillStyle = `rgb(${tint},${tint - 10},${tint - 22})`;
+    ctx.fillRect(0, y0 + 1, 512, plankH - 2);
+    /* Weathering streaks running along U (along the plank length) */
+    for (let i = 0; i < 24; i++) {
+      const sy = y0 + 4 + Math.random() * (plankH - 8);
+      const sx = Math.random() * 512;
+      const sw = 40 + Math.random() * 180;
+      const v  = 110 + Math.random() * 80;
+      ctx.fillStyle = `rgba(${v - 30},${v - 38},${v - 52},${0.10 + Math.random() * 0.18})`;
+      ctx.fillRect(sx, sy, sw, 1 + Math.random() * 2);
+    }
+    /* Occasional knot / dark splotch */
+    if (Math.random() < 0.55) {
+      const kx = Math.random() * 512;
+      const ky = y0 + plankH * 0.5;
+      const kr = 6 + Math.random() * 10;
+      const grad = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
+      grad.addColorStop(0,   'rgba(70,52,40,0.55)');
+      grad.addColorStop(1,   'rgba(70,52,40,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(kx, ky, kr, 0, Math.PI * 2); ctx.fill();
+    }
+    /* Plank seam — thin dark line at top */
+    ctx.fillStyle = 'rgba(60,46,34,0.55)';
+    ctx.fillRect(0, y0, 512, 1);
+  }
+  return c;
+})();
+const ceilingPlankNormalTex = deriveNormalFromCanvas(ceilingPlankCanvas, 0.8);
+
+/* Poly Haven floor — reuse the kitchen-test downloaded set */
+const phLoader = new THREE.TextureLoader();
+function phLoad(path, sRGB) {
+  const t = phLoader.load(path);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = sRGB ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.anisotropy = MAX_ANISO;
+  return t;
+}
+const phWoodDiff = phLoad('kitchen-test/textures/laminate_floor_02_diff.jpg',  true);
+const phWoodNor  = phLoad('kitchen-test/textures/laminate_floor_02_nor_gl.jpg', false);
+const phWoodArm  = phLoad('kitchen-test/textures/laminate_floor_02_arm.jpg',    false);
+
+/* ====================================================================== */
+/* Materials — base versions; per-face clones below for the LDK walls so  */
+/* future per-face lightmap PNGs can attach independently (Phase 7 bake). */
+/* ====================================================================== */
+
+/* Wall paint — warm grey-beige; tile 4× across the long walls so the
+ * stipple grain reads at human eye-level. */
+const matWall = new THREE.MeshPhysicalMaterial({
+  map: texFromCanvas(paintCanvas, { repeat: [4, 2] }),
+  normalMap: cloneTex(paintNormalTex, 4, 2),
+  normalScale: new THREE.Vector2(0.18, 0.18),
+  roughness: 0.94, metalness: 0.0, envMapIntensity: 0.30,
+});
+
+/* Brick — full-height east wall coverage; repeat tuned so a real brick
+ * reads ~200 mm wide. Wall is 4.50 m wide × 2.50 m tall → repeat U≈4.5
+ * at canvas brick width 56 px / 512 px ≈ 11 cm per repeat unit. */
+const matBrick = new THREE.MeshPhysicalMaterial({
+  map: texFromCanvas(brickCanvas, { repeat: [4.5, 2.6] }),
+  normalMap: cloneTex(brickNormalTex, 4.5, 2.6),
+  normalScale: new THREE.Vector2(0.6, 0.6),
+  roughness: 0.88, metalness: 0.04, envMapIntensity: 0.35,
+});
+
+/* Light oak floor — Poly Haven laminate_floor_02 (full PBR with ARM packed) */
+const matFloor = (() => {
+  const map    = cloneTex(phWoodDiff, 5.0, 3.5);
+  const normal = cloneTex(phWoodNor,  5.0, 3.5);
+  const arm    = cloneTex(phWoodArm,  5.0, 3.5);
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: normal,
+    normalScale: new THREE.Vector2(0.45, 0.45),
+    roughnessMap: arm, metalnessMap: arm,
+    color: 0xffffff,
+    roughness: 1.0, metalness: 1.0,
+    clearcoat: 0.10, clearcoatRoughness: 0.55,
+    envMapIntensity: 0.45,
+  });
+})();
+
+/* Whitewashed plank ceiling — planks run E-W (along world +X) so the
+ * texture's U axis is mapped to world X via per-mesh UV remap below. */
+const matCeiling = new THREE.MeshPhysicalMaterial({
+  map: texFromCanvas(ceilingPlankCanvas, { repeat: [3.5, 2.0] }),
+  normalMap: cloneTex(ceilingPlankNormalTex, 3.5, 2.0),
+  normalScale: new THREE.Vector2(0.18, 0.18),
+  roughness: 0.92, metalness: 0.0, envMapIntensity: 0.25,
+});
+
+/* Pure-white painted trim (cornice + skirting + future window casings) */
+const matTrim = new THREE.MeshPhysicalMaterial({
+  color: 0xf6f3ec, roughness: 0.55, metalness: 0.0,
+  clearcoat: 0.20, clearcoatRoughness: 0.40,
+  envMapIntensity: 0.50,
+});
+
+/* Per-face material clones — each LDK face gets its own clone so the
+ * Phase 7 bake can plug a different lightmap PNG into each. The garden
+ * + kitchen walls split further because they're fragmented around
+ * openings; each fragment gets its own bake target (see
+ * living-dining-test/bake/bake_room_lightmap.py for the 17 surfaces). */
+const matWallStairs     = matWall.clone();    // west, x=0 → stairs_wall.png
+const matWallGardenL    = matWall.clone();    // south, x=[0, SD1_X1]      → garden_wall_left.png
+const matWallGardenR    = matWall.clone();    // south, x=[SD1_X1, ROOM_W] → garden_wall_right.png
+const matWallKitchen    = matWall.clone();    // north, fallback (un-lightmapped — used for alcove returns / back stub)
+const matWallKitchenWest      = matWall.clone();   // north fragment: stair→corridor   → kitchen_wall_west.png
+const matWallKitchenAboveDoor = matWall.clone();   // north fragment: above corridor    → kitchen_wall_above_door.png
+const matWallKitchenMid       = matWall.clone();   // north fragment: corridor→pass-thru → kitchen_wall_mid.png
+const matWallKitchenBelowPt   = matWall.clone();   // north fragment: counter wall      → kitchen_wall_below_pt.png
+const matWallKitchenAbovePt   = matWall.clone();   // north fragment: bulkhead           → kitchen_wall_above_pt.png
+const matWallKitchenEast      = matWall.clone();   // north fragment: pass-thru→corner   → kitchen_wall_east.png
+const matBrickEast      = matBrick.clone();   // east, x=ROOM_W → brick_wall.png
+const matWallStairwellS = matWall.clone();    // stairwell knee, z=STAIR_Z0 → stairwell_part_south.png
+const matWallStairwellE = matWall.clone();    // stairwell knee, x=STAIR_X1 → stairwell_part_east.png
+const matAlcoveBrick    = matBrick.clone();   // alcove back, z=ALCOVE_Z1 → alcove_brick.png
+const matFloorEast      = matFloor.clone();   // floor east strip → floor_east.png
+const matFloorSouth     = matFloor.clone();   // floor south strip → floor_south.png
+const matCeilingEast    = matCeiling.clone(); // ceiling east slab → ceiling_east.png
+const matCeilingSouth   = matCeiling.clone(); // ceiling south slab → ceiling_south.png
+
+/* ====================================================================== */
+/* PHASE 7 — Lightmap wiring (per-face baked GI from Cycles A6000)        */
+/*                                                                         */
+/* Each material above gets a baked PNG attached + envMapIntensity        */
+/* dampened (the lightmap carries GI, so IBL stops double-counting).      */
+/* All wall/ceiling/back-wall lightmaps use channel:1 + setLightmapUV1    */
+/* below (per-mesh UV1 override). Floor halves use channel:0 + flipV      */
+/* since rotated PlaneGeometry's natural UV doesn't survive setLightmap-  */
+/* UV1's local-coord assumption.                                           */
+/* ====================================================================== */
+const LM_INT     = 1.0;
+const LM_ENV_DAMP = 0.18;        // dampen IBL — lightmap is doing the GI work
+const LM_BRICK_ENV_DAMP = 0.22;  // brick keeps a touch more env sparkle
+
+function applyLightmap(mat, slug, opts = {}) {
+  mat.lightMap = loadLightmap(slug, { channel: opts.channel ?? 1, flipU: opts.flipU, flipV: opts.flipV });
+  mat.lightMapIntensity = LM_INT;
+  mat.envMapIntensity = opts.env ?? LM_ENV_DAMP;
+  mat.needsUpdate = true;
+}
+
+/* Floor halves: PlaneGeometry rotated -π/2, so use channel:0 + flipV
+ * (matches laundry-test's floor pattern). */
+applyLightmap(matFloorEast,  'floor_east',  { channel: 0, flipV: true });
+applyLightmap(matFloorSouth, 'floor_south', { channel: 0, flipV: true });
+
+/* Ceiling slabs: BoxGeometry, use channel:1 + setLightmapUV1 on -Y face. */
+applyLightmap(matCeilingEast,  'ceiling_east');
+applyLightmap(matCeilingSouth, 'ceiling_south');
+
+/* Walls — channel:1 + setLightmapUV1 below, sampled on the visible face. */
+applyLightmap(matWallStairs,     'stairs_wall');
+applyLightmap(matWallGardenL,    'garden_wall_left');
+applyLightmap(matWallGardenR,    'garden_wall_right');
+applyLightmap(matBrickEast,      'brick_wall',           { env: LM_BRICK_ENV_DAMP });
+applyLightmap(matWallStairwellS, 'stairwell_part_south');
+applyLightmap(matWallStairwellE, 'stairwell_part_east');
+applyLightmap(matAlcoveBrick,    'alcove_brick',         { env: LM_BRICK_ENV_DAMP });
+applyLightmap(matWallKitchenWest,      'kitchen_wall_west');
+applyLightmap(matWallKitchenAboveDoor, 'kitchen_wall_above_door');
+applyLightmap(matWallKitchenMid,       'kitchen_wall_mid');
+applyLightmap(matWallKitchenBelowPt,   'kitchen_wall_below_pt');
+applyLightmap(matWallKitchenAbovePt,   'kitchen_wall_above_pt');
+applyLightmap(matWallKitchenEast,      'kitchen_wall_east');
+
+/* worldToUv functions per bake — must match the bake quad's vertex→UV
+ * mapping (see bake_room_lightmap.py). The setLightmapUV1 helper writes
+ * these UVs into the mesh's uv1 channel, with all non-target vertices
+ * clamped to (-1,-1) → ClampToEdgeWrapping hides them. */
+const LM_UV = {
+  ceiling_east:           (x, y, z) => [(x - STAIR_X1) / (ROOM_W - STAIR_X1), z / ROOM_D],
+  ceiling_south:          (x, y, z) => [x / STAIR_X1,                          z / STAIR_Z0],
+  stairs_wall:            (x, y, z) => [(ROOM_D - z) / ROOM_D,                 y / ROOM_H],
+  garden_wall_left:       (x, y, z) => [(SD1_X1 - x) / SD1_X1,                 y / ROOM_H],
+  garden_wall_right:      (x, y, z) => [(ROOM_W - x) / (ROOM_W - SD1_X1),      y / ROOM_H],
+  brick_wall:             (x, y, z) => [z / ROOM_D,                            y / ROOM_H],
+  stairwell_part_south:   (x, y, z) => [x / STAIR_X1,                          y / ROOM_H],
+  stairwell_part_east:    (x, y, z) => [(STAIR_Z1 - z) / (STAIR_Z1 - STAIR_Z0), y / ROOM_H],
+  alcove_brick:           (x, y, z) => [(x - PT_X0) / (PT_X1 - PT_X0),         (y - PT_SILL) / (ROOM_H - PT_SILL)],
+  kitchen_wall_west:      (x, y, z) => [(x - STAIR_X1) / (COR_X0 - STAIR_X1),  y / ROOM_H],
+  kitchen_wall_above_door:(x, y, z) => [(x - COR_X0) / (COR_X1 - COR_X0),      (y - COR_HEAD) / (ROOM_H - COR_HEAD)],
+  kitchen_wall_mid:       (x, y, z) => [(x - COR_X1) / (PT_X0 - COR_X1),       y / ROOM_H],
+  kitchen_wall_below_pt:  (x, y, z) => [(x - PT_X0) / (PT_X1 - PT_X0),         y / PT_SILL],
+  kitchen_wall_above_pt:  (x, y, z) => [(x - PT_X0) / (PT_X1 - PT_X0),         (y - PT_HEAD) / (ROOM_H - PT_HEAD)],
+  kitchen_wall_east:      (x, y, z) => [(x - PT_X1) / (ROOM_W - PT_X1),        y / ROOM_H],
+};
+
+/* Sugar: pair a mesh with its lightmap UV1 mapping in one call. */
+function addLm(mesh, slug, axis, sign) {
+  setLightmapUV1(mesh, axis, sign, LM_UV[slug]);
+  scene.add(mesh);
+  return mesh;
+}
+
+/* ====================================================================== */
+/* Room shell — LDK footprint with NW stair carve-out.                    */
+/*                                                                         */
+/*   stair carve-out: x=[0, STAIR_W], z=[ROOM_D - STAIR_D, ROOM_D]        */
+/*   user-facing walls of the carve-out: south face (at z=ROOM_D-STAIR_D) */
+/*   and east face (at x=STAIR_W). Phase 2 builds these as solid          */
+/*   partitions; the open-stair detail (treads, knee-wall, handrail)      */
+/*   comes in a later phase.                                               */
+/* ====================================================================== */
+
+/* Stair carve-out footprint (per room-map.md: ≈ 900 × 1,600 mm) */
+const STAIR_W = 0.90;   // along +X
+const STAIR_D = 1.60;   // along +Z
+const STAIR_Z0 = ROOM_D - STAIR_D;   // 2.90 m from south wall
+const STAIR_Z1 = ROOM_D;             // flush with kitchen-wall
+const STAIR_X0 = 0.0;
+const STAIR_X1 = STAIR_W;
+
+function wallBox(x0, x1, y0, y1, z0, z1, mat) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0),
+    mat
+  );
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+/* Floor — split into 2 rectangles to leave the NW carve-out open.
+ * Each half uses its own baked-lightmap material clone. PlaneGeometry's
+ * natural uv0 + flipV on the texture matches the bake's UV (see
+ * applyLightmap call for matFloorEast/South above). */
+{
+  /* East strip — x=[STAIR_X1, ROOM_W], full N-S */
+  const eastStrip = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROOM_W - STAIR_X1, ROOM_D),
+    matFloorEast
+  );
+  eastStrip.rotation.x = -Math.PI / 2;
+  eastStrip.position.set((STAIR_X1 + ROOM_W) / 2, 0, ROOM_D / 2);
+  eastStrip.receiveShadow = true;
+  scene.add(eastStrip);
+
+  /* South-of-stair strip — x=[0, STAIR_X1], z=[0, STAIR_Z0] */
+  const southStrip = new THREE.Mesh(
+    new THREE.PlaneGeometry(STAIR_X1 - STAIR_X0, STAIR_Z0),
+    matFloorSouth
+  );
+  southStrip.rotation.x = -Math.PI / 2;
+  southStrip.position.set((STAIR_X0 + STAIR_X1) / 2, 0, STAIR_Z0 / 2);
+  southStrip.receiveShadow = true;
+  scene.add(southStrip);
+}
+
+/* Ceiling — same split. Box geometry slabs with lightmap on the -Y face. */
+{
+  /* East strip */
+  const eastSlab = new THREE.Mesh(
+    new THREE.BoxGeometry(ROOM_W - STAIR_X1 + WALL_T, WALL_T, ROOM_D + WALL_T * 2),
+    matCeilingEast
+  );
+  eastSlab.position.set((STAIR_X1 + ROOM_W) / 2 + WALL_T / 2, ROOM_H + WALL_T / 2, ROOM_D / 2);
+  eastSlab.receiveShadow = true; eastSlab.castShadow = true;
+  addLm(eastSlab, 'ceiling_east', 'y', -1);
+
+  /* South-of-stair strip */
+  const southSlab = new THREE.Mesh(
+    new THREE.BoxGeometry(STAIR_X1 - STAIR_X0 + WALL_T, WALL_T, STAIR_Z0 + WALL_T),
+    matCeilingSouth
+  );
+  southSlab.position.set((STAIR_X0 + STAIR_X1) / 2 - WALL_T / 2, ROOM_H + WALL_T / 2, STAIR_Z0 / 2 - WALL_T / 2);
+  southSlab.receiveShadow = true; southSlab.castShadow = true;
+  addLm(southSlab, 'ceiling_south', 'y', -1);
+}
+
+/* === LDK enclosing walls === */
+
+/* Stairs-wall (west, x=0) — full ROOM_D length, full ROOM_H. The stair
+ * shaft sits up against this wall on its inside. Lightmap on the +X face. */
+addLm(wallBox(-WALL_T, 0, 0, ROOM_H, 0, ROOM_D, matWallStairs), 'stairs_wall', 'x', +1);
+
+/* Garden-wall (south) + brick-wall (east) are built as fragments around
+ * window/door openings — see "Phase 3 — windows + curtains" below. */
+
+/* === Kitchen-wall (north, z=ROOM_D) — fragmented around two openings:
+ *   x=[COR_X0, COR_X1]            — corridor entry door (full height to head)
+ *   x=[PT_X0, PT_X1]              — kitchen counter pass-through (half-height)
+ * Layout (west → east, all relative to STAIR_X1=0.90):
+ *   0.90..1.10  solid           20 cm
+ *   1.10..1.90  corridor door   80 cm
+ *   1.90..2.10  solid (clock)   20 cm
+ *   2.10..3.65  TV console area 1.55 m
+ *   3.65..6.20  pass-through    2.55 m  (matches room-map.md L=2,550 mm)
+ *   6.20..6.30  solid           10 cm
+ */
+const COR_X0 = 1.10, COR_X1 = 1.90;        // corridor door
+const COR_HEAD = 2.05;                       // door head height
+const PT_X0 = 3.65, PT_X1 = 6.20;          // pass-through opening
+const PT_SILL = 1.05;                        // counter top height
+const PT_HEAD = 2.05;                        // pass-through head (matches door)
+const KZ0 = ROOM_D, KZ1 = ROOM_D + WALL_T;
+
+/* Per-fragment lightmaps; each fragment's -Z face (at z=KZ0) is the
+ * visible LDK-facing side. */
+addLm(wallBox(STAIR_X1, COR_X0, 0,        ROOM_H,  KZ0, KZ1, matWallKitchenWest),
+      'kitchen_wall_west', 'z', -1);
+addLm(wallBox(COR_X0,   COR_X1, COR_HEAD, ROOM_H,  KZ0, KZ1, matWallKitchenAboveDoor),
+      'kitchen_wall_above_door', 'z', -1);
+addLm(wallBox(COR_X1,   PT_X0,  0,        ROOM_H,  KZ0, KZ1, matWallKitchenMid),
+      'kitchen_wall_mid', 'z', -1);
+addLm(wallBox(PT_X0,    PT_X1,  0,        PT_SILL, KZ0, KZ1, matWallKitchenBelowPt),
+      'kitchen_wall_below_pt', 'z', -1);
+addLm(wallBox(PT_X0,    PT_X1,  PT_HEAD,  ROOM_H,  KZ0, KZ1, matWallKitchenAbovePt),
+      'kitchen_wall_above_pt', 'z', -1);
+addLm(wallBox(PT_X1,    ROOM_W, 0,        ROOM_H,  KZ0, KZ1, matWallKitchenEast),
+      'kitchen_wall_east', 'z', -1);
+
+/* === Corridor entry door — flush white panel with thin vertical
+ * vision-glass insert (per living/c/20 + living/a/01 photos). Door is
+ * shown CLOSED. Sits in the kitchen-wall opening at x=[COR_X0, COR_X1],
+ * y=[0, COR_HEAD]. The corridor BEYOND the door is unmodelled — a thin
+ * dark plate plugs the back of the opening. */
+const matDoorWhite = new THREE.MeshPhysicalMaterial({
+  color: 0xefe9d9, roughness: 0.55, metalness: 0.0,
+  clearcoat: 0.30, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.40,
+});
+const matDoorJamb = matTrim;     // share white painted trim material
+const matDoorVision = new THREE.MeshPhysicalMaterial({
+  color: 0xb8c2cc, roughness: 0.10, metalness: 0.05,
+  transmission: 0.35, ior: 1.45, thickness: 0.005,
+  envMapIntensity: 0.55,
+});
+const matDoorDarkPlug = new THREE.MeshStandardMaterial({
+  color: 0x18181a, roughness: 0.85,
+});
+
+{
+  const dW = COR_X1 - COR_X0;
+  const dH = COR_HEAD;
+  const cx = (COR_X0 + COR_X1) / 2;
+  const cz = ROOM_D + WALL_T / 2;       // door panel sits in the wall thickness
+
+  /* Door panel — slightly recessed into the wall thickness */
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(dW - 0.020, dH - 0.020, 0.030),
+    matDoorWhite
+  );
+  panel.position.set(cx, dH / 2, cz);
+  panel.castShadow = true; panel.receiveShadow = true;
+  scene.add(panel);
+
+  /* Slim vertical vision-glass insert — narrow strip running most of the door height */
+  const visW = 0.060, visH = dH * 0.55;
+  const vision = new THREE.Mesh(
+    new THREE.BoxGeometry(visW, visH, 0.034),
+    matDoorVision
+  );
+  vision.position.set(cx + 0.10, dH * 0.50, cz);
+  scene.add(vision);
+
+  /* Door handle — small horizontal black metal lever on the LDK side */
+  const handleY = 1.04;
+  const handle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.110, 0.022, 0.025),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x1a1c20, roughness: 0.45, metalness: 0.85,
+      clearcoat: 0.20, envMapIntensity: 0.40,
+    })
+  );
+  handle.position.set(cx - dW / 2 + 0.080, handleY, cz - 0.030);
+  scene.add(handle);
+
+  /* Architrave / casing on the LDK side — thin white trim around the door */
+  const TRIM_W = 0.025, TRIM_D = 0.012;
+  const casings = [
+    /* Top */
+    [dW + TRIM_W * 2, TRIM_W, TRIM_D, cx, dH + TRIM_W / 2, KZ0 - TRIM_D / 2],
+    /* Left jamb */
+    [TRIM_W, dH + TRIM_W, TRIM_D, cx - dW / 2 - TRIM_W / 2, (dH + TRIM_W) / 2, KZ0 - TRIM_D / 2],
+    /* Right jamb */
+    [TRIM_W, dH + TRIM_W, TRIM_D, cx + dW / 2 + TRIM_W / 2, (dH + TRIM_W) / 2, KZ0 - TRIM_D / 2],
+  ];
+  for (const [w, h, d, px, py, pz] of casings) {
+    const t = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matTrim);
+    t.position.set(px, py, pz);
+    scene.add(t);
+  }
+
+  /* Dark plug behind the door (cosmetic — closes the opening from the
+   * north so you don't see "outside the room") */
+  const plug = new THREE.Mesh(
+    new THREE.BoxGeometry(dW, dH, 0.005),
+    matDoorDarkPlug
+  );
+  plug.position.set(cx, dH / 2, ROOM_D + WALL_T + 0.010);
+  scene.add(plug);
+}
+
+/* === Kitchen counter pass-through — light-wood counter top sitting on
+ * the half-height wall stub (matches dining/c/01 photo). The opening
+ * itself is already cut into the kitchen-wall above. */
+const matCounterTop = (() => {
+  /* Light maple/oak counter — similar palette to dining table but
+   * lighter and shallower grain. */
+  const c = makeCanvas(512, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#d8b888';
+  ctx.fillRect(0, 0, 512, 256);
+  for (let i = 0; i < 90; i++) {
+    const sy = Math.random() * 256;
+    const sx = Math.random() * 512;
+    const sw = 80 + Math.random() * 240;
+    const v  = -16 + Math.random() * 32;
+    const r = Math.max(0, Math.min(255, 180 + v));
+    const g = Math.max(0, Math.min(255, 140 + v));
+    const b = Math.max(0, Math.min(255, 90 + v));
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.18 + Math.random() * 0.18})`;
+    ctx.fillRect(sx, sy, sw, 1 + Math.random() * 2);
+  }
+  return new THREE.MeshPhysicalMaterial({
+    map: texFromCanvas(c, { repeat: [1, 1] }),
+    color: 0xffffff,
+    roughness: 0.50, metalness: 0.0,
+    clearcoat: 0.25, clearcoatRoughness: 0.40,
+    envMapIntensity: 0.40,
+  });
+})();
+
+{
+  const ctW = PT_X1 - PT_X0;
+  const ctD = 0.30;          // counter projects 15 cm INTO LDK + wall thickness
+  const ctT = 0.030;         // 30 mm thick
+  const cx = (PT_X0 + PT_X1) / 2;
+  /* Counter top sits flush with the half-height wall stub TOP (y=PT_SILL),
+   * straddling the wall: extends from inside the LDK to inside the kitchen. */
+  const counterTop = new THREE.Mesh(
+    new RoundedBoxGeometry(ctW, ctT, ctD, 3, 0.006),
+    matCounterTop
+  );
+  counterTop.position.set(cx, PT_SILL + ctT / 2, ROOM_D);
+  counterTop.castShadow = true; counterTop.receiveShadow = true;
+  scene.add(counterTop);
+
+  /* Bullnose front edge — small rounded trim on the LDK-facing edge */
+  const nose = new THREE.Mesh(
+    new THREE.CylinderGeometry(ctT / 2, ctT / 2, ctW, 16),
+    matCounterTop
+  );
+  nose.rotation.z = Math.PI / 2;
+  nose.position.set(cx, PT_SILL + ctT / 2, ROOM_D - ctD / 2);
+  nose.castShadow = true;
+  scene.add(nose);
+}
+
+/* ====================================================================== */
+/* PHASE 7f — Kitchen alcove behind the pass-through                      */
+/*                                                                         */
+/* Just deep enough to read THROUGH the pass-through opening (per         */
+/* dining/c/01): brick splash on the back wall, stainless double-door    */
+/* fridge, black range-hood vent. Alcove footprint:                       */
+/*   x=[PT_X0, PT_X1], z=[ROOM_D, ALCOVE_Z1], y=[0, ROOM_H]              */
+/*                                                                         */
+/* This is NOT a kitchen build — it's a ~85 cm-deep backdrop visible      */
+/* through the LDK pass-through. The full kitchen lives in kitchen-test.  */
+/* ====================================================================== */
+
+const ALCOVE_DEPTH = 0.85;
+const ALCOVE_Z0 = ROOM_D;
+const ALCOVE_Z1 = ROOM_D + ALCOVE_DEPTH;
+
+/* Alcove floor — continues the LDK floor material into the alcove */
+{
+  const alcFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(PT_X1 - PT_X0, ALCOVE_DEPTH),
+    matFloor
+  );
+  alcFloor.rotation.x = -Math.PI / 2;
+  alcFloor.position.set((PT_X0 + PT_X1) / 2, 0.001, (ALCOVE_Z0 + ALCOVE_Z1) / 2);
+  alcFloor.receiveShadow = true;
+  scene.add(alcFloor);
+}
+
+/* Alcove ceiling — match LDK whitewashed plank */
+{
+  const alcCeil = new THREE.Mesh(
+    new THREE.BoxGeometry(PT_X1 - PT_X0, WALL_T, ALCOVE_DEPTH),
+    matCeiling
+  );
+  alcCeil.position.set((PT_X0 + PT_X1) / 2, ROOM_H + WALL_T / 2, (ALCOVE_Z0 + ALCOVE_Z1) / 2);
+  alcCeil.receiveShadow = true; alcCeil.castShadow = true;
+  scene.add(alcCeil);
+}
+
+/* Alcove side walls — small returns enclosing the alcove from each end
+ * (un-lightmapped — the bake doesn't cover them; relies on runtime IBL). */
+scene.add(wallBox(PT_X0 - WALL_T, PT_X0, 0, ROOM_H, ALCOVE_Z0, ALCOVE_Z1, matWallKitchen));   // west return
+scene.add(wallBox(PT_X1, PT_X1 + WALL_T, 0, ROOM_H, ALCOVE_Z0, ALCOVE_Z1, matWallKitchen));   // east return
+
+/* Alcove BACK wall — split: brick splash above counter sill, plain wall
+ * below. The brick splash gets a baked lightmap (visible through the
+ * pass-through); the lower stub stays un-lightmapped (hidden by counter
+ * + fridge base). */
+{
+  /* Plain wall below counter level (hidden behind counter / fridge base) */
+  scene.add(wallBox(PT_X0, PT_X1, 0, PT_SILL, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matWallKitchen));
+  /* Brick splash from counter sill to ceiling — visible through pass-thru.
+   * Lightmap on -Z face (faces LDK from alcove side). */
+  addLm(
+    wallBox(PT_X0, PT_X1, PT_SILL, ROOM_H, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matAlcoveBrick),
+    'alcove_brick', 'z', -1,
+  );
+}
+
+/* === Tall stainless-steel double-door fridge ===
+ * Per dining/c/01 photo: tall narrow side-by-side fridge against the
+ * back wall, occupying the eastern portion of the alcove. */
+{
+  const matFridge = new THREE.MeshPhysicalMaterial({
+    color: 0xb8bcc2, roughness: 0.32, metalness: 0.85,
+    clearcoat: 0.40, clearcoatRoughness: 0.18,
+    envMapIntensity: 0.55,
+  });
+  const matFridgeSeam = new THREE.MeshStandardMaterial({ color: 0x9a9ea4, roughness: 0.45 });
+
+  const FR_W = 0.70, FR_D = 0.66, FR_H = 1.85;
+  const FR_CX = 5.65;       // east portion of alcove
+  const FR_CZ = ALCOVE_Z1 - FR_D / 2 - 0.020;
+
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(FR_W, FR_H, FR_D, 4, 0.012),
+    matFridge
+  );
+  body.position.set(FR_CX, FR_H / 2, FR_CZ);
+  body.castShadow = true; body.receiveShadow = true;
+  scene.add(body);
+
+  /* Centre seam — vertical strip dividing the two doors */
+  const seam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, FR_H - 0.030, 0.004),
+    matFridgeSeam
+  );
+  seam.position.set(FR_CX, FR_H / 2, FR_CZ - FR_D / 2 - 0.001);
+  scene.add(seam);
+
+  /* Two vertical handle rails — slim recessed handles on each door */
+  for (const sx of [-1, 1]) {
+    const handle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.010, FR_H * 0.55, 0.025),
+      matFridgeSeam
+    );
+    handle.position.set(
+      FR_CX + sx * (FR_W / 2 - 0.060),
+      FR_H * 0.62,
+      FR_CZ - FR_D / 2 - 0.013,
+    );
+    handle.castShadow = true;
+    scene.add(handle);
+  }
+
+  /* Top horizontal seam — between the bottom freezer (or spec drawer)
+   * and the upper fresh compartments. */
+  const horizSeam = new THREE.Mesh(
+    new THREE.BoxGeometry(FR_W - 0.020, 0.004, 0.004),
+    matFridgeSeam
+  );
+  horizSeam.position.set(FR_CX, FR_H * 0.32, FR_CZ - FR_D / 2 - 0.001);
+  scene.add(horizSeam);
+}
+
+/* === Range hood — wall-mounted black/stainless extractor ===
+ * Per dining/c/01 photo: dark hood mounted on the back wall above the
+ * cooktop area, in the western portion of the alcove. */
+{
+  const matHoodDark = new THREE.MeshPhysicalMaterial({
+    color: 0x1a1c1f, roughness: 0.42, metalness: 0.60,
+    clearcoat: 0.35, clearcoatRoughness: 0.20,
+    envMapIntensity: 0.40,
+  });
+
+  const HD_W = 0.78, HD_H = 0.50, HD_D = 0.42;
+  const HD_CX = 4.20;       // west portion of alcove
+  const HD_CY = 1.85 + HD_H / 2;
+  const HD_CZ = ALCOVE_Z1 - HD_D / 2 - 0.020;
+
+  /* Body — slightly tapered hood (truncated wedge) approximated as a box */
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(HD_W, HD_H, HD_D, 4, 0.018),
+    matHoodDark
+  );
+  body.position.set(HD_CX, HD_CY, HD_CZ);
+  body.castShadow = true; body.receiveShadow = true;
+  scene.add(body);
+
+  /* Lower flange — wider front lip (typical Japanese レンジフード) */
+  const flange = new THREE.Mesh(
+    new THREE.BoxGeometry(HD_W + 0.040, 0.030, HD_D + 0.020),
+    matHoodDark
+  );
+  flange.position.set(HD_CX, HD_CY - HD_H / 2 - 0.015, HD_CZ);
+  scene.add(flange);
+
+  /* Vent stack going up from the top of the hood to the ceiling */
+  const stack = new THREE.Mesh(
+    new THREE.BoxGeometry(HD_W * 0.45, ROOM_H - (HD_CY + HD_H / 2), HD_D * 0.50),
+    matHoodDark
+  );
+  stack.position.set(
+    HD_CX,
+    (HD_CY + HD_H / 2 + ROOM_H) / 2,
+    HD_CZ + 0.010,
+  );
+  stack.castShadow = true;
+  scene.add(stack);
+}
+
+/* === Stairwell internal partitions ===
+ * The stairwell sits inside the LDK footprint with FULL-HEIGHT painted
+ * partition walls (per audit photos living/b/30, living/c/15, living/b/37).
+ * The south face has a doorway opening (~80 cm wide × ~2.0 m tall) so
+ * you can see the first tread when looking into the stair from the LDK
+ * (per living/b/01). The east face is fully solid. */
+const STAIR_DOOR_W   = 0.80;                            // doorway clear width
+const STAIR_DOOR_H   = 2.00;                            // doorway head height
+const STAIR_DOOR_X0  = STAIR_X1 - STAIR_DOOR_W - 0.04;  // 4 cm reveal from east jamb
+const STAIR_DOOR_X1  = STAIR_X1 - 0.04;
+const SP_Z0 = STAIR_Z0, SP_Z1 = STAIR_Z0 + WALL_T;       // south partition thickness
+
+/* South partition — fragmented around the doorway opening.
+ * 3 fragments: west jamb sliver (x=[0, STAIR_DOOR_X0]), header above doorway,
+ * east jamb sliver (x=[STAIR_DOOR_X1, STAIR_X1]). Each fragment shares the
+ * stairwell_part_south lightmap via setLightmapUV1. */
+addLm(wallBox(STAIR_X0,       STAIR_DOOR_X0, 0, ROOM_H, SP_Z0, SP_Z1, matWallStairwellS),
+      'stairwell_part_south', 'z', -1);                   // west jamb sliver
+addLm(wallBox(STAIR_DOOR_X0,  STAIR_DOOR_X1, STAIR_DOOR_H, ROOM_H, SP_Z0, SP_Z1, matWallStairwellS),
+      'stairwell_part_south', 'z', -1);                   // header above doorway
+addLm(wallBox(STAIR_DOOR_X1,  STAIR_X1,      0, ROOM_H, SP_Z0, SP_Z1, matWallStairwellS),
+      'stairwell_part_south', 'z', -1);                   // east jamb sliver
+
+/* East partition — full height with a slim FROSTED VERTICAL WINDOW
+ * (borrowed light from the stair shaft, which has its own daylight via
+ * the stairs-wall side). Visible as a cool-blue bright strip in
+ * living/b/19 + dining/c/5 + dining/a/25. */
+const SVW_Z0 = 3.40, SVW_Z1 = 3.55;       // slim 150 mm wide (along Z)
+const SVW_Y0 = 1.10, SVW_Y1 = 1.95;       // sill 1.10 m, head 1.95 m → 85 cm tall
+
+/* 4 wall fragments around the slim-window opening */
+addLm(wallBox(STAIR_X1, STAIR_X1 + WALL_T, 0,     SVW_Y0, STAIR_Z0, STAIR_Z1, matWallStairwellE),
+      'stairwell_part_east', 'x', +1);                                   // below window
+addLm(wallBox(STAIR_X1, STAIR_X1 + WALL_T, SVW_Y1, ROOM_H, STAIR_Z0, STAIR_Z1, matWallStairwellE),
+      'stairwell_part_east', 'x', +1);                                   // above window
+addLm(wallBox(STAIR_X1, STAIR_X1 + WALL_T, SVW_Y0, SVW_Y1, STAIR_Z0, SVW_Z0,  matWallStairwellE),
+      'stairwell_part_east', 'x', +1);                                   // south of window
+addLm(wallBox(STAIR_X1, STAIR_X1 + WALL_T, SVW_Y0, SVW_Y1, SVW_Z1,   STAIR_Z1, matWallStairwellE),
+      'stairwell_part_east', 'x', +1);                                   // north of window
+
+/* Frosted glass insert — slightly cool tint, mid-roughness (true-frosted
+ * band, recipe §3) so it reads as a glowing diffuse pane. */
+{
+  const matFrostedSlim = new THREE.MeshPhysicalMaterial({
+    color: 0xeaf2ff,
+    roughness: 0.68, metalness: 0.0,
+    transmission: 1.0, ior: 1.50, thickness: 0.004,
+    attenuationColor: new THREE.Color(0xdce8f5),
+    attenuationDistance: 0.20,
+    envMapIntensity: 2.0,                    // backlit-glow trick from recipe
+    side: THREE.DoubleSide,
+  });
+  const glass = new THREE.Mesh(
+    new THREE.PlaneGeometry(SVW_Z1 - SVW_Z0, SVW_Y1 - SVW_Y0),
+    matFrostedSlim,
+  );
+  glass.rotation.y = -Math.PI / 2;            // plane faces -X (toward LDK)
+  glass.position.set(STAIR_X1 + WALL_T / 2 + 0.001, (SVW_Y0 + SVW_Y1) / 2, (SVW_Z0 + SVW_Z1) / 2);
+  scene.add(glass);
+
+  /* Slim white casing around the opening on the LDK side */
+  const CASE_T = 0.018, CASE_D = 0.010;
+  scene.add(wallBox(STAIR_X1 + WALL_T, STAIR_X1 + WALL_T + CASE_D, SVW_Y1, SVW_Y1 + CASE_T, SVW_Z0 - CASE_T, SVW_Z1 + CASE_T, matTrim));   // head
+  scene.add(wallBox(STAIR_X1 + WALL_T, STAIR_X1 + WALL_T + CASE_D, SVW_Y0 - CASE_T, SVW_Y0, SVW_Z0 - CASE_T, SVW_Z1 + CASE_T, matTrim));   // sill
+  scene.add(wallBox(STAIR_X1 + WALL_T, STAIR_X1 + WALL_T + CASE_D, SVW_Y0, SVW_Y1, SVW_Z0 - CASE_T, SVW_Z0, matTrim));                     // south jamb
+  scene.add(wallBox(STAIR_X1 + WALL_T, STAIR_X1 + WALL_T + CASE_D, SVW_Y0, SVW_Y1, SVW_Z1, SVW_Z1 + CASE_T, matTrim));                     // north jamb
+
+  /* Sky proxy + RectAreaLight INSIDE the stair shaft so light reads
+   * through the frosted insert. Cool-blue tint to match the photo. */
+  const skyMat = new THREE.MeshBasicMaterial({ color: 0xc4d5e8, toneMapped: false });
+  skyMat.color.multiplyScalar(1.1);
+  const sky = new THREE.Mesh(
+    new THREE.PlaneGeometry((SVW_Z1 - SVW_Z0) * 2.2, (SVW_Y1 - SVW_Y0) * 1.4),
+    skyMat,
+  );
+  sky.rotation.y = -Math.PI / 2;
+  sky.position.set(STAIR_X1 - 0.20, (SVW_Y0 + SVW_Y1) / 2, (SVW_Z0 + SVW_Z1) / 2);
+  scene.add(sky);
+
+  /* Small cool RectAreaLight at the window plane, modest intensity since
+   * the stair shaft is a borrowed-light source (not direct daylight). */
+  const fill = new THREE.RectAreaLight(0xdde6f0, 3.5, SVW_Z1 - SVW_Z0, SVW_Y1 - SVW_Y0);
+  fill.position.set(STAIR_X1 + WALL_T + 0.005, (SVW_Y0 + SVW_Y1) / 2, (SVW_Z0 + SVW_Z1) / 2);
+  fill.lookAt(STAIR_X1 + WALL_T + 5, (SVW_Y0 + SVW_Y1) / 2, (SVW_Z0 + SVW_Z1) / 2);
+  scene.add(fill);
+}
+
+/* White architrave / casing around the doorway on the LDK side (cosmetic) */
+{
+  const TRIM_T = 0.025, TRIM_D = 0.012;
+  /* Head */
+  scene.add(wallBox(
+    STAIR_DOOR_X0 - TRIM_T, STAIR_DOOR_X1 + TRIM_T,
+    STAIR_DOOR_H, STAIR_DOOR_H + TRIM_T,
+    SP_Z0 - TRIM_D, SP_Z0, matTrim,
+  ));
+  /* Left jamb */
+  scene.add(wallBox(
+    STAIR_DOOR_X0 - TRIM_T, STAIR_DOOR_X0,
+    0, STAIR_DOOR_H + TRIM_T,
+    SP_Z0 - TRIM_D, SP_Z0, matTrim,
+  ));
+  /* Right jamb */
+  scene.add(wallBox(
+    STAIR_DOOR_X1, STAIR_DOOR_X1 + TRIM_T,
+    0, STAIR_DOOR_H + TRIM_T,
+    SP_Z0 - TRIM_D, SP_Z0, matTrim,
+  ));
+}
+
+/* === White trim — cornice + skirting on every visible LDK face === */
+{
+  const SK_H = 0.080, SK_D = 0.012;        // skirting: 80 mm tall, 12 mm proud
+  const CR_H = 0.040, CR_D = 0.018;        // cornice:  40 mm tall, 18 mm proud
+  function trimRun(x0, x1, y, z, axis, sk = false) {
+    /* axis: 'x' for runs along ±X (front/back walls), 'z' for runs along ±Z (side walls) */
+    const len = (axis === 'x') ? (x1 - x0) : (x1 - x0); // helper takes precomputed extent
+    return null; // unused — trim built inline below for clarity
+  }
+
+  /* Lengths along walls (LDK-only, excluding stairwell partitions) */
+  /* Garden-wall (south, z=0..-WALL_T): trim runs along +X on the +Z face (z=0)  */
+  /* Brick-wall (east): runs along +Z on the -X face                            */
+  /* Stairs-wall (west): runs along +Z on the +X face (only south of carve-out) */
+  /* Kitchen-wall (north): runs along +X on the -Z face (only east of carve-out)*/
+
+  /* Skirting — south wall: split around the two sliding-door openings
+   * (door 1: x=[0.80, 3.00], door 2: x=[3.30, 5.50] — see Phase 3) */
+  scene.add(wallBox(0,    0.80,   0, SK_H, 0, SK_D, matTrim));
+  scene.add(wallBox(3.00, 3.30,   0, SK_H, 0, SK_D, matTrim));
+  scene.add(wallBox(5.50, ROOM_W, 0, SK_H, 0, SK_D, matTrim));
+  /* Cornice — south wall (door heads at y=2.10, well below the cornice band) */
+  scene.add(wallBox(0, ROOM_W, ROOM_H - CR_H, ROOM_H, 0, CR_D, matTrim));
+
+  /* Skirting — east (in front of brick) */
+  scene.add(wallBox(ROOM_W - SK_D, ROOM_W, 0, SK_H, 0, ROOM_D, matTrim));
+  /* Cornice — east */
+  scene.add(wallBox(ROOM_W - CR_D, ROOM_W, ROOM_H - CR_H, ROOM_H, 0, ROOM_D, matTrim));
+
+  /* Skirting — west (only south of stair carve-out) */
+  scene.add(wallBox(0, SK_D, 0, SK_H, 0, STAIR_Z0, matTrim));
+  /* Cornice — west (only south of stair carve-out — over carve-out the
+   * ceiling drops away to the open well) */
+  scene.add(wallBox(0, CR_D, ROOM_H - CR_H, ROOM_H, 0, STAIR_Z0, matTrim));
+
+  /* Skirting — north — splits around the corridor door (door goes to
+   * floor) but runs continuously under the pass-through (counter sill
+   * at 1.05 m is above the skirting band). */
+  scene.add(wallBox(STAIR_X1, COR_X0, 0, SK_H, ROOM_D - SK_D, ROOM_D, matTrim));
+  scene.add(wallBox(COR_X1,   ROOM_W, 0, SK_H, ROOM_D - SK_D, ROOM_D, matTrim));
+  /* Cornice — north — runs continuously (both openings have heads
+   * below the cornice band y=2.46..2.50) */
+  scene.add(wallBox(STAIR_X1, ROOM_W, ROOM_H - CR_H, ROOM_H, ROOM_D - CR_D, ROOM_D, matTrim));
+
+  /* Skirting on stairwell partitions (full-height now). Split south
+   * partition skirting around the doorway opening. */
+  scene.add(wallBox(STAIR_X0, STAIR_DOOR_X0, 0, SK_H, STAIR_Z0 - SK_D, STAIR_Z0, matTrim));
+  scene.add(wallBox(STAIR_DOOR_X1, STAIR_X1, 0, SK_H, STAIR_Z0 - SK_D, STAIR_Z0, matTrim));
+  /* East partition skirting — full length */
+  scene.add(wallBox(STAIR_X1, STAIR_X1 + SK_D, 0, SK_H, STAIR_Z0, STAIR_Z1, matTrim));
+  /* Cornice along the partition tops (LDK-facing sides) */
+  scene.add(wallBox(STAIR_X0, STAIR_X1, ROOM_H - CR_H, ROOM_H, STAIR_Z0 - CR_D, STAIR_Z0, matTrim));
+  scene.add(wallBox(STAIR_X1, STAIR_X1 + CR_D, ROOM_H - CR_H, ROOM_H, STAIR_Z0, STAIR_Z1, matTrim));
+}
+
+/* === Stair detail — wooden treads + handrail inside the stair shaft ===
+ * Per photo (living/b/30): wood treads ascend +Z (first flight of the
+ * L-shape stair, 5 risers + landing + 6 risers per memory rule).
+ * A LIGHT-COLOR handrail runs along the inside of the stair-shaft wall
+ * (visible from the LDK only through the doorway opening). */
+{
+  const matRail = new THREE.MeshPhysicalMaterial({
+    color: 0xc8b9a4, roughness: 0.55, metalness: 0.20,
+    clearcoat: 0.20, clearcoatRoughness: 0.40,
+    envMapIntensity: 0.30,
+  });
+
+  /* Wood treads — 5 risers ascending +Z, 0.18 m rise × 0.30 m run.
+   * First tread starts at the south face of the stairwell well (just
+   * inside the partition). Open stringer (no risers between treads). */
+  const matTread = new THREE.MeshPhysicalMaterial({
+    color: 0xddc69b,
+    map: cloneTex(phWoodDiff, 0.6, 0.4),
+    normalMap: cloneTex(phWoodNor, 0.6, 0.4),
+    normalScale: new THREE.Vector2(0.30, 0.30),
+    roughness: 0.78, metalness: 0.0,
+    clearcoat: 0.10, clearcoatRoughness: 0.55,
+    envMapIntensity: 0.35,
+  });
+  const RISE = 0.18, RUN = 0.30, TREAD_T = 0.040;
+  const NSTEPS = 5;
+  for (let i = 0; i < NSTEPS; i++) {
+    const z0 = STAIR_Z0 + WALL_T + 0.05 + i * RUN;
+    const y  = (i + 1) * RISE;
+    const tread = new THREE.Mesh(
+      new THREE.BoxGeometry(STAIR_W - 0.04, TREAD_T, RUN + 0.02),
+      matTread
+    );
+    tread.position.set(STAIR_X0 + STAIR_W / 2, y - TREAD_T / 2, z0 + RUN / 2);
+    tread.castShadow = true; tread.receiveShadow = true;
+    scene.add(tread);
+  }
+
+  /* Visible LANDING block at the back of the stairwell — flush against
+   * the back wall (kitchen-wall stretch above the stairwell), at the
+   * top of the first flight. Also reads as the wall plug under the
+   * second flight that turns 90° east (not modelled). */
+  const landingY = NSTEPS * RISE;
+  const landing = new THREE.Mesh(
+    new THREE.BoxGeometry(STAIR_W - 0.04, TREAD_T, ROOM_D - (STAIR_Z0 + WALL_T + 0.05 + NSTEPS * RUN) - 0.02),
+    matTread
+  );
+  landing.position.set(
+    STAIR_X0 + STAIR_W / 2,
+    landingY - TREAD_T / 2,
+    (STAIR_Z0 + WALL_T + 0.05 + NSTEPS * RUN + ROOM_D - 0.02) / 2,
+  );
+  landing.castShadow = true; landing.receiveShadow = true;
+  scene.add(landing);
+
+  /* Sloped handrail along the inside-west wall of the stair shaft, at
+   * hand-height (~0.85 m above each tread). Visible through the doorway
+   * opening from the LDK side. */
+  const railZ0 = STAIR_Z0 + WALL_T + 0.10;
+  const railZ1 = STAIR_Z0 + WALL_T + 0.05 + NSTEPS * RUN;
+  const railY0 = 1 * RISE + 0.85;
+  const railY1 = NSTEPS * RISE + 0.85;
+  const dz = railZ1 - railZ0, dy = railY1 - railY0;
+  const railLen = Math.sqrt(dz * dz + dy * dy);
+  const rail = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.014, 0.014, railLen, 14),
+    matRail,
+  );
+  rail.position.set(0.05, (railY0 + railY1) / 2, (railZ0 + railZ1) / 2);
+  rail.rotation.x = Math.atan2(dz, dy);
+  rail.castShadow = true;
+  scene.add(rail);
+}
+
+/* ====================================================================== */
+/* PHASE 3 — Windows + curtains                                           */
+/*                                                                         */
+/* Garden-wall (south, z=0): TWO sliding glass door units (引違), clear   */
+/*   glass, ~2.20 m wide × 2.05 m tall each, separated by a 30 cm         */
+/*   mullion. Cream curtain panels drawn aside with tiebacks.             */
+/*                                                                         */
+/* Brick-wall (east, x=ROOM_W): ONE sliding sash window 引違, clear       */
+/*   glass, ~1.50 m wide × 1.20 m tall, sill at 0.80 m. Cream curtain     */
+/*   panels.                                                               */
+/*                                                                         */
+/* All glass is CLEAR (not frosted) — matches photos. Lighting will       */
+/* exploit the south sliders as the main daylight source in Phase 4.      */
+/* ====================================================================== */
+
+/* === Materials specific to Phase 3 === */
+
+/* Clear glass — high transmission, ultra-low roughness, faint cool tint.
+ * envMapIntensity 0.9 gives subtle ambient reflections without bloom. */
+const matGlassClear = new THREE.MeshPhysicalMaterial({
+  color: 0xf6fbff,
+  roughness: 0.05, metalness: 0.0,
+  transmission: 1.0, ior: 1.50, thickness: 0.005,
+  attenuationColor: new THREE.Color(0xeaf2ff),
+  attenuationDistance: 0.40,
+  envMapIntensity: 0.9,
+  side: THREE.DoubleSide,
+});
+
+/* Door + window frames — typical Japanese aluminum sash, brushed silver-
+ * neutral. Thin sections (visible width ~30 mm). */
+const matSashAlu = new THREE.MeshPhysicalMaterial({
+  color: 0xc8ccd2, roughness: 0.42, metalness: 0.85,
+  clearcoat: 0.20, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.55,
+});
+
+/* Curtain fabric — cream linen weave with subtle cream-on-cream stipple.
+ * Slight sheen via clearcoat for that draped-fabric reflection on
+ * vertical pleats. */
+const curtainCanvas = (() => {
+  const c = makeCanvas(256, 512);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e6dac4';
+  ctx.fillRect(0, 0, 256, 512);
+  /* Vertical weave warps */
+  for (let x = 0; x < 256; x += 2) {
+    ctx.fillStyle = `rgba(180,165,140,${0.10 + Math.random() * 0.08})`;
+    ctx.fillRect(x, 0, 1, 512);
+  }
+  /* Horizontal weft */
+  for (let y = 0; y < 512; y += 3) {
+    ctx.fillStyle = `rgba(170,156,128,${0.06 + Math.random() * 0.05})`;
+    ctx.fillRect(0, y, 256, 1);
+  }
+  /* Subtle stipple */
+  for (let i = 0; i < 800; i++) {
+    const x = Math.random() * 256, y = Math.random() * 512;
+    const v = 220 + Math.random() * 24;
+    ctx.fillStyle = `rgba(${v},${v - 14},${v - 32},0.10)`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  return c;
+})();
+const matCurtain = new THREE.MeshPhysicalMaterial({
+  map: texFromCanvas(curtainCanvas, { repeat: [1, 1] }),
+  color: 0xf2e7d0,
+  roughness: 0.78, metalness: 0.0,
+  clearcoat: 0.10, clearcoatRoughness: 0.50,
+  envMapIntensity: 0.30,
+  side: THREE.DoubleSide,
+});
+
+/* === Garden-wall (south) — sliding glass doors === */
+const SD_HEAD   = 2.10;        // door head height
+const SD_SILL   = 0.05;        // 50 mm threshold
+const SD1_X0 = 0.80, SD1_X1 = 3.00;   // door 1 opening
+const SD2_X0 = 3.30, SD2_X1 = 5.50;   // door 2 opening
+const SD_REVEAL = 0.04;                 // 40 mm shallow reveal at head
+/* South wall lives at z=[-WALL_T, 0]. Inside-room face is z=0. */
+const SZ0 = -WALL_T, SZ1 = 0;
+
+/* Wall fragments around door 1 + door 2 + the mullion strip between them.
+ * The garden wall splits into LEFT (x≤SD1_X1) and RIGHT (x≥SD1_X1) halves
+ * for the bake; each fragment goes into the matching half's lightmap.
+ * Lightmap face: +Z (visible face at z=0, faces +Z into the LDK). */
+addLm(wallBox(0,       SD1_X0,  0,        ROOM_H,  SZ0, SZ1, matWallGardenL),
+      'garden_wall_left',  'z', +1);                                  // west of door 1
+addLm(wallBox(SD1_X0,  SD1_X1,  SD_HEAD,  ROOM_H,  SZ0, SZ1, matWallGardenL),
+      'garden_wall_left',  'z', +1);                                  // above door 1
+addLm(wallBox(SD1_X0,  SD1_X1,  0,        SD_SILL, SZ0, SZ1, matWallGardenL),
+      'garden_wall_left',  'z', +1);                                  // threshold 1
+addLm(wallBox(SD1_X1,  SD2_X0,  0,        ROOM_H,  SZ0, SZ1, matWallGardenR),
+      'garden_wall_right', 'z', +1);                                  // mullion between doors
+addLm(wallBox(SD2_X0,  SD2_X1,  SD_HEAD,  ROOM_H,  SZ0, SZ1, matWallGardenR),
+      'garden_wall_right', 'z', +1);                                  // above door 2
+addLm(wallBox(SD2_X0,  SD2_X1,  0,        SD_SILL, SZ0, SZ1, matWallGardenR),
+      'garden_wall_right', 'z', +1);                                  // threshold 2
+addLm(wallBox(SD2_X1,  ROOM_W,  0,        ROOM_H,  SZ0, SZ1, matWallGardenR),
+      'garden_wall_right', 'z', +1);                                  // east of door 2
+
+/* Sliding-door units — for each opening: 2 glass panels + thin sash
+ * frames around each panel. Panels meet in the centre of the opening.
+ * The two panels of a 引違 share a track and slide past each other; for
+ * a static render we show them MOSTLY-CLOSED (slight overlap centred). */
+function buildSlidingDoor(x0, x1, y0, y1) {
+  const W = x1 - x0;
+  const H = y1 - y0;
+  const cz = SZ1 - 0.005;          // inside face of wall, glass slightly inset
+  const FT = 0.025;                 // sash frame thickness (visible width)
+  const FD = 0.020;                 // sash frame depth (proud from glass)
+
+  /* Outer frame (head + sill + 2 jambs) */
+  const outer = [
+    [x0,        x1,        y1 - FT, y1,      cz - FD, cz + FD],   // head
+    [x0,        x1,        y0,      y0 + FT, cz - FD, cz + FD],   // sill (track)
+    [x0,        x0 + FT,   y0,      y1,      cz - FD, cz + FD],   // left jamb
+    [x1 - FT,   x1,        y0,      y1,      cz - FD, cz + FD],   // right jamb
+  ];
+  for (const b of outer) scene.add(wallBox(...b, matSashAlu));
+
+  /* Two sliding panels — meet at centre with a 5 cm overlap */
+  const cx = (x0 + x1) / 2;
+  const overlap = 0.05;
+  const panelL_x0 = x0 + FT, panelL_x1 = cx + overlap / 2;
+  const panelR_x0 = cx - overlap / 2, panelR_x1 = x1 - FT;
+
+  for (const [px0, px1, zOff] of [
+    [panelL_x0, panelL_x1, -0.012],   // left panel slightly forward
+    [panelR_x0, panelR_x1, +0.012],   // right panel slightly back
+  ]) {
+    const pz = cz + zOff;
+    /* Panel inner frame (thin sash on all 4 sides of the glass) */
+    const PT = 0.015;       // panel sash thickness
+    const innerFrame = [
+      [px0,      px1,      y1 - FT - PT, y1 - FT,      pz - 0.006, pz + 0.006],   // top
+      [px0,      px1,      y0 + FT,      y0 + FT + PT, pz - 0.006, pz + 0.006],   // bottom
+      [px0,      px0 + PT, y0 + FT,      y1 - FT,      pz - 0.006, pz + 0.006],   // left
+      [px1 - PT, px1,      y0 + FT,      y1 - FT,      pz - 0.006, pz + 0.006],   // right
+    ];
+    for (const b of innerFrame) scene.add(wallBox(...b, matSashAlu));
+
+    /* Glass pane */
+    const glass = new THREE.Mesh(
+      new THREE.PlaneGeometry(px1 - px0 - PT * 2, y1 - y0 - FT * 2 - PT * 2),
+      matGlassClear
+    );
+    glass.position.set((px0 + px1) / 2, (y0 + y1) / 2, pz);
+    glass.rotation.y = Math.PI;
+    scene.add(glass);
+  }
+}
+buildSlidingDoor(SD1_X0, SD1_X1, SD_SILL, SD_HEAD);
+buildSlidingDoor(SD2_X0, SD2_X1, SD_SILL, SD_HEAD);
+
+/* === Curtains for the garden-wall — 2 cream panels per door, drawn
+ * aside and tied back. Built as folded vertical strips with a slight
+ * curve to suggest pleats. === */
+function buildCurtain(centerX, x0, x1, yTop, yBot, side) {
+  /* side: 'L' = curtain gathered to the LEFT of opening (tied back at left),
+   * 'R' = gathered to the right.
+   * The curtain bunches at the gather point, with vertical fluted strips. */
+  const gatherX = (side === 'L') ? x0 : x1;
+  const reachX  = (side === 'L') ? Math.min(x0 + 0.18, centerX) : Math.max(x1 - 0.18, centerX);
+  const NSTRIPS = 6;
+  const stripW  = Math.abs(reachX - gatherX) / NSTRIPS;
+  const fabricZ = SZ1 + 0.03;        // 3 cm into the room from the wall plane
+
+  /* Curtain rod above the opening */
+  const rodH = yTop + 0.06;
+  const rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.014, 0.014, x1 - x0 + 0.40, 16),
+    matSashAlu
+  );
+  rod.rotation.z = Math.PI / 2;
+  rod.position.set((x0 + x1) / 2, rodH, fabricZ + 0.02);
+  scene.add(rod);
+
+  /* Gathered fluted strips — each strip is a thin tall plane standing
+   * vertically, with slight horizontal stagger to read as folds. */
+  for (let i = 0; i < NSTRIPS; i++) {
+    const t = i / (NSTRIPS - 1);
+    const cx = gatherX + (reachX - gatherX) * t * 0.6;        // strips bunch at gather
+    const wave = (i % 2 === 0) ? 0.012 : -0.012;              // alternating fold depth
+    const w = stripW * 1.15;
+    const strip = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, yTop - yBot - 0.05),
+      matCurtain
+    );
+    strip.position.set(cx, (yTop + yBot) / 2 - 0.025, fabricZ + wave);
+    strip.castShadow = true;  strip.receiveShadow = true;
+    scene.add(strip);
+  }
+
+  /* Tieback — a soft cream loop around the gathered base, ~½ way down */
+  const tieY = yBot + (yTop - yBot) * 0.45;
+  const tieback = new THREE.Mesh(
+    new THREE.TorusGeometry(0.045, 0.012, 10, 24),
+    matCurtain
+  );
+  tieback.position.set((gatherX + reachX) / 2 * 0.7 + gatherX * 0.3, tieY, fabricZ + 0.02);
+  tieback.rotation.y = Math.PI / 2;
+  scene.add(tieback);
+}
+/* Door 1 — curtains drawn aside to both sides */
+buildCurtain((SD1_X0 + SD1_X1) / 2, SD1_X0, SD1_X1, SD_HEAD + 0.10, SD_SILL + 0.05, 'L');
+buildCurtain((SD1_X0 + SD1_X1) / 2, SD1_X0, SD1_X1, SD_HEAD + 0.10, SD_SILL + 0.05, 'R');
+/* Door 2 — curtains drawn aside to both sides */
+buildCurtain((SD2_X0 + SD2_X1) / 2, SD2_X0, SD2_X1, SD_HEAD + 0.10, SD_SILL + 0.05, 'L');
+buildCurtain((SD2_X0 + SD2_X1) / 2, SD2_X0, SD2_X1, SD_HEAD + 0.10, SD_SILL + 0.05, 'R');
+
+/* === Brick-wall (east) — single sash window === */
+const BW_Z0 = 1.50, BW_Z1 = 3.00;     // window opening width: 1.50 m
+const BW_Y0 = 0.80, BW_Y1 = 2.00;     // sill 0.80 m, head 2.00 m → 1.20 m tall
+/* Brick wall lives at x=[ROOM_W, ROOM_W + WALL_T]. Inside-room face is x=ROOM_W. */
+const BX0 = ROOM_W, BX1 = ROOM_W + WALL_T;
+
+/* Wall fragments around the window — each samples brick_wall.png on its
+ * -X face (the LDK-facing side at x=ROOM_W). The shared bake's worldToUv
+ * (z/ROOM_D, y/ROOM_H) maps each fragment to its sub-rect. */
+addLm(wallBox(BX0, BX1, 0,     ROOM_H, 0,     BW_Z0,  matBrickEast),
+      'brick_wall', 'x', -1);   // south of window
+addLm(wallBox(BX0, BX1, 0,     ROOM_H, BW_Z1, ROOM_D, matBrickEast),
+      'brick_wall', 'x', -1);   // north of window
+addLm(wallBox(BX0, BX1, 0,     BW_Y0,  BW_Z0, BW_Z1,  matBrickEast),
+      'brick_wall', 'x', -1);   // below window
+addLm(wallBox(BX0, BX1, BW_Y1, ROOM_H, BW_Z0, BW_Z1,  matBrickEast),
+      'brick_wall', 'x', -1);   // above window
+
+/* Brick-wall window — single 引違 with 2 panels */
+function buildBrickWindow() {
+  const x0 = BX0 - 0.005;             // glass slightly inset from wall plane
+  const FT = 0.025;
+  const cz0 = BW_Z0, cz1 = BW_Z1;
+  const cy0 = BW_Y0, cy1 = BW_Y1;
+  const FD = 0.020;
+
+  /* Outer aluminum sash frame (head, sill, 2 jambs) */
+  const outer = [
+    [x0 - FD, x0 + FD, cy1 - FT, cy1,      cz0,        cz1],         // head
+    [x0 - FD, x0 + FD, cy0,      cy0 + FT, cz0,        cz1],         // sill
+    [x0 - FD, x0 + FD, cy0,      cy1,      cz0,        cz0 + FT],    // south jamb
+    [x0 - FD, x0 + FD, cy0,      cy1,      cz1 - FT,   cz1],         // north jamb
+  ];
+  for (const b of outer) scene.add(wallBox(...b, matSashAlu));
+
+  /* Two sliding panels meeting in the centre */
+  const ccz = (cz0 + cz1) / 2;
+  const overlap = 0.05;
+  const panelS_z0 = cz0 + FT, panelS_z1 = ccz + overlap / 2;
+  const panelN_z0 = ccz - overlap / 2, panelN_z1 = cz1 - FT;
+
+  for (const [pz0, pz1, xOff] of [
+    [panelS_z0, panelS_z1, -0.010],
+    [panelN_z0, panelN_z1, +0.010],
+  ]) {
+    const px = x0 + xOff;
+    const PT = 0.015;
+    const innerFrame = [
+      [px - 0.006, px + 0.006, cy1 - FT - PT, cy1 - FT,      pz0, pz1],
+      [px - 0.006, px + 0.006, cy0 + FT,      cy0 + FT + PT, pz0, pz1],
+      [px - 0.006, px + 0.006, cy0 + FT,      cy1 - FT,      pz0, pz0 + PT],
+      [px - 0.006, px + 0.006, cy0 + FT,      cy1 - FT,      pz1 - PT, pz1],
+    ];
+    for (const b of innerFrame) scene.add(wallBox(...b, matSashAlu));
+
+    const glass = new THREE.Mesh(
+      new THREE.PlaneGeometry(pz1 - pz0 - PT * 2, cy1 - cy0 - FT * 2 - PT * 2),
+      matGlassClear
+    );
+    /* Glass faces -X (into the room) — rotate plane to lie in YZ */
+    glass.rotation.y = -Math.PI / 2;
+    glass.position.set(px, (cy0 + cy1) / 2, (pz0 + pz1) / 2);
+    scene.add(glass);
+  }
+}
+buildBrickWindow();
+
+/* === Curtains for the brick-wall window — 2 cream panels drawn aside === */
+function buildBrickCurtain(zSide) {
+  /* zSide: 'S' = gathered to south end of opening, 'N' = north end */
+  const gatherZ = (zSide === 'S') ? BW_Z0 : BW_Z1;
+  const reachZ  = (zSide === 'S') ? Math.min(BW_Z0 + 0.16, (BW_Z0 + BW_Z1) / 2)
+                                  : Math.max(BW_Z1 - 0.16, (BW_Z0 + BW_Z1) / 2);
+  const NSTRIPS = 5;
+  const stripW = Math.abs(reachZ - gatherZ) / NSTRIPS;
+  const fabricX = ROOM_W - 0.04;     // 4 cm into the room from the brick face
+
+  /* Rod */
+  const rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, BW_Z1 - BW_Z0 + 0.30, 14),
+    matSashAlu
+  );
+  rod.rotation.x = Math.PI / 2;
+  rod.position.set(fabricX - 0.02, BW_Y1 + 0.08, (BW_Z0 + BW_Z1) / 2);
+  scene.add(rod);
+
+  for (let i = 0; i < NSTRIPS; i++) {
+    const t = i / (NSTRIPS - 1);
+    const cz = gatherZ + (reachZ - gatherZ) * t * 0.6;
+    const wave = (i % 2 === 0) ? 0.012 : -0.012;
+    const w = stripW * 1.15;
+    const strip = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, BW_Y1 - BW_Y0 + 0.10),
+      matCurtain
+    );
+    /* Plane lies in YZ (faces -X into room) */
+    strip.rotation.y = -Math.PI / 2;
+    strip.position.set(fabricX - wave, (BW_Y0 + BW_Y1) / 2 + 0.02, cz);
+    strip.castShadow = true; strip.receiveShadow = true;
+    scene.add(strip);
+  }
+
+  /* Tieback */
+  const tieY = BW_Y0 + (BW_Y1 - BW_Y0) * 0.45;
+  const tieback = new THREE.Mesh(
+    new THREE.TorusGeometry(0.040, 0.011, 10, 24),
+    matCurtain
+  );
+  tieback.position.set(fabricX - 0.02, tieY, (gatherZ + reachZ) / 2 * 0.7 + gatherZ * 0.3);
+  tieback.rotation.x = Math.PI / 2;
+  scene.add(tieback);
+}
+buildBrickCurtain('S');
+buildBrickCurtain('N');
+
+/* ====================================================================== */
+/* PHASE 4 — Kumamoto 11 AM lighting rig                                  */
+/*                                                                         */
+/* Sun is at azimuth 160° (SSE), elevation 60°. Direction-TO-sun in our    */
+/* coords (+X east, +Y up, +Z north):                                     */
+/*   x = sin(160°)·cos(60°) ≈ +0.171  (slightly east)                     */
+/*   y = sin(60°)            ≈ +0.866  (high overhead)                    */
+/*   z = cos(160°)·cos(60°)  ≈ -0.470  (mostly south)                     */
+/*                                                                         */
+/* Sun is OUTSIDE on the SSE side of the building → it streams into the   */
+/* garden-wall sliders (south, recipe Case B) AND obliquely into the      */
+/* brick-wall window (east, recipe Case C). One real DirectionalLight     */
+/* serves both — only the per-window RectAreaLight + sky-proxy differ.    */
+/*                                                                         */
+/* Hemisphere fill is already added at scaffold (kumamoto cool-sky bias). */
+/* ====================================================================== */
+
+/* === The actual sun — one DirectionalLight, casts crisp shadows === */
+const SUN_DIR = new THREE.Vector3(0.171, 0.866, -0.470).normalize();
+const sun = new THREE.DirectionalLight(0xf6f5ec, 1.4);   // ~5500 K neutral-cool (the lightmap carries most of the direct sun — runtime sun mainly casts furniture shadows)
+sun.position.copy(SUN_DIR).multiplyScalar(12);            // 12 m out toward SSE high
+sun.target.position.set(ROOM_W / 2, 0.40, ROOM_D / 2);    // aim at room centre, just above floor
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.camera.near = 1.0;
+sun.shadow.camera.far  = 30;
+/* Shadow frustum sized to cover the full LDK + a bit beyond so the
+ * sun-through-doors floor pattern reads cleanly, including the room
+ * corners on the cool side (NW). */
+sun.shadow.camera.left   = -6;
+sun.shadow.camera.right  =  8;
+sun.shadow.camera.top    =  8;
+sun.shadow.camera.bottom = -6;
+sun.shadow.bias       = -0.00012;
+sun.shadow.normalBias =  0.025;
+sun.shadow.radius     =  3;     /* tight disc — clear-sky direct sun */
+scene.add(sun, sun.target);
+
+/* === Garden-wall (south) — RectAreaLight diffuse fill at each slider.
+ * Direct sun pours in via the SUN above; these rects model the bright
+ * outdoor scene + sky disc spilling diffuse fill across the room. ===  */
+function southWindowFill(x0, x1, y0, y1) {
+  const w = x1 - x0;
+  const h = y1 - y0;
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  const fill = new THREE.RectAreaLight(0xfff5e8, 6.0, w, h);   // warm-neutral
+  fill.position.set(cx, cy, 0.005);                             // just inside the wall plane
+  fill.lookAt(cx, cy, 5);                                       // normal points +Z (into room)
+  scene.add(fill);
+}
+southWindowFill(SD1_X0, SD1_X1, SD_SILL, SD_HEAD);
+southWindowFill(SD2_X0, SD2_X1, SD_SILL, SD_HEAD);
+
+/* === Brick-wall (east) — RectAreaLight at the window aperture.
+ * East-facing at 11 AM gets oblique morning sun (already covered by SUN
+ * above); this rect provides the diffuse outside-scene fill specifically
+ * at the brick-wall window. Slightly lower intensity since the opening
+ * is smaller and the angle is oblique. === */
+{
+  const w = BW_Z1 - BW_Z0;
+  const h = BW_Y1 - BW_Y0;
+  const cz = (BW_Z0 + BW_Z1) / 2;
+  const cy = (BW_Y0 + BW_Y1) / 2;
+  const fill = new THREE.RectAreaLight(0xfff0dc, 5.0, w, h);    // slightly warmer (oblique sun)
+  fill.position.set(ROOM_W - 0.005, cy, cz);
+  fill.lookAt(0, cy, cz);                                       // normal points -X (into room)
+  scene.add(fill);
+}
+
+/* === Sky proxies — HDR-bright planes OUTSIDE each window so the clear
+ * glass shows a believable bright outdoor scene + the bloom pass picks
+ * up the window aperture as a soft halo. multiplyScalar(2.0) is lower
+ * than laundry-test's 2.4 because clear glass shows the proxy directly
+ * (no frosted blur), so over-bright reads as a white-out. === */
+
+/* South sky proxy — large cool-warm plane behind the sliders */
+{
+  const skyMat = new THREE.MeshBasicMaterial({
+    color: 0xfff2dc,            // warm-neutral daylight
+    toneMapped: false,
+  });
+  skyMat.color.multiplyScalar(0.9);   // below bloom threshold 1.0 — window stays visible without glare halo
+  const totalW = SD2_X1 - SD1_X0 + 0.80;       // covers both doors with overshoot
+  const sky = new THREE.Mesh(
+    new THREE.PlaneGeometry(totalW, (SD_HEAD - SD_SILL) * 1.6),
+    skyMat
+  );
+  sky.position.set((SD1_X0 + SD2_X1) / 2, (SD_HEAD + SD_SILL) / 2, -0.40);
+  sky.rotation.y = 0;            // facing +Z (toward room)
+  scene.add(sky);
+}
+
+/* East sky proxy — single plane behind the brick window */
+{
+  const skyMat = new THREE.MeshBasicMaterial({
+    color: 0xfff2dc,
+    toneMapped: false,
+  });
+  skyMat.color.multiplyScalar(0.9);   // below bloom threshold 1.0 — window stays visible without glare halo
+  const sky = new THREE.Mesh(
+    new THREE.PlaneGeometry((BW_Z1 - BW_Z0) * 1.6, (BW_Y1 - BW_Y0) * 1.6),
+    skyMat
+  );
+  sky.position.set(ROOM_W + 0.40, (BW_Y0 + BW_Y1) / 2, (BW_Z0 + BW_Z1) / 2);
+  sky.rotation.y = -Math.PI / 2;  // facing -X (toward room)
+  scene.add(sky);
+}
+
+/* ====================================================================== */
+/* PHASE 6 — Sony BRAVIA TV + dark-wood console                           */
+/*                                                                         */
+/* Per ozu-test/interior-images/living-dining/room-map.md the TV +        */
+/* dark-wood console with drawers sits AGAINST the kitchen-wall, between */
+/* corner-kitchen-stairs (x=STAIR_X1=0.90) and the kitchen counter        */
+/* pass-through (begins ~x=3.50). TV faces SOUTH toward the sofa.        */
+/*                                                                         */
+/* Featured product spec: Sony BRAVIA FW-65BZ30J/BZ — 65" 4K business     */
+/* display. Body W 146.2 × H 84.2 × D 7.1 cm; with-stand H 91.2 × D 33.8. */
+/* Active screen 142.8 × 80.4 cm. We model the with-stand variant since   */
+/* photos show it sitting on the console top, not VESA-mounted.           */
+/* ====================================================================== */
+
+/* === Materials ===
+ * Per audit photos (living/c/15 + living/a/25): TV console + coffee table
+ * share an INDUSTRIAL style — warm rusty-orange plank top + black metal
+ * frame + dark-stained square drawers with brass cup pulls. Same wood
+ * palette as the dining table. */
+const matIndustrialWood = (() => {
+  /* Warm rusty/burnt-orange plank — visible end-grain bands, knotty character */
+  const c = makeCanvas(512, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#a4592a';                  /* burnt orange-brown base */
+  ctx.fillRect(0, 0, 512, 256);
+  /* Plank seams along U axis */
+  for (let p = 0; p < 4; p++) {
+    const y = (p + 0.5) * (256 / 4);
+    ctx.fillStyle = 'rgba(48,22,8,0.55)';
+    ctx.fillRect(0, y, 512, 1);
+  }
+  /* Warm grain streaks */
+  for (let i = 0; i < 120; i++) {
+    const sy = Math.random() * 256;
+    const sx = Math.random() * 512;
+    const sw = 40 + Math.random() * 220;
+    const v  = -20 + Math.random() * 40;
+    const r = Math.max(0, Math.min(255, 144 + v));
+    const g = Math.max(0, Math.min(255, 78  + v));
+    const b = Math.max(0, Math.min(255, 38  + v));
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.18 + Math.random() * 0.22})`;
+    ctx.fillRect(sx, sy, sw, 1 + Math.random() * 2);
+  }
+  /* Knots */
+  for (let i = 0; i < 5; i++) {
+    const kx = Math.random() * 512;
+    const ky = Math.random() * 256;
+    const kr = 5 + Math.random() * 10;
+    const grad = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
+    grad.addColorStop(0, 'rgba(40,18,6,0.70)');
+    grad.addColorStop(1, 'rgba(40,18,6,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(kx, ky, kr, 0, Math.PI * 2); ctx.fill();
+  }
+  const tex = texFromCanvas(c, { repeat: [1, 1] });
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    color: 0xffffff,
+    roughness: 0.55, metalness: 0.0,
+    clearcoat: 0.20, clearcoatRoughness: 0.35,
+    envMapIntensity: 0.40,
+  });
+})();
+
+/* Alias kept so existing references (sofa frame, etc.) still work. */
+const matConsoleWood = matIndustrialWood;
+
+/* Black matte-painted iron frame for industrial console + coffee table */
+const matIndustrialMetal = new THREE.MeshPhysicalMaterial({
+  color: 0x1d1f23, roughness: 0.55, metalness: 0.60,
+  clearcoat: 0.10, clearcoatRoughness: 0.35,
+  envMapIntensity: 0.30,
+});
+
+/* Dark-stained drawer faces (square panel inserts) — slightly darker than the wood top */
+const matIndustrialDrawer = new THREE.MeshPhysicalMaterial({
+  color: 0x2a1c12, roughness: 0.62, metalness: 0.0,
+  clearcoat: 0.15, clearcoatRoughness: 0.40,
+  envMapIntensity: 0.30,
+});
+
+/* Brass cup pulls — antique-brass cup-handle hardware */
+const matBrassPull = new THREE.MeshPhysicalMaterial({
+  color: 0xa07840, roughness: 0.45, metalness: 0.85,
+  clearcoat: 0.20, clearcoatRoughness: 0.25,
+  envMapIntensity: 0.45,
+});
+
+const matConsoleHandle = matBrassPull;  // alias for drawer pulls
+
+const matTVBezel = new THREE.MeshPhysicalMaterial({
+  color: 0x0d0e10, roughness: 0.55, metalness: 0.20,
+  clearcoat: 0.30, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.30,
+});
+const matTVScreen = new THREE.MeshPhysicalMaterial({
+  /* TV-off appearance: nearly black with very faint cool tint, glassy */
+  color: 0x080a0e, roughness: 0.12, metalness: 0.10,
+  clearcoat: 0.95, clearcoatRoughness: 0.06,
+  envMapIntensity: 0.40,    // recipe cap for screens
+});
+const matTVStand = new THREE.MeshPhysicalMaterial({
+  color: 0x16181c, roughness: 0.42, metalness: 0.30,
+  clearcoat: 0.30, clearcoatRoughness: 0.25,
+  envMapIntensity: 0.30,
+});
+const matTVBack = new THREE.MeshPhysicalMaterial({
+  color: 0x1a1c20, roughness: 0.62, metalness: 0.15,
+  envMapIntensity: 0.25,
+});
+
+/* SONY logo for the bottom-centre of the bezel */
+const sonyLogoCanvas = (() => {
+  const c = makeCanvas(256, 64);
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 256, 64);
+  ctx.fillStyle = '#d6d8dc';
+  ctx.font = 'bold 26px -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SONY', 128, 36);
+  return c;
+})();
+const matSonyLogo = new THREE.MeshBasicMaterial({
+  map: texFromCanvas(sonyLogoCanvas, { repeat: [1, 1] }),
+  transparent: true, alphaTest: 0.4,
+});
+
+/* === Geometry === */
+/* Console — shifted east of the corridor entry (which sits at
+ * x=[COR_X0=1.10, COR_X1=1.90]) so the door isn't blocked. */
+const CON_W = 1.65;       // 1.65 m wide (still fits the 1.46 m TV)
+const CON_D = 0.40;       // 0.40 m deep
+const CON_H = 0.50;       // 0.50 m tall
+const CON_FOOT_H = 0.04;  // 4 cm bottom gap on feet
+const CON_CX = 2.775;     // centred between corridor (x=1.90) and pass-through (x=3.65)
+const CON_CZ = ROOM_D - CON_D / 2;     // back face flush with kitchen-wall
+
+/* Industrial TV console per living/c/15 + living/a/25:
+ *   - Warm rusty plank top (matIndustrialWood)
+ *   - Black metal frame visible as the box sides + 4 short legs
+ *   - 5 SQUARE dark-stained drawer faces in 1 row across the bottom
+ *   - Open shelf above the drawer row (matches photo — remote sits there)
+ *   - Brass cup pulls on each drawer */
+function buildTVConsole(cx, cz) {
+  const g = new THREE.Group();
+
+  const TOP_T   = 0.030;            // top plank thickness
+  const DRAW_H  = 0.18;             // drawer row height
+  const SHELF_GAP_H = CON_H - CON_FOOT_H - DRAW_H - TOP_T;  // open middle shelf
+  const NDRAWERS = 5;
+  const dW = (CON_W - 0.040) / NDRAWERS;
+
+  /* Top plank — wood */
+  const top = new THREE.Mesh(
+    new RoundedBoxGeometry(CON_W, TOP_T, CON_D, 3, 0.006),
+    matIndustrialWood
+  );
+  top.position.set(0, CON_H - TOP_T / 2, 0);
+  top.castShadow = true; top.receiveShadow = true;
+  g.add(top);
+
+  /* Open-shelf inner deck — second wood plank above the drawer row.
+   * Visible in living/c/15 as a thin horizontal band between drawers and top. */
+  const shelfDeckY = CON_FOOT_H + DRAW_H + TOP_T / 2;
+  const shelfDeck = new THREE.Mesh(
+    new RoundedBoxGeometry(CON_W - 0.040, TOP_T, CON_D - 0.020, 3, 0.005),
+    matIndustrialWood
+  );
+  shelfDeck.position.set(0, shelfDeckY, 0);
+  shelfDeck.castShadow = true; shelfDeck.receiveShadow = true;
+  g.add(shelfDeck);
+
+  /* Drawer row backing box — recessed darker plank behind the drawer faces */
+  const drawerBack = new THREE.Mesh(
+    new THREE.BoxGeometry(CON_W - 0.040, DRAW_H, CON_D - 0.020),
+    matIndustrialDrawer
+  );
+  drawerBack.position.set(0, CON_FOOT_H + DRAW_H / 2, 0);
+  drawerBack.castShadow = true; drawerBack.receiveShadow = true;
+  g.add(drawerBack);
+
+  /* Drawer faces — 5 square panels, slightly proud */
+  for (let i = 0; i < NDRAWERS; i++) {
+    const x = -CON_W / 2 + 0.020 + (i + 0.5) * dW;
+    const y = CON_FOOT_H + DRAW_H / 2;
+
+    const face = new THREE.Mesh(
+      new RoundedBoxGeometry(dW - 0.010, DRAW_H - 0.010, 0.010, 3, 0.003),
+      matIndustrialDrawer
+    );
+    face.position.set(x, y, -CON_D / 2 - 0.005);
+    face.castShadow = true; face.receiveShadow = true;
+    g.add(face);
+
+    /* Brass cup pull — small recessed half-cup centered on each drawer face */
+    const pull = new THREE.Mesh(
+      new THREE.BoxGeometry(0.046, 0.022, 0.012),
+      matBrassPull
+    );
+    pull.position.set(x, y, -CON_D / 2 - 0.012 - 0.006);
+    pull.castShadow = true;
+    g.add(pull);
+  }
+
+  /* Black metal frame — 4 vertical posts at the corners + 2 horizontal
+   * rails (top of drawer row + under the top plank) for an industrial look. */
+  const POST_T = 0.022;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const post = new THREE.Mesh(
+      new THREE.BoxGeometry(POST_T, CON_H, POST_T),
+      matIndustrialMetal
+    );
+    post.position.set(
+      sx * (CON_W / 2 - POST_T / 2),
+      CON_H / 2,
+      sz * (CON_D / 2 - POST_T / 2),
+    );
+    post.castShadow = true;
+    g.add(post);
+  }
+  /* Front horizontal rail just under the top plank */
+  const railTop = new THREE.Mesh(
+    new THREE.BoxGeometry(CON_W, 0.012, 0.012),
+    matIndustrialMetal
+  );
+  railTop.position.set(0, CON_H - TOP_T - 0.008, -CON_D / 2 + 0.006);
+  g.add(railTop);
+  /* Front horizontal rail above the drawer row */
+  const railMid = new THREE.Mesh(
+    new THREE.BoxGeometry(CON_W, 0.012, 0.012),
+    matIndustrialMetal
+  );
+  railMid.position.set(0, CON_FOOT_H + DRAW_H + 0.006, -CON_D / 2 + 0.006);
+  g.add(railMid);
+
+  g.position.set(cx, 0, cz);
+  return g;
+}
+scene.add(buildTVConsole(CON_CX, CON_CZ));
+
+/* === Sony BRAVIA FW-65BZ30J === */
+const TV_W      = 1.462;
+const TV_H      = 0.842;
+const TV_D      = 0.071;
+const SCR_W     = 1.428;
+const SCR_H     = 0.804;
+const STAND_W   = 0.42;       /* approx central pedestal base */
+const STAND_D   = 0.34;
+const STAND_H   = 0.070;      /* with-stand H 91.2 cm − body H 84.2 cm */
+
+function buildBravia(cx, cz) {
+  const g = new THREE.Group();
+
+  /* Stand pedestal — small central base block */
+  const stand = new THREE.Mesh(
+    new RoundedBoxGeometry(STAND_W, STAND_H, STAND_D, 3, 0.008),
+    matTVStand
+  );
+  stand.position.set(0, STAND_H / 2, 0);
+  stand.castShadow = true; stand.receiveShadow = true;
+  g.add(stand);
+
+  /* TV body — flat slab. Front face is the screen; back face has a
+   * subtle inward step (typical TV chassis). */
+  const bodyY = STAND_H + TV_H / 2;
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(TV_W, TV_H, TV_D, 3, 0.004),
+    matTVBack
+  );
+  body.position.set(0, bodyY, 0);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* Bezel — thin frame around the screen on the front face */
+  const bezel = new THREE.Mesh(
+    new THREE.BoxGeometry(TV_W, TV_H, 0.004),
+    matTVBezel
+  );
+  bezel.position.set(0, bodyY, -TV_D / 2 - 0.002);
+  g.add(bezel);
+
+  /* Screen — slightly inset within the bezel, faces -Z */
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(SCR_W, SCR_H),
+    matTVScreen
+  );
+  screen.position.set(0, bodyY, -TV_D / 2 - 0.005);
+  screen.rotation.y = Math.PI;
+  g.add(screen);
+
+  /* SONY logo — small, centered on bottom bezel strip */
+  const logo = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.090, 0.022),
+    matSonyLogo
+  );
+  logo.position.set(0, bodyY - SCR_H / 2 - 0.012, -TV_D / 2 - 0.0035);
+  logo.rotation.y = Math.PI;
+  g.add(logo);
+
+  /* Top-edge subtle highlight strip — Sony BRAVIA models have a thin
+   * visible top frame that catches a bit of room light. */
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(TV_W, 0.006, TV_D),
+    matTVBezel
+  );
+  top.position.set(0, bodyY + TV_H / 2 + 0.001, 0);
+  g.add(top);
+
+  g.position.set(cx, CON_H, cz);   // standing on top of the console
+  return g;
+}
+/* Centre the TV on the console; sit it slightly back from console front. */
+const TV_CZ = CON_CZ + 0.02;
+scene.add(buildBravia(CON_CX, TV_CZ));
+
+/* World position for the hotspot — centre of the screen, just proud
+ * of the bezel so the dot doesn't z-fight with the screen plane. */
+const TV_HOTSPOT = [
+  CON_CX,
+  CON_H + STAND_H + TV_H / 2,
+  TV_CZ - TV_D / 2 - 0.10,
+];
+
+/* ====================================================================== */
+/* PHASE 7b — Living-zone furniture: sofa + coffee table                  */
+/*                                                                         */
+/* Photos: dining/a/01 + living/c/20 + living/b/19 show a tufted dark     */
+/* leather two-seater with wood-frame arms in the SW living zone, facing  */
+/* NORTH toward the TV. A low dark-wood coffee table sits between sofa    */
+/* and TV.                                                                 */
+/* ====================================================================== */
+
+const matLeatherDark = (() => {
+  /* Dark brown leather — subtle pebble grain via canvas + normal */
+  const c = makeCanvas(256, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#2a1a12';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1500; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    const v = 30 + Math.random() * 35;
+    ctx.fillStyle = `rgba(${v + 8},${v - 4},${v - 12},0.30)`;
+    ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  const tex = texFromCanvas(c, { repeat: [2, 2] });
+  const nor = deriveNormalFromCanvas(c, 0.6);
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    normalMap: cloneTex(nor, 2, 2),
+    normalScale: new THREE.Vector2(0.40, 0.40),
+    color: 0xffffff,
+    roughness: 0.55, metalness: 0.0,
+    clearcoat: 0.55, clearcoatRoughness: 0.30,
+    envMapIntensity: 0.35,
+  });
+})();
+
+const matSofaFrameWood = matConsoleWood.clone();   // share the dark walnut canvas
+
+/* === Sofa — tufted dark leather 2-seater with wood arm caps ===
+ * Dimensions: 1.50 W × 0.80 D × 0.78 H (back height). Position centred
+ * at x=2.30 (slightly east of console centre to clear the stair area),
+ * z=1.20 (back) / 2.00 (front), facing +Z toward TV. */
+function buildSofa(cx, cz) {
+  const g = new THREE.Group();
+
+  const SOFA_W = 1.50, SOFA_D = 0.80, SOFA_H = 0.78;
+  const SEAT_H = 0.42;        // top of cushion
+  const ARM_H  = 0.55;        // top of arm
+  const ARM_T  = 0.08;        // arm thickness (along ±X)
+  const BACK_T = 0.10;        // back cushion thickness (along ±Z)
+
+  /* Seat base (cushion + apron) */
+  const base = new THREE.Mesh(
+    new RoundedBoxGeometry(SOFA_W - ARM_T * 2, SEAT_H - 0.04, SOFA_D, 4, 0.025),
+    matLeatherDark
+  );
+  base.position.set(0, (SEAT_H - 0.04) / 2 + 0.04, 0);
+  base.castShadow = true; base.receiveShadow = true;
+  g.add(base);
+
+  /* Two seat cushions on top — slight gap between them = tufting hint */
+  for (const sx of [-1, 1]) {
+    const cw = (SOFA_W - ARM_T * 2 - 0.020) / 2;
+    const cushion = new THREE.Mesh(
+      new RoundedBoxGeometry(cw, 0.10, SOFA_D - 0.04, 5, 0.025),
+      matLeatherDark
+    );
+    cushion.position.set(sx * (cw / 2 + 0.005), SEAT_H + 0.05, -0.02);
+    cushion.castShadow = true; cushion.receiveShadow = true;
+    g.add(cushion);
+  }
+
+  /* Back — angled slightly back. Modelled as a slab tilted ~5°. */
+  const back = new THREE.Mesh(
+    new RoundedBoxGeometry(SOFA_W - ARM_T * 2, SOFA_H - SEAT_H, BACK_T, 4, 0.020),
+    matLeatherDark
+  );
+  back.position.set(0, SEAT_H + (SOFA_H - SEAT_H) / 2, -SOFA_D / 2 + BACK_T / 2);
+  back.rotation.x = -Math.PI / 36;        // 5° backward tilt
+  back.castShadow = true; back.receiveShadow = true;
+  g.add(back);
+
+  /* Two wood arm assemblies — thin vertical wood blocks with rounded top */
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(
+      new RoundedBoxGeometry(ARM_T, ARM_H - 0.04, SOFA_D, 4, 0.012),
+      matSofaFrameWood
+    );
+    arm.position.set(sx * (SOFA_W / 2 - ARM_T / 2), (ARM_H - 0.04) / 2 + 0.04, 0);
+    arm.castShadow = true; arm.receiveShadow = true;
+    g.add(arm);
+  }
+
+  /* Four wooden legs — short tapered, 4 cm tall */
+  const matLeg = matSofaFrameWood;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.022, 0.018, 0.06, 14),
+      matLeg
+    );
+    leg.position.set(
+      sx * (SOFA_W / 2 - 0.080),
+      0.030,
+      sz * (SOFA_D / 2 - 0.080),
+    );
+    leg.castShadow = true; leg.receiveShadow = true;
+    g.add(leg);
+  }
+
+  g.position.set(cx, 0, cz);
+  return g;
+}
+scene.add(buildSofa(2.30, 1.55));
+
+/* Industrial coffee table per living/c/15 + living/a/25:
+ *   - Warm rusty plank top (same wood as TV console)
+ *   - Black metal frame with X-bracing or mesh-grid sides (open lower shelf visible)
+ *   - 2 dark drawers on the right end with brass cup pulls
+ *   - Slightly smaller than the TV console (~1.10 m wide × 0.55 m deep × 0.40 m tall) */
+function buildCoffeeTable(cx, cz) {
+  const g = new THREE.Group();
+  const CT_W = 1.10, CT_D = 0.55, CT_H = 0.40;
+  const TOP_T = 0.030;
+  const DRAW_W = 0.30;            // right-end drawer column width
+  const NDRAW = 2;
+  const dH = (CT_H - TOP_T - 0.020) / NDRAW;
+
+  /* Warm wood top */
+  const top = new THREE.Mesh(
+    new RoundedBoxGeometry(CT_W, TOP_T, CT_D, 3, 0.008),
+    matIndustrialWood
+  );
+  top.position.set(0, CT_H - TOP_T / 2, 0);
+  top.castShadow = true; top.receiveShadow = true;
+  g.add(top);
+
+  /* Drawer column on the right end — recessed dark box with 2 drawers */
+  const drawColBack = new THREE.Mesh(
+    new THREE.BoxGeometry(DRAW_W, CT_H - TOP_T - 0.020, CT_D - 0.020),
+    matIndustrialDrawer
+  );
+  const drawColX = CT_W / 2 - DRAW_W / 2 - 0.010;
+  drawColBack.position.set(drawColX, (CT_H - TOP_T - 0.020) / 2 + 0.010, 0);
+  drawColBack.castShadow = true; drawColBack.receiveShadow = true;
+  g.add(drawColBack);
+
+  for (let i = 0; i < NDRAW; i++) {
+    const y = 0.010 + (i + 0.5) * dH;
+    const face = new THREE.Mesh(
+      new RoundedBoxGeometry(DRAW_W - 0.012, dH - 0.010, 0.010, 3, 0.003),
+      matIndustrialDrawer
+    );
+    face.position.set(drawColX, y, -CT_D / 2 - 0.005);
+    face.castShadow = true; face.receiveShadow = true;
+    g.add(face);
+
+    /* Brass cup pull on each drawer */
+    const pull = new THREE.Mesh(
+      new THREE.BoxGeometry(0.042, 0.020, 0.012),
+      matBrassPull
+    );
+    pull.position.set(drawColX, y, -CT_D / 2 - 0.017);
+    pull.castShadow = true;
+    g.add(pull);
+  }
+
+  /* Black metal X-bracing frame on the open side (left + back, visible
+   * through the shelf area in photos). Approximated as 2 diagonal bars. */
+  const openW = CT_W - DRAW_W - 0.020;
+  const openX = -DRAW_W / 2 - 0.010;   // centre of open zone (left of drawers)
+  const halfW = openW / 2;
+  const halfH = (CT_H - TOP_T - 0.030) / 2;
+  const diagLen = Math.sqrt(halfW * halfW + halfH * halfH) * 2;
+  const diagAng = Math.atan2(halfH, halfW);
+
+  /* X-brace at front face (visible) */
+  for (const sign of [+1, -1]) {
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(diagLen, 0.012, 0.012),
+      matIndustrialMetal
+    );
+    bar.position.set(openX, 0.015 + halfH, -CT_D / 2 + 0.012);
+    bar.rotation.z = sign * diagAng;
+    bar.castShadow = true;
+    g.add(bar);
+  }
+
+  /* 4 metal legs */
+  const LEG_T = 0.018;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const leg = new THREE.Mesh(
+      new THREE.BoxGeometry(LEG_T, CT_H - TOP_T, LEG_T),
+      matIndustrialMetal
+    );
+    leg.position.set(
+      sx * (CT_W / 2 - LEG_T / 2),
+      (CT_H - TOP_T) / 2,
+      sz * (CT_D / 2 - LEG_T / 2),
+    );
+    leg.castShadow = true; leg.receiveShadow = true;
+    g.add(leg);
+  }
+
+  /* Thin foot rail front+back to read as a single bench frame */
+  for (const sz of [-1, 1]) {
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(CT_W - LEG_T * 2, 0.010, 0.010),
+      matIndustrialMetal
+    );
+    rail.position.set(0, 0.020, sz * (CT_D / 2 - 0.012));
+    g.add(rail);
+  }
+
+  g.position.set(cx, 0, cz);
+  return g;
+}
+scene.add(buildCoffeeTable(2.30, 2.70));
+
+/* ====================================================================== */
+/* PHASE 7c — Dining-zone furniture: table + 6 mixed-shell chairs         */
+/*                                                                         */
+/* Photos: dining/c/08 + dining/b/01 + living/a/01 — rustic plank-top     */
+/* dining table in warm caramel wood (visible end-grain striping) with    */
+/* thin black metal X-frame legs, surrounded by mixed Eames-style         */
+/* moulded plastic shell chairs in tan leather, navy, dark grey, dark     */
+/* brown, etc., on thin black metal legs.                                 */
+/* ====================================================================== */
+
+/* Rustic plank top — warm caramel with strong wood-grain bands */
+const matDiningTop = (() => {
+  const c = makeCanvas(512, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#a06535';
+  ctx.fillRect(0, 0, 512, 256);
+  /* Plank seams — 5 horizontal planks across V */
+  for (let p = 0; p < 5; p++) {
+    const y = p * (256 / 5);
+    ctx.fillStyle = 'rgba(40,22,10,0.65)';
+    ctx.fillRect(0, y, 512, 1);
+  }
+  /* Long warm-grain streaks running along U */
+  for (let i = 0; i < 90; i++) {
+    const sy = Math.random() * 256;
+    const sx = Math.random() * 512;
+    const sw = 60 + Math.random() * 220;
+    const v  = -22 + Math.random() * 50;
+    const r = Math.max(0, Math.min(255, 130 + v));
+    const g = Math.max(0, Math.min(255, 78 + v));
+    const b = Math.max(0, Math.min(255, 38 + v));
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.20 + Math.random() * 0.20})`;
+    ctx.fillRect(sx, sy, sw, 1 + Math.random() * 2);
+  }
+  /* Knots */
+  for (let i = 0; i < 4; i++) {
+    const kx = Math.random() * 512;
+    const ky = Math.random() * 256;
+    const kr = 6 + Math.random() * 12;
+    const grad = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
+    grad.addColorStop(0, 'rgba(35,18,8,0.75)');
+    grad.addColorStop(1, 'rgba(35,18,8,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(kx, ky, kr, 0, Math.PI * 2); ctx.fill();
+  }
+  const tex = texFromCanvas(c, { repeat: [1, 1] });
+  const nor = deriveNormalFromCanvas(c, 0.7);
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    normalMap: cloneTex(nor, 1, 1),
+    normalScale: new THREE.Vector2(0.30, 0.30),
+    color: 0xffffff,
+    roughness: 0.55, metalness: 0.0,
+    clearcoat: 0.18, clearcoatRoughness: 0.45,
+    envMapIntensity: 0.40,
+  });
+})();
+
+const matBlackMetal = new THREE.MeshPhysicalMaterial({
+  color: 0x14171b, roughness: 0.45, metalness: 0.85,
+  clearcoat: 0.20, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.35,
+});
+
+/* === Dining table === */
+const DT_W = 1.60, DT_D = 0.85, DT_H = 0.74;
+const DT_TOP_T = 0.040;
+const DT_CX = 4.70, DT_CZ = 2.05;
+
+function buildDiningTable(cx, cz) {
+  const g = new THREE.Group();
+  /* Top plank slab */
+  const top = new THREE.Mesh(
+    new RoundedBoxGeometry(DT_W, DT_TOP_T, DT_D, 4, 0.012),
+    matDiningTop
+  );
+  top.position.set(0, DT_H - DT_TOP_T / 2, 0);
+  top.castShadow = true; top.receiveShadow = true;
+  g.add(top);
+
+  /* X-frame legs at each end — two crossed flat bars */
+  for (const sx of [-1, 1]) {
+    const ex = sx * (DT_W / 2 - 0.10);
+    const xf = new THREE.Group();
+    /* Forward-leaning bar */
+    const bar1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, DT_H - DT_TOP_T - 0.010, 0.030),
+      matBlackMetal
+    );
+    bar1.rotation.x = Math.atan2(DT_D - 0.20, DT_H - DT_TOP_T) * 0;  /* keep vertical for now */
+    /* Use a real X — two angled bars meeting in centre */
+    const halfH = (DT_H - DT_TOP_T - 0.010) / 2;
+    const halfD = (DT_D - 0.18) / 2;
+    const len = Math.sqrt(halfH * halfH + halfD * halfD) * 2;
+    const ang = Math.atan2(halfD, halfH);
+
+    const barA = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, len, 0.025),
+      matBlackMetal
+    );
+    barA.rotation.x = ang;
+    barA.position.set(0, halfH + 0.005, 0);
+    barA.castShadow = true;
+
+    const barB = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, len, 0.025),
+      matBlackMetal
+    );
+    barB.rotation.x = -ang;
+    barB.position.set(0, halfH + 0.005, 0);
+    barB.castShadow = true;
+
+    /* Foot rail at the bottom */
+    const footRail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, 0.025, DT_D - 0.18),
+      matBlackMetal
+    );
+    footRail.position.set(0, 0.0125, 0);
+    footRail.castShadow = true;
+
+    xf.add(barA, barB, footRail);
+    xf.position.set(ex, 0, 0);
+    g.add(xf);
+  }
+
+  /* Top stretcher under the table connecting both X-frames */
+  const stretcher = new THREE.Mesh(
+    new THREE.BoxGeometry(DT_W - 0.30, 0.025, 0.025),
+    matBlackMetal
+  );
+  stretcher.position.set(0, DT_H - DT_TOP_T - 0.020, 0);
+  stretcher.castShadow = true;
+  g.add(stretcher);
+
+  g.position.set(cx, 0, cz);
+  return g;
+}
+scene.add(buildDiningTable(DT_CX, DT_CZ));
+
+/* === 6 dining chairs around the table — Eames-shell style ===
+ * 3 along the south side (facing N toward table), 3 along the north
+ * side (facing S). Shell colours mix per photo evidence. */
+
+/* Upholstered leather/fabric — soft sheen, slight padded look.
+ * Per photos (dining/c/12, living/b/37, dining/c/5) the dining chairs are
+ * NOT moulded plastic shells — they're leather-upholstered chairs with a
+ * tall curved back, padded seat, and 4 thin black metal legs. */
+function makeShellMaterial(hex) {
+  return new THREE.MeshPhysicalMaterial({
+    color: hex, roughness: 0.62, metalness: 0.0,
+    clearcoat: 0.25, clearcoatRoughness: 0.40,
+    envMapIntensity: 0.25,
+  });
+}
+
+function buildShellChair(cx, cz, facing /* +1 = chair faces +Z, -1 = faces -Z */, shellHex) {
+  const g = new THREE.Group();
+
+  const SH_W      = 0.46;         // chair width
+  const SH_D      = 0.46;         // seat depth
+  const SEAT_T    = 0.060;        // padded seat thickness
+  const SEAT_TOP  = 0.46;         // seat-top height
+  const BACK_W    = 0.40;         // back width (slightly narrower than seat — visible taper in photos)
+  const BACK_H    = 0.46;         // back height above seat
+  const BACK_T    = 0.055;        // padded back thickness
+  const BACK_TILT = Math.PI / 22; // ~8° rearward tilt
+
+  const shellMat = makeShellMaterial(shellHex);
+
+  /* Padded seat — rounded box with generous edge radius. */
+  const seat = new THREE.Mesh(
+    new RoundedBoxGeometry(SH_W, SEAT_T, SH_D, 5, 0.025),
+    shellMat,
+  );
+  seat.position.set(0, SEAT_TOP - SEAT_T / 2, 0);
+  seat.castShadow = true; seat.receiveShadow = true;
+  g.add(seat);
+
+  /* Padded back — simple thick rounded slab rising from the rear edge of
+   * the seat. Tilted ~8° rearward. Photos (dining/c/12, living/b/37) show
+   * a relatively flat back with rounded top corners, NOT a deep wraparound. */
+  const back = new THREE.Mesh(
+    new RoundedBoxGeometry(BACK_W, BACK_H, BACK_T, 5, 0.025),
+    shellMat,
+  );
+  /* Place back-pad just inside the rear edge of the seat. */
+  const rearEdgeZ = -facing * SH_D / 2;                  // -SH_D/2 for facing=+1, +SH_D/2 for facing=-1
+  const backCenterZ = rearEdgeZ + facing * BACK_T / 2;   // pad just inside the edge
+  back.position.set(0, SEAT_TOP + BACK_H / 2 - 0.020, backCenterZ);
+  back.rotation.x = -facing * BACK_TILT;                  // top of back tilts away from sitter
+  back.castShadow = true; back.receiveShadow = true;
+  g.add(back);
+
+  /* Slight upper "shoulder" curl — two small rounded blocks angled inward
+   * at the top corners of the back, hinting at the gentle wraparound seen
+   * in the photos without overdoing it. */
+  for (const sx of [-1, 1]) {
+    const shoulder = new THREE.Mesh(
+      new RoundedBoxGeometry(0.060, BACK_H * 0.55, BACK_T, 4, 0.020),
+      shellMat,
+    );
+    shoulder.position.set(
+      sx * (BACK_W / 2 + 0.010),
+      SEAT_TOP + BACK_H * 0.65 - 0.020,
+      backCenterZ + facing * 0.020,
+    );
+    shoulder.rotation.y = -sx * 0.18;                      // angled forward (toward sitter)
+    shoulder.rotation.x = -facing * BACK_TILT;
+    shoulder.castShadow = true;
+    g.add(shoulder);
+  }
+
+  /* 4 thin black metal legs — round-tube, slight outward splay */
+  const legH = SEAT_TOP - SEAT_T;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.009, legH, 12),
+      matBlackMetal,
+    );
+    const inset = 0.060;
+    leg.position.set(
+      sx * (SH_W / 2 - inset),
+      legH / 2,
+      sz * (SH_D / 2 - inset),
+    );
+    leg.rotation.z = -sx * 0.040;
+    leg.rotation.x =  sz * 0.040;
+    leg.castShadow = true;
+    g.add(leg);
+  }
+
+  g.position.set(cx, 0, cz);
+  return g;
+}
+
+/* Six chair positions — 3 north, 3 south, all 30 cm out from table edge */
+const CHAIR_OFF = 0.18;
+/* Mixed dark palette per photos (dining/c/12, living/b/37, dining/a/25):
+ * ONE chair is tan/orange leather, the rest are dark moulded shells
+ * (teal-charcoal, dark grey, dark brown). NO bright rust/terracotta. */
+const chairColors = [
+  0xc07840,    // tan leather (front of dining table, dining/c/12)
+  0x2a3036,    // dark teal-charcoal shell
+  0x36302a,    // dark brown shell
+  0x453f38,    // dark grey shell
+  0x2c2f33,    // dark slate shell
+  0x382f29,    // dark walnut-brown shell
+];
+const chairXOffsets = [-DT_W / 2 + 0.30, 0, DT_W / 2 - 0.30];   // 3 along long axis
+let cidx = 0;
+for (const sz of [+1, -1]) {
+  for (const xOff of chairXOffsets) {
+    const cz = DT_CZ + sz * (DT_D / 2 + CHAIR_OFF);
+    scene.add(buildShellChair(DT_CX + xOff, cz, sz > 0 ? -1 : +1, chairColors[cidx]));
+    cidx++;
+  }
+}
+
+/* ====================================================================== */
+/* PHASE 7d — Ceiling pendants, downlights, AC unit, antique wall clock   */
+/* ====================================================================== */
+
+/* === Two chandelier-style pendants — wrought-iron arms + cream tulip
+ * shades — one over the dining table, one over the living area.
+ * Per Kumamoto rule we let the visible bulbs READ as on (low emissive)
+ * but do NOT add SpotLights; daylight from the south sliders dominates. */
+const matIron = new THREE.MeshPhysicalMaterial({
+  color: 0x16181c, roughness: 0.55, metalness: 0.55,
+  clearcoat: 0.20, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.30,
+});
+const matBulbShade = new THREE.MeshPhysicalMaterial({
+  color: 0xfaf2dc, roughness: 0.50, metalness: 0.0,
+  clearcoat: 0.10, clearcoatRoughness: 0.40,
+  envMapIntensity: 0.45,
+  transmission: 0.25, ior: 1.45, thickness: 0.005,   // milky glass shade
+});
+const matBulbGlow = new THREE.MeshStandardMaterial({
+  color: 0xffe4b0, emissive: 0xffd28c, emissiveIntensity: 0.55,
+  roughness: 0.40, metalness: 0.0,
+});
+
+function buildChandelier(cx, cz, dropToY) {
+  /* dropToY = world Y of the BOTTOM of the chandelier body */
+  const g = new THREE.Group();
+
+  /* Ceiling cap — small disc flush with ceiling */
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.060, 0.060, 0.012, 18),
+    matIron
+  );
+  cap.position.set(0, ROOM_H - 0.006, 0);
+  g.add(cap);
+
+  /* Vertical stem from cap down to body top */
+  const stemTop = ROOM_H - 0.012;
+  const bodyTop = dropToY + 0.20;
+  const stemH = stemTop - bodyTop;
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.011, 0.011, stemH, 12),
+    matIron
+  );
+  stem.position.set(0, (stemTop + bodyTop) / 2, 0);
+  g.add(stem);
+
+  /* Central body — small ornamental cluster */
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 16, 12),
+    matIron
+  );
+  body.position.set(0, bodyTop, 0);
+  g.add(body);
+
+  /* 5 curved arms with tulip shades + bulbs */
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const armLen = 0.20;
+    const armEndX = Math.cos(a) * armLen;
+    const armEndZ = Math.sin(a) * armLen;
+
+    /* Arm — thin curved tube approximated as a cylinder from body to shade */
+    const armDx = armEndX, armDz = armEndZ, armDy = -0.05;
+    const armLength = Math.sqrt(armDx * armDx + armDy * armDy + armDz * armDz);
+    const arm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.007, 0.007, armLength, 10),
+      matIron
+    );
+    arm.position.set(armEndX / 2, bodyTop + armDy / 2, armEndZ / 2);
+    /* Orient arm along (dx, dy, dz) */
+    arm.lookAt(armEndX, bodyTop + armDy, armEndZ);
+    arm.rotateX(Math.PI / 2);
+    g.add(arm);
+
+    /* Small cup at arm end */
+    const cup = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.022, 0.018, 0.020, 14),
+      matIron
+    );
+    cup.position.set(armEndX, bodyTop + armDy, armEndZ);
+    g.add(cup);
+
+    /* Tulip shade — pointing UP (open top), narrow base */
+    const shade = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.060, 0.030, 0.085, 16, 1, true),
+      matBulbShade
+    );
+    shade.position.set(armEndX, bodyTop + armDy + 0.052, armEndZ);
+    shade.castShadow = false;
+    g.add(shade);
+
+    /* Bulb — small glowing sphere inside the shade */
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.018, 12, 10),
+      matBulbGlow
+    );
+    bulb.position.set(armEndX, bodyTop + armDy + 0.058, armEndZ);
+    g.add(bulb);
+  }
+
+  g.position.set(cx, 0, cz);
+  return g;
+}
+/* Pendant over dining */
+scene.add(buildChandelier(DT_CX, DT_CZ, ROOM_H - 0.45));
+/* Pendant over living (centered between sofa and TV) */
+scene.add(buildChandelier(2.30, 2.20, ROOM_H - 0.45));
+
+/* === Recessed ceiling downlights — emissive discs at the ceiling face.
+ * Visible in living/a/01 + living/c/20 + dining/c/01 photos. Don't add
+ * SpotLights — keep them as visible fixtures only so daylight dominates. */
+{
+  const matFix = new THREE.MeshStandardMaterial({
+    color: 0xfff5e0, emissive: 0xffe8b6, emissiveIntensity: 0.40,
+    roughness: 0.4, metalness: 0.0,
+  });
+  /* Only 3 downlights visible in photos (dining/b/17, living/c/20,
+   * dining/c/01) — 1 east of dining chandelier, 1 near brick window,
+   * 1 near pass-through opening. The previous 8-position grid was over-
+   * generous; reduced to match photos. */
+  const positions = [
+    [4.70, 0.95],   // east of dining chandelier (visible in dining/b/17)
+    [5.60, 2.20],   // near brick window mid-wall
+    [3.20, 4.05],   // near pass-through opening (visible in dining/c/01)
+  ];
+  for (const [x, z] of positions) {
+    const fix = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.006, 24),
+      matFix
+    );
+    fix.position.set(x, ROOM_H - 0.003, z);
+    scene.add(fix);
+  }
+}
+
+/* === AC unit on brick-wall — white horizontal split-system head ===
+ * Per living/a/35 + living/c/01 photos: white horizontal rectangle box
+ * mounted high on the brick-wall, near the SE corner of the LDK. */
+const matACBody = new THREE.MeshPhysicalMaterial({
+  color: 0xf2f0eb, roughness: 0.62, metalness: 0.04,
+  clearcoat: 0.30, clearcoatRoughness: 0.30,
+  envMapIntensity: 0.30,
+});
+const matACVent = new THREE.MeshPhysicalMaterial({
+  color: 0x9ca0a4, roughness: 0.65, metalness: 0.20,
+  envMapIntensity: 0.25,
+});
+function buildAC(cx, cy, cz) {
+  const g = new THREE.Group();
+  const AC_W = 0.82, AC_H = 0.30, AC_D = 0.24;
+  /* Body — RoundedBox for the soft Japanese A/C silhouette */
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(AC_D, AC_H, AC_W, 4, 0.025),
+    matACBody
+  );
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  /* Front louvered intake — slim recessed strip on the front face */
+  const louver = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, AC_H * 0.55, AC_W * 0.85),
+    matACVent
+  );
+  louver.position.set(-AC_D / 2 - 0.0025, -AC_H * 0.05, 0);
+  g.add(louver);
+
+  /* Bottom outflow vent — angled black slit at front-bottom */
+  const vent = new THREE.Mesh(
+    new THREE.BoxGeometry(0.040, 0.008, AC_W * 0.80),
+    new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: 0.85 })
+  );
+  vent.position.set(-AC_D / 2 + 0.020, -AC_H / 2 + 0.015, 0);
+  g.add(vent);
+
+  /* Tiny status LED on right end */
+  const led = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.004, 0.004, 0.001, 10),
+    new THREE.MeshStandardMaterial({
+      color: 0x6ec8ff, emissive: 0x4ab5ff, emissiveIntensity: 0.65,
+    })
+  );
+  led.rotation.x = Math.PI / 2;
+  led.position.set(-AC_D / 2 - 0.001, -AC_H * 0.30, AC_W / 2 - 0.060);
+  g.add(led);
+
+  g.position.set(cx, cy, cz);
+  return g;
+}
+/* Mount on brick-wall (east, x=ROOM_W) at high position, in the south
+ * portion of the wall (visible in living/a/35 and living/c/01). The
+ * unit hangs INTO the room — its back is flush with the brick face. */
+scene.add(buildAC(
+  ROOM_W - 0.24 / 2 - 0.01,    // back flush against brick (cx is body centre)
+  2.10,                         // top of unit ~2.25 m (just below ceiling)
+  0.95,                         // along z, south of the brick window (window at z=1.50..3.00)
+));
+
+/* === Antique double-faced station-clock on wrought-iron bracket ===
+ * Per living/a/01 + living/c/20 photos: mounted on the kitchen-wall
+ * just above/east of the corridor entry (the corridor entry sits on
+ * the west end of the kitchen-wall; the clock arm reaches out into
+ * the LDK so both faces are visible from the living + dining sides). */
+{
+  const matClockBody = new THREE.MeshPhysicalMaterial({
+    color: 0x161616, roughness: 0.55, metalness: 0.45,
+    clearcoat: 0.25, clearcoatRoughness: 0.25,
+    envMapIntensity: 0.30,
+  });
+  const matClockBezel = new THREE.MeshPhysicalMaterial({
+    color: 0x252525, roughness: 0.50, metalness: 0.55,
+    clearcoat: 0.30, clearcoatRoughness: 0.20,
+    envMapIntensity: 0.30,
+  });
+
+  /* Clock face canvas — Roman-numeral dial */
+  const clockFaceCanvas = (() => {
+    const c = makeCanvas(256, 256);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#f3ead2';
+    ctx.beginPath(); ctx.arc(128, 128, 122, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(128, 128, 122, 0, Math.PI * 2); ctx.stroke();
+    /* Hour ticks */
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const r0 = 105, r1 = 118;
+      ctx.beginPath();
+      ctx.moveTo(128 + Math.cos(a) * r0, 128 + Math.sin(a) * r0);
+      ctx.lineTo(128 + Math.cos(a) * r1, 128 + Math.sin(a) * r1);
+      ctx.stroke();
+    }
+    /* Roman numerals at 12 / 3 / 6 / 9 */
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = 'bold 22px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('XII', 128, 50);
+    ctx.fillText('III', 200, 128);
+    ctx.fillText('VI',  128, 206);
+    ctx.fillText('IX',  56,  128);
+    /* Hands — 11:00 frozen */
+    ctx.lineWidth = 6; ctx.lineCap = 'round';
+    /* Hour hand → 11 */
+    ctx.beginPath();
+    ctx.moveTo(128, 128);
+    const ha = (-Math.PI / 2) + (-1 / 6) * Math.PI;
+    ctx.lineTo(128 + Math.cos(ha) * 60, 128 + Math.sin(ha) * 60);
+    ctx.stroke();
+    /* Minute hand → 12 */
+    ctx.beginPath();
+    ctx.moveTo(128, 128);
+    ctx.lineTo(128, 50);
+    ctx.stroke();
+    /* Centre dot */
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(128, 128, 8, 0, Math.PI * 2); ctx.fill();
+    return c;
+  })();
+  const matClockFace = new THREE.MeshStandardMaterial({
+    map: texFromCanvas(clockFaceCanvas, { repeat: [1, 1] }),
+    roughness: 0.50, metalness: 0.0, side: THREE.DoubleSide,
+  });
+
+  /* Mount position on the kitchen-wall — centred ABOVE the corridor
+   * entry door (door at x=[COR_X0, COR_X1], head y=COR_HEAD=2.05).
+   * The clock arm extends INTO the LDK so both faces are visible from
+   * the living + dining sides. */
+  const CLK_X = (COR_X0 + COR_X1) / 2;   // 1.50 — centred above corridor
+  const CLK_Y = 2.22;                     // above door head with clearance
+  const CLK_Z = ROOM_D - 0.01;            // against kitchen-wall
+
+  const clockGroup = new THREE.Group();
+
+  /* Wall plate */
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.060, 0.040),
+    matClockBody
+  );
+  plate.position.set(0, 0, -0.020);
+  clockGroup.add(plate);
+
+  /* Horizontal bracket arm — extends INTO the room (-Z) */
+  const armLen = 0.26;
+  const arm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.012, armLen),
+    matClockBody
+  );
+  arm.position.set(0, 0, -armLen / 2 - 0.020);
+  clockGroup.add(arm);
+
+  /* Decorative finial on top of arm join (small fleur-de-lis-ish blob) */
+  const finial = new THREE.Mesh(
+    new THREE.ConeGeometry(0.018, 0.040, 12),
+    matClockBody
+  );
+  finial.position.set(0, 0.045, -0.020);
+  clockGroup.add(finial);
+
+  /* Clock head — thick disc with two faces. Z-axis aligned (faces ±X) */
+  const headR = 0.090;
+  const headT = 0.040;
+  const head = new THREE.Mesh(
+    new THREE.CylinderGeometry(headR, headR, headT, 32),
+    matClockBezel
+  );
+  head.rotation.z = Math.PI / 2;
+  head.position.set(0, 0, -armLen - 0.020);
+  clockGroup.add(head);
+
+  /* East face (+X) */
+  const faceE = new THREE.Mesh(
+    new THREE.CircleGeometry(headR - 0.005, 32),
+    matClockFace
+  );
+  faceE.rotation.y = Math.PI / 2;
+  faceE.position.set(headT / 2 + 0.001, 0, -armLen - 0.020);
+  clockGroup.add(faceE);
+
+  /* West face (-X) */
+  const faceW = new THREE.Mesh(
+    new THREE.CircleGeometry(headR - 0.005, 32),
+    matClockFace
+  );
+  faceW.rotation.y = -Math.PI / 2;
+  faceW.position.set(-headT / 2 - 0.001, 0, -armLen - 0.020);
+  clockGroup.add(faceW);
+
+  /* Top hanger fleur — small loop above the head */
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.010, 0.010, 0.060, 12),
+    matClockBody
+  );
+  top.position.set(0, headR + 0.030, -armLen - 0.020);
+  clockGroup.add(top);
+
+  clockGroup.position.set(CLK_X, CLK_Y, CLK_Z);
+  scene.add(clockGroup);
+}
+
+/* ====================================================================== */
+/* PHASE 7g — Intercom panel + light switches + outside-stair handrail   */
+/* ====================================================================== */
+
+/* === Intercom panel + light switches on the stairwell east partition ===
+ * Per living/a/01 photo: white square video-intercom monitor with display,
+ * and a slim white light-switch plate below it, both mounted on the
+ * stairwell east-facing partition wall. */
+{
+  const matSwitchPlate = new THREE.MeshPhysicalMaterial({
+    color: 0xf5f1e6, roughness: 0.55, metalness: 0.0,
+    clearcoat: 0.20, clearcoatRoughness: 0.30,
+    envMapIntensity: 0.35,
+  });
+  const matSwitchScreen = new THREE.MeshStandardMaterial({
+    color: 0x1a1f24, emissive: 0x10141a, emissiveIntensity: 0.10,
+    roughness: 0.30, metalness: 0.10,
+  });
+  const matSwitchRocker = new THREE.MeshPhysicalMaterial({
+    color: 0xf8f4e9, roughness: 0.50, metalness: 0.0,
+    clearcoat: 0.15, envMapIntensity: 0.30,
+  });
+
+  /* Mount on the LDK-facing (east) side of the stairwell east partition */
+  const wx = STAIR_X1 + WALL_T + 0.001;     // just proud of partition east face
+  const wz = 3.10;                            // along the partition (between STAIR_Z0=2.90 and STAIR_Z1=4.50)
+
+  /* --- Intercom monitor: 110 W × 145 H × 22 D mm --- */
+  const intercom = new THREE.Group();
+  /* Plate body */
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.022, 0.145, 0.110),
+    matSwitchPlate
+  );
+  intercom.add(plate);
+  /* Screen — slim recessed dark rectangle on the east face */
+  const screen = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, 0.080, 0.080),
+    matSwitchScreen
+  );
+  screen.position.set(0.012, 0.018, 0);
+  intercom.add(screen);
+  /* Bottom button strip */
+  const btnRow = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, 0.018, 0.080),
+    matSwitchRocker
+  );
+  btnRow.position.set(0.012, -0.052, 0);
+  intercom.add(btnRow);
+  intercom.position.set(wx, 1.50, wz);
+  scene.add(intercom);
+
+  /* --- Light switch plate: 65 W × 110 H mm, single rocker --- */
+  const sw = new THREE.Group();
+  const swPlate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.110, 0.065),
+    matSwitchPlate
+  );
+  sw.add(swPlate);
+  const rocker = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, 0.060, 0.038),
+    matSwitchRocker
+  );
+  rocker.position.set(0.008, 0, 0);
+  sw.add(rocker);
+  sw.position.set(wx, 1.18, wz);
+  scene.add(sw);
+}
+
+/* No outside-stair handrail in photos — the only stair handrail visible
+ * is the thin black metal rail on top of the LDK-side knee walls, already
+ * built above. Removed per audit 2026-05-11. */
+
+/* ====================================================================== */
+/* PHASE 7i — Small decor + wall outlets                                  */
+/* ====================================================================== */
+
+/* === Lavender stems in a small glass bottle on the dining table ===
+ * Per dining/c/08 + dining/a/01: tall slim clear-glass bottle holding
+ * 2-3 lavender stems (purple flower spikes on green stalks). */
+{
+  const matBottleGlass = new THREE.MeshPhysicalMaterial({
+    color: 0xe8efee, roughness: 0.05, metalness: 0.0,
+    transmission: 0.95, ior: 1.50, thickness: 0.003,
+    attenuationColor: new THREE.Color(0xddebe4),
+    attenuationDistance: 0.30,
+    envMapIntensity: 0.85,
+  });
+  const matStem = new THREE.MeshPhysicalMaterial({
+    color: 0x4a6638, roughness: 0.65, metalness: 0.0,
+    envMapIntensity: 0.30,
+  });
+  const matLavender = new THREE.MeshPhysicalMaterial({
+    color: 0x745aa3, roughness: 0.70, metalness: 0.0,
+    envMapIntensity: 0.30,
+  });
+
+  const cx = DT_CX, cz = DT_CZ;
+  const tableTopY = DT_H;        // 0.74
+
+  /* Glass bottle — narrow cylindrical body with slim neck */
+  const bottle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.030, 0.150, 16),
+    matBottleGlass
+  );
+  bottle.position.set(cx, tableTopY + 0.075, cz);
+  scene.add(bottle);
+
+  /* Bottle neck */
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.025, 0.025, 14),
+    matBottleGlass
+  );
+  neck.position.set(cx, tableTopY + 0.150 + 0.012, cz);
+  scene.add(neck);
+
+  /* 3 lavender stems — slight outward tilt, varying height */
+  const stems = [
+    [+0.012, 0,       0.32, 0.10],     // [dx, dz, height, tilt-radians]
+    [-0.008, +0.015,  0.36, -0.08],
+    [+0.005, -0.012,  0.30, 0.04],
+  ];
+  for (const [dx, dz, hgt, tilt] of stems) {
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0015, 0.002, hgt, 8),
+      matStem
+    );
+    stem.position.set(cx + dx, tableTopY + 0.165 + hgt / 2, cz + dz);
+    stem.rotation.z = tilt;
+    scene.add(stem);
+
+    /* Flower spike — narrow purple cone at the top of each stem */
+    const flower = new THREE.Mesh(
+      new THREE.ConeGeometry(0.010, 0.060, 10),
+      matLavender
+    );
+    flower.position.set(
+      cx + dx + Math.sin(tilt) * (hgt / 2 + 0.030),
+      tableTopY + 0.165 + hgt + 0.030,
+      cz + dz,
+    );
+    flower.rotation.z = tilt;
+    scene.add(flower);
+  }
+}
+
+/* === Small pink/white flower jar on the coffee table ===
+ * Per living/c/15 + dining/b/25: short clear-glass jar with a small
+ * bunch of tiny pink/white flowers (looks like daisy/baby's-breath). */
+{
+  const matJarGlass = new THREE.MeshPhysicalMaterial({
+    color: 0xeef4f0, roughness: 0.05, metalness: 0.0,
+    transmission: 0.95, ior: 1.50, thickness: 0.003,
+    attenuationColor: new THREE.Color(0xdeece6),
+    attenuationDistance: 0.30,
+    envMapIntensity: 0.85,
+  });
+  const matStemSmall = new THREE.MeshPhysicalMaterial({
+    color: 0x5a7a48, roughness: 0.65, envMapIntensity: 0.30,
+  });
+  const matPetalPink = new THREE.MeshPhysicalMaterial({
+    color: 0xf2c8d2, roughness: 0.75, envMapIntensity: 0.30,
+  });
+  const matPetalWhite = new THREE.MeshPhysicalMaterial({
+    color: 0xf6efe6, roughness: 0.72, envMapIntensity: 0.30,
+  });
+
+  /* Coffee table at (2.30, 0, 2.70), top at y=0.40 */
+  const cx = 2.30, cz = 2.70;
+  const tableTopY = 0.40;
+
+  /* Short squat glass jar */
+  const jar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.030, 0.034, 0.060, 16),
+    matJarGlass
+  );
+  jar.position.set(cx, tableTopY + 0.030, cz);
+  scene.add(jar);
+
+  /* Slim jar neck/lip */
+  const lip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.030, 0.010, 14),
+    matJarGlass
+  );
+  lip.position.set(cx, tableTopY + 0.065, cz);
+  scene.add(lip);
+
+  /* 5 short stems with small flower clusters at top */
+  const stems = [
+    [+0.000, +0.000, 0.085],
+    [+0.012, -0.005, 0.075],
+    [-0.010, -0.008, 0.080],
+    [-0.005, +0.010, 0.090],
+    [+0.008, +0.012, 0.072],
+  ];
+  for (let i = 0; i < stems.length; i++) {
+    const [dx, dz, hgt] = stems[i];
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0010, 0.0014, hgt, 6),
+      matStemSmall
+    );
+    stem.position.set(cx + dx, tableTopY + 0.065 + hgt / 2, cz + dz);
+    scene.add(stem);
+
+    /* Small flower head — alternate pink + white, 4-5 tiny petals */
+    const headMat = (i % 2 === 0) ? matPetalPink : matPetalWhite;
+    for (let p = 0; p < 5; p++) {
+      const ang = (p / 5) * Math.PI * 2;
+      const petalR = 0.006;
+      const petal = new THREE.Mesh(
+        new THREE.SphereGeometry(petalR, 8, 6),
+        headMat
+      );
+      petal.position.set(
+        cx + dx + Math.cos(ang) * 0.005,
+        tableTopY + 0.065 + hgt + 0.001,
+        cz + dz + Math.sin(ang) * 0.005,
+      );
+      scene.add(petal);
+    }
+    /* Tiny yellow center */
+    const center = new THREE.Mesh(
+      new THREE.SphereGeometry(0.0025, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xf2d878, roughness: 0.6 }),
+    );
+    center.position.set(cx + dx, tableTopY + 0.065 + hgt + 0.001, cz + dz);
+    scene.add(center);
+  }
+}
+
+/* === Floor-level wall outlets ===
+ * White double-socket plates (~70 mm wide × 110 mm tall, ~10 mm proud).
+ * Positioned at Japanese standard height (~250 mm above floor) on a
+ * few visible LDK walls. */
+{
+  const matOutletPlate = new THREE.MeshPhysicalMaterial({
+    color: 0xf6f1e2, roughness: 0.55, metalness: 0.0,
+    clearcoat: 0.20, clearcoatRoughness: 0.30,
+    envMapIntensity: 0.30,
+  });
+  const matSocket = new THREE.MeshStandardMaterial({
+    color: 0x18181a, roughness: 0.85,
+  });
+
+  function addOutlet(wallAxis, x, y, z, facing) {
+    /* wallAxis: 'z' for outlet on N or S wall (plate normal ±Z),
+     *           'x' for outlet on E or W wall (plate normal ±X).
+     * facing: +1 means plate faces +axis, -1 means -axis */
+    const w = 0.070, h = 0.110, d = 0.010;
+    const g = new THREE.Group();
+    /* Plate */
+    let plateGeom;
+    if (wallAxis === 'z') {
+      plateGeom = new THREE.BoxGeometry(w, h, d);
+    } else {
+      plateGeom = new THREE.BoxGeometry(d, h, w);
+    }
+    const plate = new THREE.Mesh(plateGeom, matOutletPlate);
+    g.add(plate);
+    /* Two socket recesses — small dark slits */
+    for (const sy of [-0.015, +0.015]) {
+      const slit1 = new THREE.Mesh(
+        wallAxis === 'z'
+          ? new THREE.BoxGeometry(0.005, 0.014, 0.003)
+          : new THREE.BoxGeometry(0.003, 0.014, 0.005),
+        matSocket
+      );
+      const slit2 = new THREE.Mesh(slit1.geometry, matSocket);
+      if (wallAxis === 'z') {
+        slit1.position.set(-0.008, sy, facing * (d / 2 + 0.001));
+        slit2.position.set(+0.008, sy, facing * (d / 2 + 0.001));
+      } else {
+        slit1.position.set(facing * (d / 2 + 0.001), sy, -0.008);
+        slit2.position.set(facing * (d / 2 + 0.001), sy, +0.008);
+      }
+      g.add(slit1, slit2);
+    }
+    g.position.set(x, y, z);
+    scene.add(g);
+  }
+
+  /* Only ONE wall outlet is visible in photos — on the stairs-wall (west)
+   * near the sofa, per living/a/01. Removed the other 3 invented ones. */
+  addOutlet('x', 0.012, 0.25, 1.20, +1);
+}
+
+/* ====================================================================== */
+/* HOTSPOTS — Phase 6 wires the BRAVIA hotspot.                           */
+/* ====================================================================== */
+const PRODUCTS = {
+  'tv-001': {
+    name: 'Sony BRAVIA FW-65BZ30J/BZ',
+    meta: '65" 4K HDR business display · processor X1',
+    spec: [
+      ['Display width',    '146.2 cm (without stand)'],
+      ['Display height',   '84.2 cm (without stand)'],
+      ['Display depth',    '7.1 cm'],
+      ['With stand',       '146.2 × 91.2 × 33.8 cm'],
+      ['Active screen',    '142.8 × 80.4 cm (≈ 64.5")'],
+      ['VESA mount',       '300 × 300 mm'],
+      ['Power (operating)', '230 W'],
+      ['Weight',           '21.6 kg (without stand)'],
+    ],
+    refUrl: 'https://www.sony.jp/bravia-biz/products/FW-BZ30J_BZ/spec.html',
+    pos: TV_HOTSPOT,
+  },
+};
+
+const hotspotsLayer = document.getElementById('hotspots-layer');
+const hotspots = [];
+for (const [id, p] of Object.entries(PRODUCTS)) {
+  const btn = document.createElement('button');
+  btn.className = 'hotspot';
+  btn.setAttribute('data-id', id);
+  btn.innerHTML = '<span class="hotspot__dot" aria-hidden="true"></span>';
+  btn.addEventListener('click', () => openPopover(id));
+  hotspotsLayer.appendChild(btn);
+  hotspots.push({ id, btn, world: new THREE.Vector3().fromArray(p.pos) });
+}
+
+const popover = document.getElementById('popover');
+const popoverScrim = document.getElementById('popover-scrim');
+const pvName = document.getElementById('pv-name');
+const pvMeta = document.getElementById('pv-meta');
+const pvSpec = document.getElementById('pv-spec');
+const pvRef  = document.getElementById('pv-ref');
+const pvClose = document.getElementById('pv-close');
+
+function openPopover(id) {
+  const p = PRODUCTS[id];
+  if (!p) return;
+  pvName.textContent = p.name;
+  pvMeta.textContent = p.meta;
+  pvSpec.innerHTML = '';
+  for (const [k, v] of p.spec) {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;
+    pvSpec.append(dt, dd);
+  }
+  pvRef.href = p.refUrl;
+  popover.classList.add('open');
+  popoverScrim.classList.add('open');
+}
+function closePopover() {
+  popover.classList.remove('open');
+  popoverScrim.classList.remove('open');
+}
+pvClose.addEventListener('click', closePopover);
+popoverScrim.addEventListener('click', closePopover);
+
+/* ====================================================================== */
+/* Postprocessing — recipe defaults (bloom strength 0.16, threshold 1.0). */
+/* ====================================================================== */
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+composer.setSize(window.innerWidth, window.innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  /* strength */ 0.16,
+  /* radius   */ 0.70,
+  /* threshold*/ 1.00
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* ====================================================================== */
+/* Render loop                                                             */
+/* ====================================================================== */
+function projectHotspots() {
+  for (const h of hotspots) {
+    const v = h.world.clone().project(camera);
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    const visible = v.z < 1 && v.x > -1 && v.x < 1 && v.y > -1 && v.y < 1;
+    h.btn.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+    h.btn.style.display = visible ? 'inline-flex' : 'none';
+  }
+}
+
+function tick() {
+  composer.render();
+  projectHotspots();
+  requestAnimationFrame(tick);
+}
+tick();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloom.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

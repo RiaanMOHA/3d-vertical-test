@@ -1,0 +1,24 @@
+00:00.483  cycles           | WARNING HIPEW initialization failed: Error opening HIP dynamic library
+/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py:221: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+Traceback (most recent call last):
+  File "/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py", line 764, in <module>
+    main()
+    ~~~~^^
+  File "/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py", line 708, in main
+    configure_world()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/moha/Project/3d-vertical-test/living-dining-test/bake/bake_room_lightmap.py", line 228, in configure_world
+    sky.sky_type = 'NISHITA'
+    ^^^^^^^^^^^^
+TypeError: bpy_struct: item.attr = val: enum "NISHITA" not found in ('SINGLE_SCATTERING', 'MULTIPLE_SCATTERING', 'PREETHAM', 'HOSEK_WILKIE')
+=== living-dining-test (LDK) LIGHTMAP bake start ===
+  res=1024, samples=512
+  output: /home/moha/Project/3d-vertical-test/living-dining-test/textures/lightmap
+=== Cycles devices ===
+  device: NVIDIA RTX A6000  type=OPTIX  use=True
+  device: AMD Ryzen Threadripper 3990X 64-Core Processor  type=CPU  use=False
+  device: NVIDIA RTX A6000  type=CUDA  use=False
+Blender 5.1.1 (hash b70da489d7f4 built 2026-04-14 01:31:31)
+
+Blender quit
