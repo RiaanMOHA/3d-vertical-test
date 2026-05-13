@@ -1151,13 +1151,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       { name: 'corridor-1',    x1: 3.60, z1: 4.50, x2: 4.50, z2: 5.40, y1: 0,   y2: 2.5 }, // east-arm connector strip (south of toilet, west of main shaft)
       { name: 'corridor-1',    x1: 1.80, z1: 4.50, x2: 3.60, z2: 5.40, y1: 0,   y2: 2.5 }, // washroom-approach strip (south of washroom door)
       // 2F (y=2.5..5.0)
-      { name: 'stairs',                x1: 4.725, z1: 3.60, x2: 6.30, z2: 4.50, y1: 2.5, y2: 5.0 }, // 2F shaft footprint (L-bend turns west)
+      { name: 'stairs',                x1: 4.05,  z1: 3.60, x2: 6.30, z2: 4.50, y1: 2.5, y2: 5.0 }, // 2F shaft footprint (extended west to x=4.05 to fit the 3+4+6 stair upper flight)
       { name: 'room-3',                x1: 0,    z1: 0,    x2: 2.70, z2: 3.60, y1: 2.5, y2: 5.0 },
       { name: 'room-1',                x1: 3.60, z1: 4.50, x2: 6.30, z2: 7.20, y1: 2.5, y2: 5.0 },
       { name: 'room-2',                x1: 0,    z1: 4.50, x2: 2.70, z2: 7.20, y1: 2.5, y2: 5.0 },
       { name: 'room-4',                x1: 3.60, z1: 0,    x2: 6.30, z2: 3.60, y1: 2.5, y2: 5.0 },
       { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 5.85, x2: 3.60, z2: 7.20, y1: 2.5, y2: 5.0 }, // toilet zone
-      { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 3.60, x2: 4.725, z2: 4.50, y1: 2.5, y2: 5.0 }, // corridor main strip
+      { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 3.60, x2: 4.05,  z2: 4.50, y1: 2.5, y2: 5.0 }, // corridor main strip (stops at x=4.05 = shaft east edge)
       { name: 'corridor-2-toilet-2-f', x1: 2.70, z1: 4.50, x2: 3.60,  z2: 5.85, y1: 2.5, y2: 5.0 }, // corridor north arm to toilet door
     ],
     viewpoints: [
@@ -1379,7 +1379,7 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // 1F ceilings — flat plaster. The hole only covers the UPPER-flight footprint
-      // (x=[4.725, W], z=[3.60, 4.50]) where stair elements rise above the ceiling level.
+      // (x=[4.05, W], z=[3.60, 4.50]) where stair elements rise above the ceiling level.
       // The lower flight's south portion (x=[5.40, W], z=[2.90, 3.60]) gets ceiling back —
       // otherwise room-4's 2F-floor underside (tan wood-plank) shows through to the LDK
       // as a visible tan strip. Headroom on lower treads i=0..2 stays at ≥1.82 m which is
@@ -1392,7 +1392,7 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         { x0: 0,    z0: 2.40, x1: 2.55,  z1: 4.50, mat: matPlankCeiling },  // KITCHEN — plank
         { x0: 2.55, z0: 2.40, x1: W,     z1: 2.90, mat: matCeiling      },  // right of kitchen, south band
         { x0: 2.55, z0: 2.90, x1: W,     z1: 3.60, mat: matCeiling      },  // right of kitchen, middle band (covers lower-flight south)
-        { x0: 2.55, z0: 3.60, x1: 4.725, z1: 4.50, mat: matCeiling      },  // right of kitchen, west of upper-flight zone
+        { x0: 2.55, z0: 3.60, x1: 4.05,  z1: 4.50, mat: matCeiling      },  // right of kitchen, west of upper-flight zone (shaft east edge moved 4.725→4.05 for 3+4+6 stair)
         { x0: 0,    z0: 4.50, x1: W,     z1: D,    mat: matCeiling      },  // full width north of stair shaft
       ];
       for (const c of F1_CEIL) makeCeiling(c.x0, c.z0, c.x1, c.z1, F1H - FLOOR_T, c.mat);
@@ -1611,12 +1611,24 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       wallZ(1.80, 5.40, D,    [[5.50, 6.10]], F1H, 0);                 // laundry ↔ washroom (door)
       wallZ(3.60, 3.60, 4.50, [], F1H, 0);
       wallZ(3.60, 5.40, D,    [], F1H, 0);                             // washroom ↔ toilet partition
-      wallZ(4.50, 3.60, 4.50, [], F1H, 0);
+      // x=4.50 wall, z=[3.60, 4.50] — height capped because the upper flight crosses this
+      // wall: step 11/12 treads span x∈[4.275, 4.75] at y≈2.08–2.31, and the wedge underside
+      // dips down to y≈2.10 at x=4.50. Cap at y=7*RISE so the upper flight clears it.
+      wallZ(4.50, 3.60, 4.50, [], 7 * F1H / 13, 0);
       wallZ(4.50, 5.40, 6.30, [[5.65, 6.30]], F1H, 0);
       wallZ(4.50, 6.30, D,    [], F1H, 0);
-      wallZ(5.40, 2.90, 4.50, [], F1H, 0);
+      // 1F shaft east wall at x=5.40 — split because the upper flight extends WEST of this
+      // line at y=[7*RISE=1.346, 2.50] in the winder+upper-flight z range. A single full-height
+      // wall over z=[2.90, 4.50] would clip THROUGH step 8's riser/tread and bury the L-bend.
+      wallZ(5.40, 2.90, 3.575, [], F1H, 0);              // lower-flight enclosure: full 2.50 m height
+      wallZ(5.40, 3.575, 4.50, [], 7 * F1H / 13, 0);     // winder-zone east wall: cap at y=7*RISE so the upper flight clears it
       wallX(2.90, 5.40, W,    [], F1H, 0);
-      wallX(3.60, 3.60, 4.50, [], F1H, 0);
+      // z=3.60 wall, x=[3.60, 4.50] — split because the upper flight crosses this wall at
+      // its south edge (UZ0=3.575, just 25mm south of z=3.60). Treads at x=[4.05, 4.50]
+      // sit at y=2.07–2.31 above this wall. Keep full height west of the upper-flight
+      // footprint; cap the portion under it.
+      wallX(3.60, 3.60, 4.05, [], F1H, 0);              // outside upper-flight x range — full height
+      wallX(3.60, 4.05, 4.50, [], 7 * F1H / 13, 0);     // under the upper flight — capped at y=7*RISE
       wallX(4.50, 0,    1.80, [[0.75, 1.35]], F1H, 0);                 // kitchen ↔ laundry (door)
       wallX(4.50, 1.80, 3.60, [], F1H, 0);                             // kitchen fridge-wall (east) + LDK ↔ corridor-1 washroom-approach
       wallX(4.50, 3.60, 4.50, [], F1H, 0);                             // LDK ↔ corridor-1 east-arm
@@ -1626,8 +1638,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       wallX(6.30, 4.50, W,    [[5.10, 5.80]], F1H, 0);
 
       // ───────────────── 2F ─────────────────
-      // Stair shaft hole on 2F: x=4.725..W, z=3.60..4.50 (upper flight rises through).
-      const SX0 = 4.725, SX1 = W, SZ0 = 3.60, SZ1 = 4.50;
+      // Stair shaft hole on 2F: x=4.05..W, z=3.60..4.50 (upper flight rises through; east
+      // edge moved from 4.725→4.05 for 3+4+6 stair with TREAD=0.225m, 6 × 0.225 = 1.35m run).
+      const SX0 = 4.05, SX1 = W, SZ0 = 3.60, SZ1 = 4.50;
       const F2_ROOMS = [
         { mat: FLOORS.room,        x0: 3.60,  z0: 4.50,  x1: W,    z1: D     }, // room-1
         { mat: FLOORS.toilet,      x0: 2.70,  z0: 5.85,  x1: 3.60, z1: D     }, // toilet
@@ -1681,17 +1694,17 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // 2F ceilings — flat plaster everywhere except the stair shaft, which gets a
       // whitewashed wood-plank accent ceiling (visible from the upper flight in stairs-1, 2, 22, 24).
       makeCeiling(0,    0,    W,     3.60, F1H + F2H);                   // south of stair shaft
-      makeCeiling(0,    3.60, 4.725, 4.50, F1H + F2H);                   // west of stair shaft
+      makeCeiling(0,    3.60, 4.05,  4.50, F1H + F2H);                   // west of stair shaft
       makeCeiling(0,    4.50, W,     D,    F1H + F2H);                   // north of stair shaft
       // Stair shaft (wood-plank accent). Built manually instead of via makeCeiling so the
       // top face uses plain matCeiling — the interior scene has no roof, and from an orbit
       // camera above you'd otherwise see the plank pattern bleeding through to the top.
       // BoxGeometry face order: [+X, -X, +Y, -Y, +Z, -Z]; index 2 = top, index 3 = bottom.
       {
-        const dx = W - 4.725, dz = 4.50 - 3.60;
+        const dx = W - 4.05, dz = 4.50 - 3.60;
         const mats = [matPlankCeiling, matPlankCeiling, matCeiling, matPlankCeiling, matPlankCeiling, matPlankCeiling];
         const m = new THREE.Mesh(new THREE.BoxGeometry(dx, CEIL_T, dz), mats);
-        m.position.set((4.725 + W) / 2, F1H + F2H - CEIL_T / 2, (3.60 + 4.50) / 2);
+        m.position.set((4.05 + W) / 2, F1H + F2H - CEIL_T / 2, (3.60 + 4.50) / 2);
         m.userData._isCeiling = true;
         m.userData._ceilingFloor = '2f';
         S.group.add(m);
@@ -1702,7 +1715,7 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       {
         const trimMat = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.85 });
         const trimW = 0.05, trimT = 0.015;
-        const px0 = 4.725, px1 = W, pz0 = 3.60, pz1 = 4.50;
+        const px0 = 4.05,  px1 = W, pz0 = 3.60, pz1 = 4.50;
         const yTrim = F1H + F2H - CEIL_T - trimT / 2;
         // South + north edges (run in x)
         for (const z of [pz0 + trimW / 2, pz1 - trimW / 2]) {
@@ -2102,9 +2115,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
 
       // 2F corridor — L-shape, painted per visible wall (skip the open stair-shaft edge).
       const filterF2 = (axis, c) => F2_DOORS.filter(d => d.axis === axis && Math.abs(d.c - c) < 0.05);
-      // Main strip (x=2.70..4.725, z=3.60..4.50)
-      addWallPaint2F('X', 3.60, 2.70, 4.725, +1, F1H, F2H, filterF2('X', 3.60), []);
-      addWallPaint2F('X', 4.50, 3.60, 4.725, -1, F1H, F2H, filterF2('X', 4.50), []);
+      // Main strip (x=2.70..4.05, z=3.60..4.50) — west extent now matches the moved shaft east edge.
+      addWallPaint2F('X', 3.60, 2.70, 4.05,  +1, F1H, F2H, filterF2('X', 3.60), []);
+      addWallPaint2F('X', 4.50, 3.60, 4.05,  -1, F1H, F2H, filterF2('X', 4.50), []);
       addWallPaint2F('Z', 2.70, 3.60, 4.50,  +1, F1H, F2H, [], []);
       // North arm (x=2.70..3.60, z=4.50..5.85)
       addWallPaint2F('X', 5.85, 2.70, 3.60,  -1, F1H, F2H, filterF2('X', 5.85), []);
@@ -2119,9 +2132,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       addWallPaint2F('Z', W,    2.90, 4.50, -1, 0, F1H, [], []);     // west face: exterior wall, paint faces stair
       addWallPaint2F('X', 4.50, 5.40, W,    -1, 0, F1H, [], []);     // north face: laundry/storage partition
       // 2F upper-flight open shaft (z=3.60..4.50, 2F height — no 2F floor here so the shaft is open):
-      addWallPaint2F('Z', 4.725, 3.60, 4.50, +1, F1H, F2H, [], []);  // east face: 2F corridor partition
+      addWallPaint2F('Z', 4.05,  3.60, 4.50, +1, F1H, F2H, [], []);  // east face: 2F corridor partition (shaft east edge at x=4.05)
       addWallPaint2F('Z', W,     3.60, 4.50, -1, F1H, F2H, [], []);  // west face: exterior, 2F portion
-      addWallPaint2F('X', 4.50,  4.725, W,   -1, F1H, F2H, [], []);  // north face: room-1 partition
+      addWallPaint2F('X', 4.50,  4.05,  W,   -1, F1H, F2H, [], []);  // north face: room-1 partition (shaft north edge full width)
 
       // ───────────────── GENKAN DETAIL (Phase 3) ─────────────────
       // Genkan zone: x=4.50..6.30, z=6.30..D=7.20. Front door at x=4.95..5.85, z=D.
@@ -2208,8 +2221,10 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
       }
 
-      // ───────────────── L-SHAPE STAIR (13 risers: 5 lower + 2 winders + 6 upper) ─────────────────
-      // Per blueprint and stairs/room-map.md. Materials match the photos: light maple wood
+      // ───────────────── L-SHAPE STAIR (13 risers: 3 lower + 4 winders + 6 upper) ─────────────────
+      // Per blueprint at 400 DPI: 1F panel shows steps 1–3 straight then 4 winders in a 0.9 ×
+      // 0.9 square; 2F panel shows steps 8–13 ascending west→east. Footprint 1.42 m² label =
+      // 0.9 × 3 × 0.225 + 0.9 × 0.9 = 1.4175 m² ✓. Materials match the photos: light maple wood
       // treads + risers + stringer, white-painted wall-mounted handrail, brushed-chrome
       // brackets, white elbow at the L-bend, two parallel dark inlay strips on each nosing.
       const TOTAL_RISERS = 13;
@@ -2218,12 +2233,8 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       const NOSING = 0.025;
       const treadMat = new THREE.MeshStandardMaterial({ color: 0xe6cca3, roughness: 0.7 });
       const riserMat = new THREE.MeshStandardMaterial({ color: 0xe0c498, roughness: 0.75 });
-      // Carriage + stringer share the tread wood. Photos (stairs-10/13/17/21/27) show one uniform
-      // light-maple tone across treads, risers, side panel, and soffit — only the riser face reads
-      // a hair darker because it's lit edge-on. Carriage ≈ riserMat (less direct light on undersides);
-      // stringer slightly between tread and riser (catches light from multiple angles).
-      const carriageMat = new THREE.MeshStandardMaterial({ color: 0xe0c498, roughness: 0.85 });
-      const stringerMat = new THREE.MeshStandardMaterial({ color: 0xe2c89e, roughness: 0.7 });
+      // carriageMat + stringerMat removed — no soffit/wedge/stringer geometry left to color
+      // (matched stairs-test by stripping those sub-blocks).
       // Handrail is smooth matte cream/ivory paint — NO visible wood grain. Confirmed across
       // stairs-4, 5, 7, 8, 9, 10, 12, 13, 19, 20, 22, 25 (paint reads uniform; in same frames
       // the wood treads show clear grain figure but the rail does not).
@@ -2250,18 +2261,18 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
       }
 
-      // ── LOWER FLIGHT — 5 risers, climbing +z along the west wall ──
-      // Tread depth 0.225 m per blueprint annotation 踏面225. Lower flight occupies the
-      // south portion of the 1F shaft; winders fill z=[4.025, 4.50] (0.475 m N–S).
-      const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;
+      // ── LOWER FLIGHT — 3 straight risers, climbing +z along the west exterior wall ──
+      // Tread depth 0.225 m per blueprint 踏面225. Lower flight occupies the south third of
+      // the 1F shaft; winder zone fills the north 0.9 × 0.9 square (z=[3.575, 4.475]).
+      const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;   // LW = 0.9
       const LZ0 = 2.90;
-      const TREAD_LO = 0.225;
-      const LZ1 = LZ0 + 5 * TREAD_LO;             // 4.025
-      for (let i = 0; i < 5; i++) {
+      const TREAD = 0.225;
+      const LZ1 = LZ0 + 3 * TREAD;                // 3.575 — north edge of step 3 / south edge of winder zone
+      for (let i = 0; i < 3; i++) {
         const yTop = (i + 1) * RISE;
-        const z0 = LZ0 + i * TREAD_LO;
-        const z1 = z0 + TREAD_LO;
-        const tDepth = TREAD_LO + NOSING;
+        const z0 = LZ0 + i * TREAD;
+        const z1 = z0 + TREAD;
+        const tDepth = TREAD + NOSING;
         const tread = new THREE.Mesh(new THREE.BoxGeometry(LW, TREAD_T, tDepth), treadMat);
         tread.position.set(LXc, yTop - TREAD_T / 2, (z0 - NOSING + z1) / 2);
         S.group.add(tread);
@@ -2270,101 +2281,120 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         S.group.add(riser);
         addNosingStrips(yTop, 'X', LXc, LW, z0 - NOSING, -1);
       }
-      // Lower flight diagonal soffit wedge (smooth underside).
-      {
-        const lowerTopY = 5 * RISE - TREAD_T;
-        const sh = new THREE.Shape();
-        sh.moveTo(LZ0 - NOSING, 0);
-        sh.lineTo(LZ1, 0);
-        sh.lineTo(LZ1, lowerTopY);
-        sh.closePath();
-        const geom = new THREE.ExtrudeGeometry(sh, { depth: LW, bevelEnabled: false });
-        const wedge = new THREE.Mesh(geom, carriageMat);
-        wedge.rotation.y = -Math.PI / 2;
-        wedge.position.set(LX0, 0, 0);
-        S.group.add(wedge);
-      }
-      // Lower flight stringer — visible side board on the corridor (LX0) side.
-      {
-        const ST_T = 0.03;
-        const sh = new THREE.Shape();
-        sh.moveTo(LZ0 - NOSING, 0);
-        sh.lineTo(LZ1, 0);
-        sh.lineTo(LZ1, 5 * RISE + 0.05);
-        sh.lineTo(LZ0 - NOSING, RISE + 0.05);
-        sh.closePath();
-        const geom = new THREE.ExtrudeGeometry(sh, { depth: ST_T, bevelEnabled: false });
-        const stringer = new THREE.Mesh(geom, stringerMat);
-        stringer.rotation.y = -Math.PI / 2;
-        stringer.position.set(LX0 - ST_T, 0, 0);
-        S.group.add(stringer);
-      }
+      // Lower-flight soffit wedge + stringer removed — stairs-test (the canonical source)
+      // has neither. The wedge had an incorrect smooth-slope underside that didn't match
+      // the stepped tread bottoms, and the stringer sat west of the LDK partition where
+      // it was clipping into other geometry. The treads now sit unsoffited, matching
+      // the stairs-test "stairs only" view.
 
-      // ── WINDERS — 2 triangular treads at the L-bend, x=[5.40, W], z=[4.025, 4.50] ──
-      // Diagonal split from inside corner (LX0, 4.50) to outside corner (LX1, LZ1=4.025).
-      // Winder 6 = SW triangle (climber enters from south); winder 7 = NE triangle (climber
-      // exits east into the upper flight). Each climbs 1 RISE.
-      const WZ0 = LZ1, WZ1 = 4.50;
-      const winderTris = [
-        // Winder 6: vertices in CCW order, top y at 6*RISE
-        { yTop: 6 * RISE, pts: [[LX0, WZ0], [LX1, WZ0], [LX0, WZ1]] },
-        // Winder 7: vertices in CCW order, top y at 7*RISE
-        { yTop: 7 * RISE, pts: [[LX1, WZ0], [LX1, WZ1], [LX0, WZ1]] },
-      ];
-      for (const w of winderTris) {
-        const sh = new THREE.Shape();
-        sh.moveTo(w.pts[0][0], w.pts[0][1]);
-        for (let k = 1; k < w.pts.length; k++) sh.lineTo(w.pts[k][0], w.pts[k][1]);
-        sh.closePath();
-        const geom = new THREE.ExtrudeGeometry(sh, { depth: TREAD_T, bevelEnabled: false });
-        const tread = new THREE.Mesh(geom, treadMat);
-        tread.rotation.x = Math.PI / 2;             // shape (px, py) → world (px, _, py)
-        tread.position.y = w.yTop;
-        S.group.add(tread);
+      // ── WINDERS — 4 triangular treads fanning from the L-bend SE pivot (real-world) ──
+      // Per blueprint at 400 DPI: 0.9 × 0.9 square winder zone north of the lower flight,
+      // 4 winders pivoting from the inside corner at (LX0, LZ1) — real-world south-east of
+      // the winder zone. Each winder turns 22.5°. Boundary rays from pivot at theta = 0°
+      // (south wall, step 3 → winder 4), 22.5°, 45° (diagonal hits the far corner), 67.5°,
+      // and 90° (east boundary in real-world, winder 7 → step 8).
+      const WZ0 = LZ1;
+      const WZ1 = LZ1 + LW;                                            // 4.475 — 0.9 × 0.9 square
+      const PIVOT = [LX0, WZ0];                                        // real-world SE corner
+      const TAN22 = Math.tan(Math.PI / 8);                             // 0.4142
+      const OUT_0  = [LX1, WZ0];                                       // theta=0°: south boundary outer
+      const OUT_22 = [LX1, WZ0 + LW * TAN22];                          // theta=22.5°
+      const OUT_45 = [LX1, WZ1];                                       // theta=45°: diagonal corner
+      const OUT_67 = [LX1 - LW * TAN22, WZ1];                          // theta=67.5°
+      const OUT_90 = [LX0, WZ1];                                       // theta=90°: east boundary outer
+      function makeWinder(verts2D, yTop, mat) {
+        // Triangular prism, verts2D order CCW from above. BufferGeometry instead of
+        // ExtrudeGeometry+rotate to avoid the z-mirror bug that hid winders below the floor.
+        const yBot = yTop - TREAD_T;
+        const positions = new Float32Array([
+          verts2D[0][0], yTop, verts2D[0][1],
+          verts2D[1][0], yTop, verts2D[1][1],
+          verts2D[2][0], yTop, verts2D[2][1],
+          verts2D[0][0], yBot, verts2D[0][1],
+          verts2D[1][0], yBot, verts2D[1][1],
+          verts2D[2][0], yBot, verts2D[2][1],
+        ]);
+        const indices = [
+          0, 1, 2,                          // top, +Y
+          3, 5, 4,                          // bottom, -Y
+          0, 4, 1,  0, 3, 4,                // side a-b
+          1, 4, 5,  1, 5, 2,                // side b-c
+          2, 3, 0,  2, 5, 3,                // side c-a
+        ];
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        const m = new THREE.Mesh(geo, mat);
+        S.group.add(m);
+        return m;
       }
-      // Winder risers — winder 6's front face (at z=WZ0=4.025) is the riser climber sees
-      // when stepping from lower flight's top tread onto winder 6.
+      // CCW order from above is (pivot, later-boundary, earlier-boundary) in this x-mirrored
+      // frame. Heights step up by one RISE per winder: 4, 5, 6, 7.
+      makeWinder([PIVOT, OUT_22, OUT_0],  4 * RISE, treadMat);
+      makeWinder([PIVOT, OUT_45, OUT_22], 5 * RISE, treadMat);
+      makeWinder([PIVOT, OUT_67, OUT_45], 6 * RISE, treadMat);
+      makeWinder([PIVOT, OUT_90, OUT_67], 7 * RISE, treadMat);
+
+      // Riser between step 3 (lower flight top) and winder 4 — south boundary, full shaft width.
       {
-        const winder6Riser = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
-        winder6Riser.position.set(LXc, 6 * RISE - RISE / 2, WZ0);
-        S.group.add(winder6Riser);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
+        m.position.set(LXc, 4 * RISE - RISE / 2, WZ0 + 0.010);
+        S.group.add(m);
       }
-      // Winder 7 riser — vertical strip along the W6/W7 diagonal joint (from outside corner
-      // (LX1, WZ0) to inside corner (LX0, WZ1)). Visible in stairs-14, 15, 17 between the two
-      // triangular treads.
-      {
-        const dx = LX0 - LX1, dz = WZ1 - WZ0;
-        const w7RiserLen = Math.sqrt(dx * dx + dz * dz);
-        const w7Riser = new THREE.Mesh(new THREE.BoxGeometry(w7RiserLen, RISE, 0.02), riserMat);
-        w7Riser.rotation.y = Math.atan2(dz, dx);     // rotate so length aligns with diagonal
-        w7Riser.position.set((LX0 + LX1) / 2, 7 * RISE - RISE / 2, (WZ0 + WZ1) / 2);
-        S.group.add(w7Riser);
+      // Radial risers between adjacent winders (W4–W5, W5–W6, W6–W7).
+      function makeRadialRiser(outer, yBottom) {
+        const dx = outer[0] - PIVOT[0];
+        const dz = outer[1] - PIVOT[1];
+        const len = Math.hypot(dx, dz);
+        const yaw = Math.atan2(dz, dx);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(len, RISE, 0.02), riserMat);
+        m.position.set((PIVOT[0] + outer[0]) / 2, yBottom + RISE / 2, (PIVOT[1] + outer[1]) / 2);
+        m.rotation.y = -yaw;
+        S.group.add(m);
       }
-      // Winder soffit — extruded triangle for each winder, mirrored vertically below the tread.
-      {
-        for (const w of winderTris) {
-          const sh = new THREE.Shape();
-          sh.moveTo(w.pts[0][0], w.pts[0][1]);
-          for (let k = 1; k < w.pts.length; k++) sh.lineTo(w.pts[k][0], w.pts[k][1]);
-          sh.closePath();
-          const soffit = new THREE.Mesh(
-            new THREE.ExtrudeGeometry(sh, { depth: w.yTop - TREAD_T, bevelEnabled: false }),
-            carriageMat
-          );
-          soffit.rotation.x = Math.PI / 2;
-          soffit.position.y = w.yTop - TREAD_T;
-          S.group.add(soffit);
+      makeRadialRiser(OUT_22, 4 * RISE);   // W4 → W5
+      makeRadialRiser(OUT_45, 5 * RISE);   // W5 → W6
+      makeRadialRiser(OUT_67, 6 * RISE);   // W6 → W7
+
+      // Nosing strips on each winder leading edge. Winder 4's south edge is straight, so
+      // reuses addNosingStrips. Winders 5/6/7 have radial leading edges.
+      addNosingStrips(4 * RISE, 'X', LXc, LW, WZ0, -1);
+      function addRadialNosing(outer, yTop) {
+        const dx = outer[0] - PIVOT[0];
+        const dz = outer[1] - PIVOT[1];
+        const len = Math.hypot(dx, dz);
+        const yaw = Math.atan2(dz, dx);
+        const perpX = -dz / len;             // CCW perpendicular (toward next winder)
+        const perpZ =  dx / len;
+        const stripT = 0.003, stripD = 0.005;
+        const offsets = [0.012, 0.025];
+        for (const off of offsets) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(len, stripT, stripD), nosingMat);
+          const cx = (PIVOT[0] + outer[0]) / 2 + perpX * off;
+          const cz = (PIVOT[1] + outer[1]) / 2 + perpZ * off;
+          m.position.set(cx, yTop + stripT / 2, cz);
+          m.rotation.y = -yaw;
+          S.group.add(m);
         }
       }
+      addRadialNosing(OUT_22, 5 * RISE);   // W5 leading edge
+      addRadialNosing(OUT_45, 6 * RISE);   // W6 leading edge (NW–SE diagonal)
+      addRadialNosing(OUT_67, 7 * RISE);   // W7 leading edge
 
-      // ── UPPER FLIGHT — 6 risers, climbing -x along the north wall ──
-      // Tread depth 0.2625 m fills the full 2F shaft width (1.575 m / 6). Upper flight starts
-      // at y=7*RISE (after winder 7) and tops out at y=13*RISE = F1H.
-      const UX1 = W;
-      const UPPER_RUN = 1.575;
-      const UX0 = UX1 - UPPER_RUN;       // 4.725
-      const TREAD_UP = UPPER_RUN / 6;
-      const UZ0 = 3.60, UZ1 = 4.50, UZc = (UZ0 + UZ1) / 2, UD = UZ1 - UZ0;
+      // Winder soffit removed — was a floating 0.9 × 0.02 × 0.9 m slab at y≈0.72 visible
+      // from the LDK below through the 1F ceiling hole. stairs-test (canonical) has no such
+      // slab.
+
+      // ── UPPER FLIGHT — 6 risers, climbing -x along the north wall (real-world east) ──
+      // Tread depth 0.225 m per blueprint (uniform with lower flight). Upper flight runs
+      // from the L-bend east edge (code x=LX0) into the corridor, lands at UX0 = LX0 -
+      // 6 × 0.225 = 4.05. Starts at y=7*RISE (after winder 7), tops out at y=13*RISE = F1H.
+      const UX1 = LX0;                       // 5.40 — L-bend east edge (code = step 8 west edge)
+      const TREAD_UP = TREAD;                // 0.225 — uniform
+      const UPPER_RUN = 6 * TREAD_UP;        // 1.35
+      const UX0 = UX1 - UPPER_RUN;           // 4.05 — step 13 east edge (2F landing)
+      const UZ0 = WZ0, UZ1 = WZ1, UZc = (UZ0 + UZ1) / 2, UD = UZ1 - UZ0;
       for (let i = 0; i < 6; i++) {
         const yTop = 7 * RISE + (i + 1) * RISE;
         const x1 = UX1 - i * TREAD_UP;
@@ -2378,46 +2408,17 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         S.group.add(riser);
         addNosingStrips(yTop, 'Z', UZc, UD, x1 + NOSING, +1);
       }
-      // Upper flight diagonal soffit wedge.
-      {
-        const upperBottomY = 7 * RISE;
-        const upperTopY = 13 * RISE - TREAD_T;
-        const sh = new THREE.Shape();
-        sh.moveTo(W + NOSING, upperBottomY);
-        sh.lineTo(UX0, upperBottomY);
-        sh.lineTo(UX0, upperTopY);
-        sh.closePath();
-        const geom = new THREE.ExtrudeGeometry(sh, { depth: UD, bevelEnabled: false });
-        const wedge = new THREE.Mesh(geom, carriageMat);
-        wedge.position.set(0, 0, UZ0);
-        S.group.add(wedge);
-      }
-      // Upper flight stringer.
-      {
-        const ST_T = 0.03;
-        const upperBottomY = 7 * RISE;
-        // Top edge runs along the line through the tread tops + 5cm overhang. East end sits 5cm
-        // above step 8 (8*RISE), west end 5cm above step 13 (13*RISE = F1H). The previous
-        // `stringerTopCap = 2.40` left a 15cm gap below step 13 and broke the slope continuity.
-        const sh = new THREE.Shape();
-        sh.moveTo(W + NOSING, upperBottomY);
-        sh.lineTo(UX0, upperBottomY);
-        sh.lineTo(UX0, 13 * RISE + 0.05);
-        sh.lineTo(W + NOSING, 8 * RISE + 0.05);
-        sh.closePath();
-        const geom = new THREE.ExtrudeGeometry(sh, { depth: ST_T, bevelEnabled: false });
-        const stringer = new THREE.Mesh(geom, stringerMat);
-        stringer.position.set(0, 0, UZ0);
-        S.group.add(stringer);
-      }
+      // Upper-flight wedge + stringer removed — same reason as the lower flight: stairs-test
+      // doesn't have them and they were the source of the big red triangle visible from
+      // every angle in qa-23..28.
 
       // ── HANDRAILS — white-painted, wall-mounted with brushed-chrome brackets ──
       // Lower flight rail: along the west wall (x=W), inset 0.05 m. Climbs from y=0.85 to
-      // y=5*RISE+0.85 over z=[LZ0, LZ1]. Brushed-chrome brackets at 5%/50%/95% of length.
+      // y=3*RISE+0.85 over z=[LZ0, LZ1]. Brushed-chrome brackets at 5%/50%/95% of length.
       {
         const HR_R = 0.025, HR_INSET = 0.05;
         const sZ = LZ0, eZ = LZ1;
-        const sY = 0.85, eY = 5 * RISE + 0.85;
+        const sY = 0.85, eY = 3 * RISE + 0.85;
         const dz = eZ - sZ, dy = eY - sY;
         const len = Math.sqrt(dz * dz + dy * dy);
         const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
@@ -2429,17 +2430,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           const BR_R = 0.012, ESC_R = 0.022, ESC_T = 0.004;
           const bracket = new THREE.Mesh(new THREE.CylinderGeometry(BR_R, BR_R, 0.04, 12), handrailBracketMat);
           bracket.rotation.z = Math.PI / 2;
-          // Bracket sits flush against the rail's underside — its top tangent meets the rail's
-          // bottom tangent (no visible gap, no overlap). Bracket centerline = rail.y - HR_R - BR_R.
           bracket.position.set(LX1 - HR_INSET / 2, y - HR_R - BR_R, z);
-          // Escutcheon: flat chrome disc flush against the wall (visible in stairs-25).
           const esc = new THREE.Mesh(new THREE.CylinderGeometry(ESC_R, ESC_R, ESC_T, 16), handrailBracketMat);
           esc.rotation.z = Math.PI / 2;
           esc.position.set(LX1 - ESC_T / 2, y - HR_R - BR_R, z);
           S.group.add(esc);
           S.group.add(bracket);
         }
-        // Stub returns to wall at each end
         for (const [stubY, stubZ] of [[sY, sZ], [eY, eZ]]) {
           const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
           stub.rotation.z = Math.PI / 2;
@@ -2447,20 +2444,19 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           S.group.add(stub);
         }
       }
-      // Winder rail — short curved-feel section running along the west wall through the winder
-      // zone, climbing from 5*RISE+0.85 to 7*RISE+0.85.
+      // Winder rail — short section along the west exterior wall through the winder zone,
+      // climbing from 3*RISE+0.85 to 7*RISE+0.85 over z=[LZ1, WZ1].
       {
         const HR_R = 0.025, HR_INSET = 0.05;
         const sZ = LZ1, eZ = WZ1;
-        const sY = 5 * RISE + 0.85, eY = 7 * RISE + 0.85;
+        const sY = 3 * RISE + 0.85, eY = 7 * RISE + 0.85;
         const dz = eZ - sZ, dy = eY - sY;
         const len = Math.sqrt(dz * dz + dy * dy);
         const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
         rail.rotation.x = Math.atan2(dz, dy);
         rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
         S.group.add(rail);
-        // Brushed-chrome cuff/ferrule at the L-bend — photos 6, 7, 12, 13 show a clean mitre
-        // joint with a small chrome ring at the meeting point, NOT a painted-ball elbow.
+        // Brushed-chrome cuff at the L-bend (clean mitre joint per stairs-6/7/12/13).
         const cuff = new THREE.Mesh(
           new THREE.TorusGeometry(0.030, 0.005, 8, 20),
           handrailBracketMat
@@ -2469,15 +2465,18 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         cuff.position.set(LX1 - HR_INSET, eY, eZ);
         S.group.add(cuff);
       }
-      // Upper flight rail: runs along the north wall (z=UZ1=4.50), climbing from 7*RISE+0.85
-      // to 13*RISE+0.85 over x=[UX1, UX0].
+      // Upper flight rail: along the south parapet inside face (z=UZ0=3.575), climbing
+      // from 7*RISE+0.85 to 13*RISE+0.85 over x=[UX1, UX0]. Per stairs-1/2/3/6 the rail
+      // mounts on the parapet's INSIDE face (the face that looks into the shaft, not
+      // toward the LDK drop), projecting +Z into the shaft. Mirror image of the lower
+      // flight rail, which mounts on the real-world-west wall projecting toward the shaft.
       {
         const HR_R = 0.025, HR_INSET = 0.05;
         const sX = UX1, eX = UX0;
         const sY = 7 * RISE + 0.85, eY = 13 * RISE + 0.85;
         const dx = eX - sX, dy = eY - sY;
         const len = Math.sqrt(dx * dx + dy * dy);
-        const railZ = UZ1 - HR_INSET;
+        const railZ = UZ0 + HR_INSET;
         const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
         rail.rotation.z = Math.atan2(-dx, dy);
         rail.position.set((sX + eX) / 2, (sY + eY) / 2, railZ);
@@ -2487,24 +2486,97 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           const BR_R = 0.012, ESC_R = 0.022, ESC_T = 0.004;
           const bracket = new THREE.Mesh(new THREE.CylinderGeometry(BR_R, BR_R, 0.04, 12), handrailBracketMat);
           bracket.rotation.x = Math.PI / 2;
-          bracket.position.set(x, y - HR_R - BR_R, railZ + HR_INSET / 2);
+          bracket.position.set(x, y - HR_R - BR_R, railZ - HR_INSET / 2);
           const esc = new THREE.Mesh(new THREE.CylinderGeometry(ESC_R, ESC_R, ESC_T, 16), handrailBracketMat);
           esc.rotation.x = Math.PI / 2;
-          esc.position.set(x, y - HR_R - BR_R, UZ1 - ESC_T / 2);
+          esc.position.set(x, y - HR_R - BR_R, UZ0 + ESC_T / 2);
           S.group.add(esc);
           S.group.add(bracket);
         }
-        // Stub returns at each end
         for (const [stubX, stubY] of [[sX, sY], [eX, eY]]) {
           const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
           stub.rotation.x = Math.PI / 2;
-          stub.position.set(stubX, stubY, railZ + HR_INSET / 2);
+          stub.position.set(stubX, stubY, railZ - HR_INSET / 2);
           S.group.add(stub);
         }
       }
 
+      // ───────────────── WHITE SKIRTING BASEBOARD ─────────────────
+      // ~80 mm white-painted skirting tracing every edge where the stair meets a wall.
+      // Critical for the photographic silhouette — the white outline reads as the boundary
+      // between stair and wall in the photos. Mirrored from stairs-test.html via:
+      //   x_code = LX1 - x_local   (real-world WEST wall at code LX1, real-world EAST wall at code LX0/UX0)
+      //   z_code = LZ0 + z_local
+      //   x-axis projection signs flip; z-axis projection signs stay
+      {
+        const SKIRT_H = 0.080;
+        const SKIRT_T = 0.015;
+        const matSkirt = new THREE.MeshStandardMaterial({ color: 0xfafaf0, roughness: 0.70 });
+        // Sloped skirt on a wall at x=const (slope in YZ plane). sign=+1 projects +X,
+        // sign=-1 projects -X. (y0,z0)=bottom of slope, (y1,z1)=top.
+        function slopedSkirtX(x, sign, y0, z0, y1, z1) {
+          const dz = z1 - z0, dy = y1 - y0;
+          const length = Math.hypot(dz, dy);
+          const angle = Math.atan2(dy, dz);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(SKIRT_T, SKIRT_H, length), matSkirt);
+          m.position.set(
+            x + sign * SKIRT_T / 2,
+            (y0 + y1) / 2 + Math.cos(angle) * SKIRT_H / 2,
+            (z0 + z1) / 2 - Math.sin(angle) * SKIRT_H / 2
+          );
+          m.rotation.x = -angle;
+          S.group.add(m);
+        }
+        // Sloped skirt on a wall at z=const (slope in XY plane).
+        function slopedSkirtZ(z, sign, y0, x0, y1, x1) {
+          const dx = x1 - x0, dy = y1 - y0;
+          const length = Math.hypot(dx, dy);
+          const angle = Math.atan2(dy, dx);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(length, SKIRT_H, SKIRT_T), matSkirt);
+          m.position.set(
+            (x0 + x1) / 2 - Math.sin(angle) * SKIRT_H / 2,
+            (y0 + y1) / 2 + Math.cos(angle) * SKIRT_H / 2,
+            z + sign * SKIRT_T / 2
+          );
+          m.rotation.z = angle;
+          S.group.add(m);
+        }
+        // Horizontal skirt at x=const wall, running along z, at height y.
+        function flatSkirtX(x, sign, y, z0, z1) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(SKIRT_T, SKIRT_H, z1 - z0), matSkirt);
+          m.position.set(x + sign * SKIRT_T / 2, y + SKIRT_H / 2, (z0 + z1) / 2);
+          S.group.add(m);
+        }
+        // Horizontal skirt at z=const wall, running along x, at height y.
+        function flatSkirtZ(z, sign, y, x0, x1) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, SKIRT_H, SKIRT_T), matSkirt);
+          m.position.set((x0 + x1) / 2, y + SKIRT_H / 2, z + sign * SKIRT_T / 2);
+          S.group.add(m);
+        }
+
+        // West wall (real-world west = code LX1). Skirt projects -X (into shaft).
+        slopedSkirtX(LX1, -1, 0,        LZ0 - NOSING, 3 * RISE, LZ1);                   // lower flight slope
+        flatSkirtX  (LX1, -1, 4 * RISE, WZ0,                       WZ0 + LW * TAN22);   // winder 4 west horizontal
+        flatSkirtX  (LX1, -1, 5 * RISE, WZ0 + LW * TAN22,          WZ1);                // winder 5 west horizontal
+
+        // East wall of lower flight (real-world east = code LX0). Skirt projects +X (into shaft).
+        slopedSkirtX(LX0, +1, 0,        LZ0 - NOSING, 3 * RISE, LZ1);                   // lower flight east slope
+
+        // North wall (z=WZ1). Skirt projects -Z (into shaft, southward).
+        flatSkirtZ  (WZ1, -1, 6 * RISE, LX0 + LW * TAN22, LX1);                          // winder 6 north
+        flatSkirtZ  (WZ1, -1, 7 * RISE, LX0,              LX0 + LW * TAN22);             // winder 7 north
+        slopedSkirtZ(WZ1, -1, 7 * RISE, LX0,              13 * RISE, UX0);               // upper flight north slope
+
+        // South parapet base (z=UZ0). Skirt projects +Z (into shaft, northward).
+        slopedSkirtZ(UZ0, +1, 7 * RISE, LX0,              13 * RISE, UX0);               // upper flight south slope
+
+        // East wall of upper flight (code UX0, real-world east edge of 2F landing).
+        // Skirt projects +X (back toward the L-bend).
+        flatSkirtX  (UX0, +1, 13 * RISE, UZ0, UZ1);                                      // top landing east edge
+      }
+
       // ───────────────── 2F top-of-stair parapet (Phase 5, safety guard) ─────────────────
-      // The 2F stair shaft (x=4.725..W, z=3.60..4.50) opens through a hole in the 2F floor
+      // The 2F stair shaft (x=4.05..W, z=3.60..4.50) opens through a hole in the 2F floor
       // down to the 1F LDK. Its south edge at z=3.60 needs a 1.10 m guard wall; without it
       // the upper landing has an open drop. The matching parapet is documented in
       // blueprints/global-coords.md (stairs 2F, south-wall = parapet, half-height).
@@ -2517,9 +2589,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         const capMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.7 });
         const parapetH = 1.10;
         const parapetT = 0.06;
-        const parapetX0 = UX0;            // 4.725
+        const parapetX0 = UX0;            // 4.05 (= LX0 - 6 × 0.225, west edge of upper-flight landing)
         const parapetX1 = W;              // 6.30
-        const parapetZ = UZ0;             // 3.60
+        const parapetZ = UZ0;             // 3.575 (= LZ1 = winder-zone south edge, south boundary of upper-flight zone)
         const parapet = new THREE.Mesh(
           new THREE.BoxGeometry(parapetX1 - parapetX0, parapetH, parapetT),
           parapetMat
@@ -3491,14 +3563,14 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         material.needsUpdate = true;
       }
       const matFloorR1 = pbrMatR1('wood_floor',           RW / 1.7, RD / 1.7, { roughness: 0.7 });
-      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake from
-      // ozu-test/bake/bake_room1_ceiling.py (Cycles + OptiX on A6000).
-      // Photo-confirmed identical across all 4 rooms in
-      // ozu-test/interior-images/room-{1,2,3,4}/. 8 planks per 1.35 m tile;
-      // RW/1.35 × RD/1.35 gives ~17 cm plank width across the ceiling.
+      // Light-colored woodgrain laminate ceiling — per-room PBR bake from
+      // ozu-test/bake/bake_room1_ceiling_woodgrain.py (Cycles + OptiX on
+      // A6000). Source albedo: new-textures/ceiling-woodgrain.jpg
+      // (WD-061, pale grey laminate). 5 planks per 1 m tile; RW/1.0 ×
+      // RD/1.0 gives ~20 cm plank width across the ceiling.
       const matCeilR1 = pbrFromBase(
-        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
-        RW / 1.35, RD / 1.35,
+        'ozu-test/room-1-textures/ceiling/woodgrain_laminate/woodgrain_laminate',
+        RW / 1.0, RD / 1.0,
       );
       // Smooth painted walls — neutral cool grey, matches the real photos
       // in interior-images/room-1/. Walls stay on MeshBasicMaterial with
@@ -4972,12 +5044,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
         });
       }
-      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake (see
-      // bake_room1_ceiling.py). Photo-identical across all 4 rooms.
+      // Light-colored woodgrain laminate ceiling — per-room PBR bake (see
+      // bake_room2_ceiling_woodgrain.py). Source: ceiling-woodgrain.jpg
+      // (WD-061). 5 planks per 1 m tile; RW/1.0 × RD/1.0 = ~20 cm planks.
       const matFloorR2 = pbrMatR2('wood_floor', RW / 1.7, RD / 1.7, { roughness: 0.7 });
       const matCeilR2  = pbrFromBase(
-        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
-        RW / 1.35, RD / 1.35,
+        'ozu-test/room-2-textures/ceiling/woodgrain_laminate/woodgrain_laminate',
+        RW / 1.0, RD / 1.0,
       );
       // Painted walls — literal taupe-grey paint, no light-direction tinting.
       // Corner darkening is added via per-wall AO maps once Phase 4 bake runs.
@@ -6001,12 +6074,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
         });
       }
-      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake (see
-      // bake_room1_ceiling.py). Photo-identical across all 4 rooms.
+      // Light-colored woodgrain laminate ceiling — per-room PBR bake (see
+      // bake_room3_ceiling_woodgrain.py). Source: ceiling-woodgrain.jpg
+      // (WD-061). 5 planks per 1 m tile; RW/1.0 × RD/1.0 = ~20 cm planks.
       const matFloorR3 = pbrMatR3('wood_floor', RW / 1.7, RD / 1.7, { roughness: 0.7 });
       const matCeilR3  = pbrFromBase(
-        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
-        RW / 1.35, RD / 1.35,
+        'ozu-test/room-3-textures/ceiling/woodgrain_laminate/woodgrain_laminate',
+        RW / 1.0, RD / 1.0,
       );
       const wallPaintArgs = { color: COL.wall, toneMapped: false };
       const matWall_x0 = new THREE.MeshBasicMaterial(wallPaintArgs);  // closet-wall
@@ -6726,12 +6800,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           map, normalMap, roughnessMap, aoMap, aoMapIntensity: 1.0, ...extras,
         });
       }
-      // Whitewashed reclaimed-pine plank ceiling — shared PBR bake (see
-      // bake_room1_ceiling.py). Photo-identical across all 4 rooms.
+      // Light-colored woodgrain laminate ceiling — per-room PBR bake (see
+      // bake_room4_ceiling_woodgrain.py). Source: ceiling-woodgrain.jpg
+      // (WD-061). 5 planks per 1 m tile; RW/1.0 × RD/1.0 = ~20 cm planks.
       const matFloorR4 = pbrMatR4('wood_floor', RW / 1.7, RD / 1.7, { roughness: 0.7 });
       const matCeilR4  = pbrFromBase(
-        'ozu-test/room-1-textures/ceiling/whitewashed_pine/whitewashed_pine',
-        RW / 1.35, RD / 1.35,
+        'ozu-test/room-4-textures/ceiling/woodgrain_laminate/woodgrain_laminate',
+        RW / 1.0, RD / 1.0,
       );
       const wallPaintArgs = { color: COL.wall, toneMapped: false };
       const matWall_x0 = new THREE.MeshBasicMaterial(wallPaintArgs);  // frosted-wall
