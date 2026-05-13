@@ -11,3 +11,4 @@ room-1-3d/
 pnpm-lock.yaml
 # QA screenshots (11 MB of session PNGs — kept locally for reference)
 qa/
+.vercel
