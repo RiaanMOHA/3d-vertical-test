@@ -1,0 +1,41 @@
+# Playground / source data not used at runtime
+test/
+test.html
+sanity.html
+
+# Source photos and reference material (not loaded by any *.html)
+ozu-test/interior-images/
+ozu-test/streetview/
+ozu-test/blueprints/
+ozu-test/bake/
+ozu-test/archived/
+appliances-and-furniture/
+
+# Plans / docs (markdown only used during development)
+ozu-test/*.md
+flow-ozu-1/
+flow-room-1/
+room-1-ONLY-v5-feasibility/
+interior-render-recipe.md
+CLAUDE.md
+*.md
+
+# Per-project bake scripts (Python, not runtime)
+kitchen-test/bake/
+laundry-test/bake/
+living-dining-test/bake/
+stairs-test/bake/
+bbq-test/bake/
+
+# Local dev artifacts (most already gitignored, listed here for safety)
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+_backups/
+_splat-train/
+room-1-3d/
+showcase/
+qa/
+.handoffs/
+.claude/
+.DS_Store
