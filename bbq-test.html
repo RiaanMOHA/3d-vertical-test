@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<title>bbq-test — 3D projects</title>
+<style>
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #back-link {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: rgba(28,28,30,0.78);
+    color: #fff; text-decoration: none;
+    font-size: 20px; line-height: 1;
+    border: 1px solid rgba(255,255,255,0.16);
+    z-index: 100;
+  }
+  #hint {
+    position: absolute;
+    left: 50%; top: calc(14px + var(--safe-top));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 120px - var(--safe-left) - var(--safe-right));
+    padding: 8px 14px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    font-size: 12px; line-height: 1.3;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    pointer-events: none;
+    z-index: 90;
+  }
+  #vantage {
+    position: absolute;
+    left: calc(14px + var(--safe-left));
+    bottom: calc(14px + var(--safe-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap;
+    max-width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
+    z-index: 100;
+  }
+  .v-btn {
+    padding: 8px 12px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .v-btn:hover { background: rgba(60,60,67,0.85); }
+  #loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  #loading.hide { opacity: 0; pointer-events: none; }
+  #loading .text { font-size: 13px; color: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+<a id="back-link" href="index.html" aria-label="back">←</a>
+<div id="hint">drag to orbit · wheel to zoom · click a vantage to match a photo</div>
+<div id="app"></div>
+<div id="loading"><div class="text">starting…</div></div>
+<script>
+  /* Fast pre-flight: bail with a clear message if WebGPU isn't available
+   * in this browser, since the rest of the file is WebGPU-first. */
+  if (!('gpu' in navigator)) {
+    document.getElementById('loading').querySelector('.text').innerHTML =
+      'WebGPU not available in this browser.<br>Needs Chrome/Edge 113+ or Safari 17.4+ on macOS 14+.';
+  }
+  window.__setLoading = (msg) => {
+    const el = document.getElementById('loading')?.querySelector('.text');
+    if (el) el.textContent = msg;
+  };
+  window.addEventListener('error', (e) => {
+    window.__setLoading('error: ' + (e.message || e.error?.message || 'unknown — open console'));
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    window.__setLoading('error: ' + (e.reason?.message || e.reason || 'unknown — open console'));
+  });
+</script>
+<div id="vantage">
+  <button class="v-btn" data-v="iso">iso</button>
+  <button class="v-btn" data-v="ref-125">ref-125</button>
+  <button class="v-btn" data-v="ref-126">ref-126</button>
+  <button class="v-btn" data-v="ref-127">ref-127</button>
+  <button class="v-btn" data-v="bbq">bbq closeup</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":        "./vendor/three/build/three.webgpu.min.js",
+    "three/webgpu": "./vendor/three/build/three.webgpu.min.js",
+    "three/tsl":    "./vendor/three/build/three.tsl.min.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { pass, mrt, output, normalView, vec3, vec4 } from 'three/tsl';
+import { bloom }                    from './vendor/three/examples/jsm/tsl/display/BloomNode.js';
+import { fxaa }                     from './vendor/three/examples/jsm/tsl/display/FXAANode.js';
+import { ao }                       from './vendor/three/examples/jsm/tsl/display/GTAONode.js';
+import { HDRLoader }                 from './vendor/three/examples/jsm/loaders/HDRLoader.js';
+import { RoundedBoxGeometry }        from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RectAreaLightTexturesLib }  from './vendor/three/examples/jsm/lights/RectAreaLightTexturesLib.js';
+/* WebGPU's RectAreaLight needs the LTC BRDF lookup textures (not the WebGL
+ * UniformsLib shim).  Init populates the lib, then setLTC wires it into the
+ * TSL node system so RectAreaLightNode can sample those textures. */
+THREE.RectAreaLightNode.setLTC(RectAreaLightTexturesLib.init());
+
+/* ====================================================================== */
+/* bbq-test sandbox — back deck off the LDK + Weber-style cart grill.     */
+/*                                                                        */
+/* WebGPU + baked PBR pass (May 2026 stack):                              */
+/*   - WebGPURenderer with WebGL2 fallback                                */
+/*   - MSAA 8x via { antialias: true, samples: 8 }                        */
+/*   - PostProcessing chain: scene pass → bloom → FXAA                    */
+/*   - Baked PBR (albedo/normal/roughness/AO) from Cycles on the A6000    */
+/*     loaded from bbq-test-textures/<slug>/ for: decking, stainless,    */
+/*     cladding, castiron, propane                                        */
+/*   - MeshPhysicalMaterial with anisotropy on stainless, transmission   */
+/*     on the LDK glass door                                              */
+/*   - Max-anisotropy texture sampling                                    */
+/*   - ACES filmic tone mapping                                           */
+/*                                                                        */
+/* Local frame: origin = SW corner of deck floor, deck-top y level.       */
+/*   +X = east   (along back wall, away from LDK-door centerline)         */
+/*   +Y = up                                                              */
+/*   +Z = south  (out from back wall, toward yard)                        */
+/*                                                                        */
+/* Cardinal note: the house back faces roughly NORTH. At Kumamoto 11 AM   */
+/* JST sun is SSE (az 160°, el 60°), so the back wall is in SHADOW.       */
+/* Deck receives diffuse sky fill only — matches the overcast-bright      */
+/* light visible in 125/126/127.                                          */
+/* ====================================================================== */
+
+/* Deck */
+const DECK_W   = 4.50;
+const DECK_D   = 2.00;
+const DECK_T   = 0.05;
+const DECK_H   = 0.40;
+const PLANK_W  = 0.145;
+const PLANK_GAP = 0.005;
+
+/* Rails */
+const RAIL_H        = 0.90;
+const POST_SZ       = 0.05;
+const POST_SPACING  = 0.90;
+const TOP_RAIL_W    = 0.10;
+const TOP_RAIL_T    = 0.04;
+const MESH_TOP      = 0.78;
+const MESH_BOTTOM   = 0.06;
+
+/* Back wall */
+const BACK_WALL_W = 6.30;
+const BACK_WALL_H = 5.10;
+const BACK_WALL_Z = -0.05;
+
+/* ====================================================================== */
+/* Renderer + Scene + Camera                                              */
+/* ====================================================================== */
+const app = document.getElementById('app');
+const loadingEl = document.getElementById('loading');
+
+const renderer = new THREE.WebGPURenderer({
+  antialias: true,
+  samples: 8,
+  powerPreference: 'high-performance',
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+/* AgX tone mapping — newer than ACES, used by Blender 4.x, broader gamut
+ * and cleaner colour roll-off in highlights. Cinematically more correct
+ * for outdoor scenes than ACES filmic. */
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+/* HDRI background is set after the HDR finishes loading (see main()) so the
+ * stainless reflects a real sky.  Placeholder until then. */
+scene.background = new THREE.Color(0xc8d2dc);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 80);
+const TARGET = new THREE.Vector3(DECK_W * 0.5, 0.6, DECK_D * 0.5);
+camera.position.set(DECK_W + 2.0, 2.4, DECK_D + 3.0);
+camera.lookAt(TARGET);
+
+/* ====================================================================== */
+/* Inline OrbitControls — Mac-trackpad phantom-zoom guard                 */
+/* ====================================================================== */
+class OrbitControls {
+  constructor(cam, el) {
+    this.cam = cam; this.el = el;
+    this.target = TARGET.clone();
+    this.spherical = new THREE.Spherical();
+    this.minDistance = 0.40; this.maxDistance = 18.0;
+    this.minPolar = 0.10; this.maxPolar = Math.PI * 0.49;
+    this._dragging = false; this._lastMouseupAt = 0;
+    this._x0 = 0; this._y0 = 0;
+    this._update();
+    el.addEventListener('mousedown', e => this._down(e));
+    el.addEventListener('wheel', e => this._wheel(e), { passive: false });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('mousemove', e => this._move(e));
+    window.addEventListener('mouseup', () => this._up());
+    el.addEventListener('touchstart', e => this._tdown(e), { passive: false });
+    el.addEventListener('touchmove',  e => this._tmove(e), { passive: false });
+    el.addEventListener('touchend',   () => this._tup());
+  }
+  setTarget(t, camPos) {
+    this.target.copy(t);
+    if (camPos) this.cam.position.copy(camPos);
+    this.spherical.radius = 0;
+    this._update();
+  }
+  _down(e) { this._dragging = true; this._x0 = e.clientX; this._y0 = e.clientY; }
+  _up()    { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _move(e) {
+    if (!this._dragging) return;
+    const dx = e.clientX - this._x0, dy = e.clientY - this._y0;
+    this._x0 = e.clientX; this._y0 = e.clientY;
+    this.spherical.theta -= dx * 0.005;
+    this.spherical.phi   -= dy * 0.005;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _wheel(e) {
+    if (this._dragging) return;
+    if (performance.now() - this._lastMouseupAt < 400) return;
+    e.preventDefault();
+    const f = Math.exp(e.deltaY * 0.0015);
+    this.spherical.radius *= f;
+    this.spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.spherical.radius));
+    this._update();
+  }
+  _tdown(e) { if (e.touches.length === 1) { this._dragging = true; this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY; } }
+  _tmove(e) {
+    if (!this._dragging || e.touches.length !== 1) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - this._x0, dy = e.touches[0].clientY - this._y0;
+    this._x0 = e.touches[0].clientX; this._y0 = e.touches[0].clientY;
+    this.spherical.theta -= dx * 0.006;
+    this.spherical.phi   -= dy * 0.006;
+    this.spherical.phi = Math.max(this.minPolar, Math.min(this.maxPolar, this.spherical.phi));
+    this._update();
+  }
+  _tup() { this._dragging = false; this._lastMouseupAt = performance.now(); }
+  _update() {
+    const offset = new THREE.Vector3().subVectors(this.cam.position, this.target);
+    if (this.spherical.radius === 0) {
+      this.spherical.setFromVector3(offset);
+    } else {
+      offset.setFromSpherical(this.spherical);
+    }
+    this.cam.position.copy(this.target).add(offset);
+    this.cam.lookAt(this.target);
+  }
+}
+const controls = new OrbitControls(camera, renderer.domElement);
+
+/* ====================================================================== */
+/* Lights — Kumamoto 11 AM JST. North-facing back wall, no direct sun.    */
+/* ====================================================================== */
+scene.add(new THREE.HemisphereLight(0xc8d6e8, 0xa89878, 0.55));
+
+const sun = new THREE.DirectionalLight(0xf6f5ec, 1.3);
+{
+  const az = THREE.MathUtils.degToRad(160), el = THREE.MathUtils.degToRad(60);
+  const r = 12;
+  sun.position.set(
+    DECK_W * 0.5 + r * Math.cos(el) * Math.sin(az),
+    r * Math.sin(el),
+    DECK_D * 0.5 + r * Math.cos(el) * Math.cos(az)
+  );
+  sun.target.position.set(DECK_W * 0.5, 0, DECK_D * 0.5);
+  scene.add(sun.target);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 30;
+  sun.shadow.camera.left = -8;
+  sun.shadow.camera.right = 8;
+  sun.shadow.camera.top = 8;
+  sun.shadow.camera.bottom = -8;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.radius = 2.5;
+  scene.add(sun);
+}
+
+const skyFill = new THREE.DirectionalLight(0xe0e8f4, 0.85);
+skyFill.position.set(DECK_W * 0.5, 6.0, DECK_D + 6.0);
+skyFill.target.position.set(DECK_W * 0.5, 0.4, DECK_D * 0.5);
+scene.add(skyFill.target);
+skyFill.castShadow = true;
+skyFill.shadow.mapSize.set(2048, 2048);
+skyFill.shadow.camera.near = 1;
+skyFill.shadow.camera.far = 20;
+skyFill.shadow.camera.left = -6;
+skyFill.shadow.camera.right = 6;
+skyFill.shadow.camera.top = 6;
+skyFill.shadow.camera.bottom = -6;
+skyFill.shadow.bias = -0.0005;
+skyFill.shadow.radius = 6;
+scene.add(skyFill);
+
+const skyArea = new THREE.RectAreaLight(0xdde6f0, 4.8, DECK_W + 1.2, DECK_D + 1.0);
+skyArea.position.set(DECK_W * 0.5, 4.0, DECK_D * 0.5 + 0.5);
+skyArea.lookAt(DECK_W * 0.5, 0.4, DECK_D * 0.5);
+scene.add(skyArea);
+
+/* ====================================================================== */
+/* Texture loader — load all baked PBR sets in parallel                  */
+/* ====================================================================== */
+const SLUGS = ['decking', 'stainless', 'cladding', 'castiron', 'propane'];
+
+function loadTextureSet(maxAniso) {
+  const loader = new THREE.TextureLoader();
+  const result = {};
+  const tasks = [];
+  for (const slug of SLUGS) {
+    result[slug] = {};
+    for (const kind of ['albedo', 'normal', 'roughness', 'ao']) {
+      const url = `bbq-test-textures/${slug}/${slug}_${kind}.png`;
+      tasks.push(new Promise((resolve, reject) => {
+        loader.load(url, (tex) => {
+          tex.colorSpace = (kind === 'albedo') ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+          tex.anisotropy = maxAniso;
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          result[slug][kind] = tex;
+          resolve();
+        }, undefined, reject);
+      }));
+    }
+  }
+  return Promise.all(tasks).then(() => result);
+}
+
+/* Clone a baked set with custom repeat. Each surface usage gets its own
+ * texture clones so .repeat doesn't fight between meshes. */
+function cloneSet(set, repeatU, repeatV) {
+  const out = {};
+  for (const k of Object.keys(set)) {
+    const t = set[k].clone();
+    t.needsUpdate = true;
+    t.repeat.set(repeatU, repeatV);
+    out[k] = t;
+  }
+  return out;
+}
+
+function makePhysical(set, opts = {}) {
+  return new THREE.MeshPhysicalMaterial(Object.assign({
+    map: set.albedo,
+    normalMap: set.normal,
+    roughnessMap: set.roughness,
+    aoMap: set.ao,
+    aoMapIntensity: 1.0,
+  }, opts));
+}
+
+/* ====================================================================== */
+/* Async main — required because WebGPURenderer.init() is async          */
+/* ====================================================================== */
+let postProcessing = null;
+
+async function main() {
+  window.__setLoading('1/5 initialising WebGPU renderer');
+  await renderer.init();
+  const backend = renderer.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL2 fallback';
+  console.log('[bbq-test] backend =', backend);
+
+  window.__setLoading('2/5 loading HDR environment');
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  await new Promise((resolve, reject) => {
+    new HDRLoader().load(
+      'ozu-test/hdri/kloppenheim_06_puresky_2k.hdr',
+      (hdr) => {
+        const envTex = pmrem.fromEquirectangular(hdr).texture;
+        scene.environment = envTex;
+        scene.environmentIntensity = 1.1;
+        scene.environmentRotation = new THREE.Euler(0, Math.PI * 0.5, 0);
+        /* Use the HDRI directly as the scene background — real sky behind
+         * the rails, real sky reflected in the stainless. */
+        hdr.mapping = THREE.EquirectangularReflectionMapping;
+        scene.background = hdr;
+        scene.backgroundRotation = new THREE.Euler(0, Math.PI * 0.5, 0);
+        scene.backgroundIntensity = 0.85;
+        scene.backgroundBlurriness = 0.0;
+        resolve();
+      },
+      undefined,
+      (err) => reject(new Error('HDR load failed: ' + (err?.message || err))),
+    );
+  });
+
+  window.__setLoading('3/5 loading 20 baked textures');
+  /* WebGPU spec caps anisotropy at 16; older WebGL API lived on
+   * renderer.capabilities (undefined on WebGPURenderer), so we just pick 16. */
+  const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 16;
+  const TEX = await loadTextureSet(maxAniso);
+
+  window.__setLoading('4/5 building scene');
+  buildScene(TEX);
+
+  window.__setLoading('5/5 setting up post-processing');
+  try {
+    postProcessing = new THREE.PostProcessing(renderer);
+
+    /* Multi-render-target pass: scene colour + view-space normal in one
+     * shot, so GTAO can sample depth + normal without re-rendering. */
+    const scenePass = pass(scene, camera);
+    scenePass.setMRT(mrt({ output: output, normal: normalView }));
+
+    const sceneColour = scenePass.getTextureNode('output');
+    const sceneNormal = scenePass.getTextureNode('normal');
+    const sceneDepth  = scenePass.getTextureNode('depth');
+
+    /* GTAO — Ground-Truth Ambient Occlusion. Produces a single-channel
+     * occlusion texture multiplied into the scene colour for proper
+     * contact shadows in crevices (deck-to-rail joints, BBQ cabinet
+     * recesses, propane behind the open door, etc.). */
+    const aoPass = ao(sceneDepth, sceneNormal, camera);
+    aoPass.distanceExponent.value = 1.0;
+    aoPass.radius.value           = 0.30;
+    aoPass.scale.value            = 1.0;
+    aoPass.thickness.value        = 0.20;
+    const aoOcclusion = aoPass.getTextureNode();
+    const lit = sceneColour.mul(vec4(vec3(aoOcclusion.r), 1.0));
+
+    /* Bloom on highlight reflections — modest because AgX already keeps
+     * highlights tight. */
+    const bloomPass = bloom(lit, 0.28, 0.55, 0.95);
+
+    /* FXAA after AA-sensitive composites to clean up MSAA-missed edges. */
+    postProcessing.outputNode = fxaa(lit.add(bloomPass));
+  } catch (err) {
+    console.warn('[bbq-test] post-processing failed, falling back to direct render:', err);
+    postProcessing = null;
+  }
+
+  loadingEl.classList.add('hide');
+  startLoop();
+}
+
+/* ====================================================================== */
+/* buildScene — runs after textures are loaded                           */
+/* ====================================================================== */
+function buildScene(TEX) {
+  /* ------------------- Ground ------------------- */
+  {
+    const g = new THREE.PlaneGeometry(40, 40);
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x8b8674, roughness: 1.0 }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(DECK_W * 0.5, 0, DECK_D * 0.5);
+    m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  /* ------------------- Back wall ------------------- */
+  const matCladding = makePhysical(cloneSet(TEX.cladding, 4, 3), {});
+  const matCladdingDark = new THREE.MeshStandardMaterial({ color: 0xb5ad9b, roughness: 0.9  });
+  const matCream  = new THREE.MeshStandardMaterial({ color: 0xd6cfbf, roughness: 0.88 });
+
+  const wall = new THREE.Group();
+
+  const wm = new THREE.Mesh(new THREE.BoxGeometry(BACK_WALL_W, BACK_WALL_H, 0.10), matCladding);
+  wm.position.set(BACK_WALL_W * 0.5, BACK_WALL_H * 0.5, BACK_WALL_Z - 0.05);
+  wm.receiveShadow = true; wm.castShadow = true;
+  wall.add(wm);
+
+  /* Cladding ribs — recessed groove + thin lighter highlight bead */
+  const ribPitch = 0.10;
+  const grooveH = 0.014, grooveZ = 0.008;
+  const beadH = 0.003, beadZ = 0.006;
+  for (let y = ribPitch; y < BACK_WALL_H - 0.04; y += ribPitch) {
+    const groove = new THREE.Mesh(
+      new THREE.BoxGeometry(BACK_WALL_W, grooveH, grooveZ),
+      matCladdingDark
+    );
+    groove.position.set(BACK_WALL_W * 0.5, y, BACK_WALL_Z + grooveZ * 0.5);
+    wall.add(groove);
+    const bead = new THREE.Mesh(
+      new THREE.BoxGeometry(BACK_WALL_W, beadH, beadZ),
+      matCream
+    );
+    bead.position.set(BACK_WALL_W * 0.5, y + grooveH * 0.5 + beadH * 0.5, BACK_WALL_Z + beadZ * 0.5 + 0.002);
+    wall.add(bead);
+  }
+
+  /* 1F/2F slab band */
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(BACK_WALL_W, 0.08, 0.02), matCladdingDark);
+  slab.position.set(BACK_WALL_W * 0.5, 2.50, BACK_WALL_Z + 0.005);
+  wall.add(slab);
+
+  /* Low frosted window */
+  {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.60, 0.60, 0.04), matCream);
+    frame.position.set(1.70, 1.10, BACK_WALL_Z + 0.02);
+    wall.add(frame);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 0.02), new THREE.MeshPhysicalMaterial({
+      color: 0xe6ecef, roughness: 0.45, metalness: 0.0,
+      transmission: 0.35, thickness: 0.01, ior: 1.5
+    }));
+    glass.position.set(1.70, 1.10, BACK_WALL_Z + 0.035);
+    wall.add(glass);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.04, 0.025), matCream);
+    trim.position.set(1.70, 1.42, BACK_WALL_Z + 0.025);
+    wall.add(trim);
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.04, 0.025), matCream);
+    sill.position.set(1.70, 0.78, BACK_WALL_Z + 0.025);
+    wall.add(sill);
+  }
+
+  /* High awning window */
+  {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.40, 0.04), matCream);
+    frame.position.set(5.40, 3.40, BACK_WALL_Z + 0.02);
+    wall.add(frame);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.34, 0.02), new THREE.MeshStandardMaterial({
+      color: 0x2a2a30, roughness: 0.2, metalness: 0.1
+    }));
+    glass.position.set(5.40, 3.40, BACK_WALL_Z + 0.035);
+    wall.add(glass);
+  }
+
+  /* Utility cabinet */
+  {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.20, 0.30), matCream);
+    body.position.set(2.55, 0.60, BACK_WALL_Z + 0.15);
+    body.castShadow = true; body.receiveShadow = true;
+    wall.add(body);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.04, 0.32),
+      new THREE.MeshStandardMaterial({ color: 0x8a8d92, roughness: 0.5, metalness: 0.7 }));
+    cap.position.set(2.55, 1.22, BACK_WALL_Z + 0.15);
+    wall.add(cap);
+  }
+
+  /* AC outdoor unit */
+  {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.55, 0.30), matCream);
+    body.position.set(3.30, 0.30, BACK_WALL_Z + 0.15);
+    body.castShadow = true; body.receiveShadow = true;
+    wall.add(body);
+    const grille = new THREE.Mesh(new THREE.CircleGeometry(0.20, 32),
+      new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.7 }));
+    grille.position.set(3.30, 0.30, BACK_WALL_Z + 0.31);
+    wall.add(grille);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.04, 0.32),
+      new THREE.MeshStandardMaterial({ color: 0x8a8d92, roughness: 0.5, metalness: 0.7 }));
+    foot.position.set(3.30, 0.02, BACK_WALL_Z + 0.15);
+    wall.add(foot);
+  }
+
+  /* LDK sliding door — transmissive glass with thickness */
+  {
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(1.66, 2.06, 0.03),
+      new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.65 }));
+    trim.position.set(4.30, 1.00, BACK_WALL_Z + 0.025);
+    wall.add(trim);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.96, 0.02),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xd8e2e8, roughness: 0.10, metalness: 0.0,
+        transmission: 0.85, thickness: 0.02, ior: 1.5,
+        transmissionResolutionScale: 1.0
+      }));
+    glass.position.set(4.30, 1.00, BACK_WALL_Z + 0.04);
+    wall.add(glass);
+    const mull = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.96, 0.03),
+      new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.65 }));
+    mull.position.set(4.30, 1.00, BACK_WALL_Z + 0.045);
+    wall.add(mull);
+  }
+
+  scene.add(wall);
+
+  /* ------------------- Deck ------------------- */
+  const deck = new THREE.Group();
+  const matPlankBase = makePhysical(cloneSet(TEX.decking, 1, 1), {});
+  matPlankBase.color.setHex(0x6b4a30);
+  const matPlankDark = new THREE.MeshStandardMaterial({ color: 0x2a1a10, roughness: 0.85 });
+  const matSkirt     = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.88 });
+
+  /* Deck base slab */
+  {
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(DECK_W, DECK_T, DECK_D),
+      matPlankBase
+    );
+    base.position.set(DECK_W * 0.5, DECK_H - DECK_T * 0.5, DECK_D * 0.5);
+    base.castShadow = true; base.receiveShadow = true;
+    deck.add(base);
+  }
+
+  /* Per-plank tinted overlay strips (deterministic hash) */
+  {
+    const plankStride = PLANK_W + PLANK_GAP;
+    const nPlanks = Math.floor(DECK_D / plankStride);
+    for (let i = 0; i < nPlanks; i++) {
+      const rv = (Math.sin(i * 7.13 + 1.7) * 0.5 + 0.5);
+      const gv = (Math.sin(i * 3.71 + 4.9) * 0.5 + 0.5);
+      const bv = (Math.sin(i * 9.27 + 2.3) * 0.5 + 0.5);
+      const r = Math.round(0x6b + (rv - 0.5) * 28);
+      const g = Math.round(0x4a + (gv - 0.5) * 22);
+      const b = Math.round(0x30 + (bv - 0.5) * 18);
+      const tint = (r << 16) | (g << 8) | b;
+      const plankMat = makePhysical(cloneSet(TEX.decking, 6, 1), {});
+      plankMat.color.setHex(tint);
+      const plank = new THREE.Mesh(
+        new THREE.BoxGeometry(DECK_W, 0.004, PLANK_W),
+        plankMat
+      );
+      plank.position.set(DECK_W * 0.5, DECK_H + 0.001, i * plankStride + PLANK_W * 0.5);
+      plank.receiveShadow = true;
+      deck.add(plank);
+      if (i < nPlanks - 1) {
+        const gap = new THREE.Mesh(
+          new THREE.BoxGeometry(DECK_W, 0.004, PLANK_GAP),
+          matPlankDark
+        );
+        gap.position.set(DECK_W * 0.5, DECK_H + 0.0008, i * plankStride + PLANK_W + PLANK_GAP * 0.5);
+        deck.add(gap);
+      }
+    }
+  }
+
+  /* Edge skirt on the three outer faces */
+  {
+    const south = new THREE.Mesh(new THREE.BoxGeometry(DECK_W + 0.04, DECK_H, 0.04), matSkirt);
+    south.position.set(DECK_W * 0.5, DECK_H * 0.5, DECK_D + 0.02);
+    south.castShadow = true; south.receiveShadow = true; deck.add(south);
+    const east = new THREE.Mesh(new THREE.BoxGeometry(0.04, DECK_H, DECK_D + 0.04), matSkirt);
+    east.position.set(DECK_W + 0.02, DECK_H * 0.5, DECK_D * 0.5);
+    east.castShadow = true; east.receiveShadow = true; deck.add(east);
+    const west = new THREE.Mesh(new THREE.BoxGeometry(0.04, DECK_H, DECK_D + 0.04), matSkirt);
+    west.position.set(-0.02, DECK_H * 0.5, DECK_D * 0.5);
+    west.castShadow = true; west.receiveShadow = true; deck.add(west);
+  }
+
+  /* Rails + wire mesh */
+  const matSteel    = new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.55, metalness: 0.4 });
+  const matMeshRod  = new THREE.MeshStandardMaterial({ color: 0x8c8e92, roughness: 0.55, metalness: 0.6 });
+
+  function addRail(p0, p1) {
+    const dx = p1.x - p0.x, dz = p1.z - p0.z;
+    const runLen = Math.hypot(dx, dz);
+    const angY = -Math.atan2(dz, dx);
+
+    const nSpans = Math.max(1, Math.round(runLen / POST_SPACING));
+    for (let i = 0; i <= nSpans; i++) {
+      const t = i / nSpans;
+      const x = p0.x + dx * t;
+      const z = p0.z + dz * t;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(POST_SZ, RAIL_H, POST_SZ), matSteel);
+      post.position.set(x, DECK_H + RAIL_H * 0.5, z);
+      post.castShadow = true;
+      deck.add(post);
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(POST_SZ * 1.6, 0.012, POST_SZ * 1.6), matSteel);
+      plate.position.set(x, DECK_H + 0.006, z);
+      deck.add(plate);
+    }
+    const top = new THREE.Mesh(
+      new THREE.BoxGeometry(runLen + POST_SZ, TOP_RAIL_T, TOP_RAIL_W), matSteel);
+    top.position.set((p0.x + p1.x) / 2, DECK_H + RAIL_H + TOP_RAIL_T * 0.5, (p0.z + p1.z) / 2);
+    top.rotation.y = angY;
+    top.castShadow = true;
+    deck.add(top);
+    {
+      const meshGroup = new THREE.Group();
+      meshGroup.position.set((p0.x + p1.x) / 2, 0, (p0.z + p1.z) / 2);
+      meshGroup.rotation.y = angY;
+      const panelLen = runLen - POST_SZ;
+      const panelH = MESH_TOP - MESH_BOTTOM;
+      const cell = 0.04;
+      const rodT = 0.0025;
+      const yMid = DECK_H + (MESH_TOP + MESH_BOTTOM) / 2;
+      const nV = Math.max(2, Math.round(panelLen / cell));
+      for (let i = 0; i <= nV; i++) {
+        const localX = -panelLen / 2 + (i / nV) * panelLen;
+        const rod = new THREE.Mesh(new THREE.BoxGeometry(rodT, panelH, rodT), matMeshRod);
+        rod.position.set(localX, yMid, 0);
+        meshGroup.add(rod);
+      }
+      const nH = Math.max(2, Math.round(panelH / cell));
+      for (let j = 0; j <= nH; j++) {
+        const localY = DECK_H + MESH_BOTTOM + (j / nH) * panelH;
+        const rod = new THREE.Mesh(new THREE.BoxGeometry(panelLen, rodT, rodT), matMeshRod);
+        rod.position.set(0, localY, 0);
+        meshGroup.add(rod);
+      }
+      deck.add(meshGroup);
+    }
+    const bot = new THREE.Mesh(new THREE.BoxGeometry(runLen - POST_SZ, 0.025, 0.02), matSteel);
+    bot.position.set((p0.x + p1.x) / 2, DECK_H + MESH_BOTTOM - 0.012, (p0.z + p1.z) / 2);
+    bot.rotation.y = angY;
+    deck.add(bot);
+  }
+  addRail({ x: 0,      z: DECK_D }, { x: DECK_W, z: DECK_D });
+  addRail({ x: DECK_W, z: 0      }, { x: DECK_W, z: DECK_D });
+  addRail({ x: 0,      z: 0      }, { x: 0,      z: DECK_D });
+
+  scene.add(deck);
+
+  /* ------------------- BBQ ------------------- */
+  const matStainless = makePhysical(cloneSet(TEX.stainless, 2, 2), {
+    metalness: 0.88, anisotropy: 0.7, anisotropyRotation: Math.PI / 2,
+  });
+  const matStainlessDark = new THREE.MeshPhysicalMaterial({
+    color: 0x8a8d92, roughness: 0.5, metalness: 0.7
+  });
+  const matKnob   = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.45 });
+  const matChrome = new THREE.MeshPhysicalMaterial({ color: 0xe6e8ec, roughness: 0.14, metalness: 0.96 });
+  const matBlackPlastic = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.55 });
+  const matCastIron = makePhysical(cloneSet(TEX.castiron, 1.5, 1.5), { metalness: 0.2 });
+  const matPropane  = makePhysical(cloneSet(TEX.propane, 1, 1), { metalness: 0.55 });
+  const matDialFace = new THREE.MeshStandardMaterial({ color: 0xf2f0e8, roughness: 0.55 });
+
+  const bbq = new THREE.Group();
+  {
+    const W = 1.10, D = 0.55;
+    const H_LID = 0.25;
+    const H_BOX = 0.30;
+    const H_CAB = 0.55;
+    const LID_GAP = 0.008;
+    const SHELF_W = 0.30, SHELF_D = 0.50, SHELF_T = 0.022;
+    const Y_CAB_TOP = H_CAB;
+    const Y_BOX_TOP = Y_CAB_TOP + H_BOX;
+
+    /* Cabinet */
+    const cab = new THREE.Mesh(new RoundedBoxGeometry(W, H_CAB, D, 2, 0.02), matStainless);
+    cab.position.set(0, Y_CAB_TOP * 0.5, 0);
+    cab.castShadow = true; cab.receiveShadow = true;
+    bbq.add(cab);
+
+    /* Cabinet doors — left closed, right open ~75° */
+    {
+      const doorH = H_CAB - 0.10;
+      const doorW = W * 0.5 - 0.025;
+      const doorY = Y_CAB_TOP * 0.5 - 0.02;
+      const doorZ = -D * 0.5 - 0.001;
+      for (const side of [-1, 1]) {
+        const hinge = new THREE.Group();
+        hinge.position.set(side * (W * 0.5), doorY, doorZ);
+        const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.008), matStainless);
+        door.position.set(-side * doorW * 0.5, 0, 0);
+        door.castShadow = true; door.receiveShadow = true;
+        hinge.add(door);
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.014, 0.018), matChrome);
+        handle.position.set(-side * doorW * 0.85, 0.12, -0.013);
+        hinge.add(handle);
+        if (side === 1) {
+          hinge.rotation.y = -THREE.MathUtils.degToRad(75);
+        }
+        bbq.add(hinge);
+      }
+    }
+
+    /* Propane tank visible through open right door */
+    {
+      const tank = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.13, 0.32, 28), matPropane);
+      tank.position.set(0.20, 0.16, 0);
+      tank.castShadow = true; tank.receiveShadow = true;
+      bbq.add(tank);
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.13, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.5),
+        matPropane);
+      dome.position.set(0.20, 0.32, 0);
+      dome.castShadow = true;
+      bbq.add(dome);
+      const collar = new THREE.Mesh(
+        new THREE.TorusGeometry(0.075, 0.013, 6, 18), matStainlessDark);
+      collar.rotation.x = Math.PI / 2;
+      collar.position.set(0.20, 0.42, 0);
+      bbq.add(collar);
+      const valve = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, 0.05, 16), matStainlessDark);
+      valve.position.set(0.20, 0.44, 0);
+      bbq.add(valve);
+      /* Propane regulator — small black plastic puck on top of the valve. */
+      const reg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.038, 0.030, 0.045, 20), matBlackPlastic);
+      reg.position.set(0.20, 0.475, 0);
+      reg.castShadow = true;
+      bbq.add(reg);
+      /* Flexible hose from regulator up to the underside of the firebox.
+       * Curve via 4-segment broken polyline (tube would be heavier; this
+       * reads fine at MVP detail). */
+      const hosePts = [
+        new THREE.Vector3(0.20, 0.50, 0),
+        new THREE.Vector3(0.18, 0.55, -0.05),
+        new THREE.Vector3(0.10, 0.54, -0.12),
+        new THREE.Vector3(0.02, 0.55, -0.05),
+        new THREE.Vector3(0.00, 0.55,  0.00),
+      ];
+      const hoseCurve = new THREE.CatmullRomCurve3(hosePts);
+      const hose = new THREE.Mesh(
+        new THREE.TubeGeometry(hoseCurve, 24, 0.012, 12, false),
+        matBlackPlastic
+      );
+      hose.castShadow = true;
+      bbq.add(hose);
+    }
+
+    /* Firebox body */
+    const box = new THREE.Mesh(new RoundedBoxGeometry(W, H_BOX, D, 2, 0.02), matStainless);
+    box.position.set(0, Y_CAB_TOP + H_BOX * 0.5, 0);
+    box.castShadow = true; box.receiveShadow = true;
+    bbq.add(box);
+
+    /* Grill grates (cast iron) */
+    {
+      const grateY = Y_BOX_TOP + 0.004;
+      const grateLen = D - 0.05;
+      const nRods = 10;
+      for (let i = 0; i < nRods; i++) {
+        const x = -W * 0.42 + (i / (nRods - 1)) * (W * 0.84);
+        const rod = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.011, grateLen), matCastIron);
+        rod.position.set(x, grateY, 0);
+        rod.castShadow = true;
+        bbq.add(rod);
+      }
+    }
+
+    /* Lid (closed with a hair of gap so grate seam reads) */
+    const lid = new THREE.Mesh(new RoundedBoxGeometry(W, H_LID, D, 4, 0.10), matStainless);
+    lid.position.set(0, Y_BOX_TOP + LID_GAP + H_LID * 0.5, 0);
+    lid.castShadow = true; lid.receiveShadow = true;
+    bbq.add(lid);
+
+    /* Lid handle */
+    const lidHandle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, W * 0.65, 16), matChrome);
+    lidHandle.rotation.z = Math.PI / 2;
+    lidHandle.position.set(0, Y_BOX_TOP + LID_GAP + H_LID + 0.025, -D * 0.5 - 0.015);
+    lidHandle.castShadow = true;
+    bbq.add(lidHandle);
+
+    /* Thermometer dial */
+    {
+      const dialY = Y_BOX_TOP + LID_GAP + H_LID * 0.55;
+      const dialZ = -D * 0.5 - 0.005;
+      const bezel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.07, 0.030, 24), matChrome);
+      bezel.rotation.x = Math.PI / 2;
+      bezel.position.set(0, dialY, dialZ);
+      bezel.castShadow = true;
+      bbq.add(bezel);
+      const face = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.060, 0.060, 0.005, 24), matDialFace);
+      face.rotation.x = Math.PI / 2;
+      face.position.set(0, dialY, dialZ - 0.013);
+      bbq.add(face);
+      const needle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.003, 0.002),
+        new THREE.MeshStandardMaterial({ color: 0xb02830, roughness: 0.4 }));
+      needle.position.set(0.018, dialY, dialZ - 0.016);
+      needle.rotation.z = -Math.PI * 0.15;
+      bbq.add(needle);
+      const cap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.008, 12), matStainlessDark);
+      cap.rotation.x = Math.PI / 2;
+      cap.position.set(0, dialY, dialZ - 0.018);
+      bbq.add(cap);
+      /* Tick marks around the dial perimeter — 11 ticks across ~270° arc
+       * (the usable thermometer range, from ~225° to ~-45°). */
+      const tickMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+      const tickR = 0.052;
+      for (let i = 0; i < 11; i++) {
+        const a = Math.PI * 0.75 - (i / 10) * Math.PI * 1.5;
+        const tw = (i % 5 === 0) ? 0.008 : 0.004;
+        const tl = (i % 5 === 0) ? 0.012 : 0.007;
+        const tick = new THREE.Mesh(
+          new THREE.BoxGeometry(tw, tl, 0.0015), tickMat);
+        const tx = Math.cos(a) * tickR;
+        const ty = Math.sin(a) * tickR;
+        tick.position.set(tx, dialY + ty, dialZ - 0.013);
+        tick.rotation.z = a - Math.PI / 2;
+        bbq.add(tick);
+      }
+    }
+
+    /* Lid latch — small chrome clip on the front-centre between firebox
+     * top and lid bottom (visible through the LID_GAP seam). */
+    {
+      const latchY = Y_BOX_TOP + LID_GAP * 0.5;
+      const latchBase = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, 0.012, 0.012), matChrome);
+      latchBase.position.set(0, latchY, -D * 0.5 - 0.006);
+      latchBase.castShadow = true;
+      bbq.add(latchBase);
+      const latchHook = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.025, 0.008), matChrome);
+      latchHook.position.set(0, latchY + 0.012, -D * 0.5 - 0.012);
+      latchHook.castShadow = true;
+      bbq.add(latchHook);
+    }
+
+    /* Side shelves */
+    for (const side of [-1, 1]) {
+      const shelf = new THREE.Mesh(new THREE.BoxGeometry(SHELF_W, SHELF_T, SHELF_D), matStainless);
+      shelf.position.set(side * (W * 0.5 + SHELF_W * 0.5 + 0.01), Y_CAB_TOP + 0.04, 0);
+      shelf.castShadow = true; shelf.receiveShadow = true;
+      bbq.add(shelf);
+      const br = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, SHELF_D * 0.8), matStainlessDark);
+      br.position.set(side * (W * 0.5 + 0.015), Y_CAB_TOP + 0.01, 0);
+      bbq.add(br);
+    }
+
+    /* Control panel + knobs */
+    {
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(W - 0.04, 0.08, 0.025), matStainlessDark);
+      panel.position.set(0, Y_CAB_TOP + 0.04, -D * 0.5 - 0.013);
+      bbq.add(panel);
+      for (const x of [-0.32, 0, 0.32]) {
+        const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.022, 24), matKnob);
+        knob.rotation.x = Math.PI / 2;
+        knob.position.set(x, Y_CAB_TOP + 0.04, -D * 0.5 - 0.030);
+        bbq.add(knob);
+      }
+    }
+
+    /* Wheels + back legs */
+    for (const side of [-1, 1]) {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.075, 0.075, 0.04, 24), matBlackPlastic);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(side * (W * 0.5 - 0.06), 0.075, -D * 0.5 + 0.06);
+      wheel.castShadow = true;
+      bbq.add(wheel);
+    }
+    for (const side of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.075, 0.04), matStainlessDark);
+      leg.position.set(side * (W * 0.5 - 0.04), 0.0375, D * 0.5 - 0.06);
+      leg.castShadow = true;
+      bbq.add(leg);
+    }
+  }
+  bbq.position.set(DECK_W - 0.85, DECK_H, DECK_D - 0.60);
+  scene.add(bbq);
+}
+
+/* ====================================================================== */
+/* Vantage presets                                                       */
+/* ====================================================================== */
+const VANTAGES = {
+  iso:       { target: new THREE.Vector3(DECK_W * 0.5, 0.7, DECK_D * 0.5),
+               cam:    new THREE.Vector3(DECK_W + 2.5, 2.6, DECK_D + 3.5) },
+  'ref-125': { target: new THREE.Vector3(DECK_W * 0.4, 0.9, DECK_D + 1.2),
+               cam:    new THREE.Vector3(DECK_W * 0.55, 1.55, DECK_D * 0.3) },
+  'ref-126': { target: new THREE.Vector3(0.2, 0.9, BACK_WALL_Z),
+               cam:    new THREE.Vector3(DECK_W * 0.7, 1.55, DECK_D * 0.55) },
+  'ref-127': { target: new THREE.Vector3(2.9, 0.7, BACK_WALL_Z),
+               cam:    new THREE.Vector3(DECK_W + 0.4, 1.55, DECK_D + 0.3) },
+  bbq:       { target: new THREE.Vector3(DECK_W - 0.85, 0.85, DECK_D - 0.60),
+               cam:    new THREE.Vector3(DECK_W + 1.3, 1.35, DECK_D + 0.4) },
+};
+document.querySelectorAll('.v-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = VANTAGES[btn.dataset.v];
+    if (v) controls.setTarget(v.target, v.cam);
+  });
+});
+
+/* ====================================================================== */
+/* Resize + render loop                                                  */
+/* ====================================================================== */
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', onResize);
+
+function startLoop() {
+  function tick() {
+    if (postProcessing) postProcessing.render();
+    else renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+main().catch((err) => {
+  console.error('bbq-test init failed:', err);
+  loadingEl.querySelector('.text').textContent = 'init failed — check console';
+});
+</script>
+</body>
+</html>
