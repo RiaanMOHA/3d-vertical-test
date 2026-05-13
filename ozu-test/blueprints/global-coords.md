@@ -190,12 +190,17 @@ shared-wall checks:
 per stairs map: 2F shaft footprint 1.575 m (W-E) × 0.90 m (N-S). located at the west end of the middle strip, north of the parapet, with room-1 partition on the north.
 
 page footprint: x=0..1575, y=2700..3600 (NW of middle strip)
-code footprint: x=4725..6300, z=3600..4500
+code footprint: x=4050..6300, z=3600..4500
+
+⚠ shaft east edge moved from blueprint x=4725 to x=4050 to fit the 3+4+6 upper flight
+(6 × 225 mm = 1350 mm run from L-bend at x=5400 to 2F landing at x=4050). The blueprint
+measures the 1F shaft as 900 mm wide, but the 2F upper flight requires a 1350 mm run from
+the bend. x=4050 is the accepted code boundary; all 2F floor/ceiling geometry already uses it.
 
 | named wall | exterior/interior | page side | code coord | shares with |
 |---|---|---|---|---|
 | west-wall | exterior | page-left (W) | **x = 6300** | building exterior |
-| east-wall | interior | page-right (E) | **x = 4725** | corridor's west arm, north end (step 13 top exit opens to corridor) |
+| east-wall | interior | page-right (E) | **x = 4050** | corridor's west arm, north end (step 13 top exit opens to corridor). Blueprint reads x=4725; widened to x=4050 for upper flight — see note above. |
 | north-wall | interior | page-top (N) | **z = 4500** | room-1 entrance-wall (= room-1's south face at z=4500) |
 | south-wall | parapet | page-bottom (S) | **z = 3600** | half-height parapet; void below opens to 1F LDK |
 

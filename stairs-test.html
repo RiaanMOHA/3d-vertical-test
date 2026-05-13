@@ -781,45 +781,49 @@ const RAIL_INSET = 0.05;     /* distance from wall face */
 const RAIL_HEIGHT_ABOVE_TREAD = 0.85;
 
 function makeBracket(wallAxis, wallSign, wallC, posY, posOnWall) {
-  /* wallAxis: 'x' or 'z' — which axis the wall lies along.
-   *   wallAxis='x' means wall extends along Z axis at fixed X (e.g. east/west wall).
-   *   wallAxis='z' means wall extends along X axis at fixed Z (e.g. parapet).
-   * wallSign: +1 or -1 — which side the bracket projects.
-   * wallC: coordinate of the wall surface.
-   * posY: height of the bracket center.
-   * posOnWall: position along the wall axis. */
-  /* Escutcheon disc against wall */
+  /* S-curve bracket: hex escutcheon disc at wall → cubic-bezier TubeGeometry
+   * stem → grip collar at rail. The S-curve adds a gentle outward bow matching
+   * the real brushed-chrome wall brackets visible in stairs-9/23/25. */
+  /* Hex escutcheon disc (6-sided) — closer to the real hex-bolt flange */
   const esc = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.024, 0.024, 0.005, 16),
+    new THREE.CylinderGeometry(0.026, 0.026, 0.006, 6),
     matBracket
   );
-  esc.rotation.z = Math.PI / 2;
   if (wallAxis === 'x') {
     esc.rotation.z = Math.PI / 2;
-    esc.position.set(wallC + wallSign * 0.0025, posY, posOnWall);
+    esc.position.set(wallC + wallSign * 0.003, posY, posOnWall);
   } else {
     esc.rotation.x = Math.PI / 2;
-    esc.rotation.z = 0;
-    esc.position.set(posOnWall, posY, wallC + wallSign * 0.0025);
+    esc.position.set(posOnWall, posY, wallC + wallSign * 0.003);
   }
   esc.castShadow = true; esc.receiveShadow = true;
   scene.add(esc);
-  /* Slim stem — thin cylinder from wall outward */
-  const stemLen = RAIL_INSET - 0.01;
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.006, 0.006, stemLen, 8),
+  /* S-curve stem via cubic bezier — bows ±12 mm in Y creating the S profile */
+  let p0, p1, p2, p3;
+  const INSET = RAIL_INSET;
+  if (wallAxis === 'x') {
+    const wx = wallC + wallSign * 0.006;
+    const rx = wallC + wallSign * INSET;
+    p0 = new THREE.Vector3(wx,                          posY,          posOnWall);
+    p1 = new THREE.Vector3(wx + wallSign * INSET * 0.35, posY - 0.012, posOnWall);
+    p2 = new THREE.Vector3(wx + wallSign * INSET * 0.65, posY + 0.012, posOnWall);
+    p3 = new THREE.Vector3(rx,                          posY,          posOnWall);
+  } else {
+    const wz = wallC + wallSign * 0.006;
+    const rz = wallC + wallSign * INSET;
+    p0 = new THREE.Vector3(posOnWall, posY,          wz);
+    p1 = new THREE.Vector3(posOnWall, posY - 0.012,  wz + wallSign * INSET * 0.35);
+    p2 = new THREE.Vector3(posOnWall, posY + 0.012,  wz + wallSign * INSET * 0.65);
+    p3 = new THREE.Vector3(posOnWall, posY,           rz);
+  }
+  const curve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 10, 0.006, 8, false),
     matBracket
   );
-  if (wallAxis === 'x') {
-    stem.rotation.z = Math.PI / 2;
-    stem.position.set(wallC + wallSign * stemLen / 2, posY, posOnWall);
-  } else {
-    stem.rotation.x = Math.PI / 2;
-    stem.position.set(posOnWall, posY, wallC + wallSign * stemLen / 2);
-  }
-  stem.castShadow = true; stem.receiveShadow = true;
-  scene.add(stem);
-  /* Grip collar — slim ring around the rail */
+  tube.castShadow = true; tube.receiveShadow = true;
+  scene.add(tube);
+  /* Grip collar — slim ring around the rail at the end */
   const collar = new THREE.Mesh(
     new THREE.CylinderGeometry(RAIL_R + 0.004, RAIL_R + 0.004, 0.020, 16),
     matBracket
@@ -827,7 +831,6 @@ function makeBracket(wallAxis, wallSign, wallC, posY, posOnWall) {
   if (wallAxis === 'x') {
     collar.rotation.z = Math.PI / 2;
     collar.position.set(wallC + wallSign * RAIL_INSET, posY, posOnWall);
-    /* Will be rotated to align with rail slope by caller — OK for short collar */
   } else {
     collar.rotation.x = Math.PI / 2;
     collar.position.set(posOnWall, posY, wallC + wallSign * RAIL_INSET);
@@ -1021,9 +1024,93 @@ slopedSkirtZ(SH_Z0, +1, 7 * RISE, UF_X0, 13 * RISE, UF_X1);                    /
 /* EAST WALL OF UPPER FLIGHT (x=UF_X1) — landing wall, room at x<2.25, horizontal. */
 flatSkirtX  (UF_X1, -1, 13 * RISE, SH_Z0, SH_Z1);                               /* top landing east edge */
 
-/* DETAIL ITEMS (wall switch, smoke detector, corridor proxy, baseboard)
- * — removed for "stairs only" view. They were attached to walls/ceiling
- * that no longer exist. Restore from git history when the shell returns.*/
+/* ====================================================================== */
+/* PARAPET — south boundary of 2F landing. White-painted body with wood   */
+/* cap rail. Restored from stairs-only strip; required for second handrail */
+/* and correct shadow geometry on the upper flight.                        */
+/* ====================================================================== */
+{
+  /* Body: white paint PBR, height=PARAPET_H above 2F floor (y=F1H) */
+  const pBody = box(UF_X1 - UF_X0, PARAPET_H, PARAPET_T, matParapetLit);
+  pBody.position.set((UF_X0 + UF_X1) / 2, F1H + PARAPET_H / 2, SH_Z0 + PARAPET_T / 2);
+  pBody.castShadow = true; pBody.receiveShadow = true;
+  scene.add(pBody);
+  /* Wood cap — stained finish, sits on top of parapet body */
+  const pCap = box(UF_X1 - UF_X0, 0.04, 0.10, matCapWood);
+  pCap.position.set((UF_X0 + UF_X1) / 2, F1H + PARAPET_H + 0.02, SH_Z0 + 0.05);
+  pCap.castShadow = true; pCap.receiveShadow = true;
+  scene.add(pCap);
+  /* Baseboard at parapet base (south face) */
+  const pBase = box(UF_X1 - UF_X0, SKIRT_H, SKIRT_T, matSkirt);
+  pBase.position.set((UF_X0 + UF_X1) / 2, F1H + SKIRT_H / 2, SH_Z0 - SKIRT_T / 2);
+  pBase.castShadow = true; pBase.receiveShadow = true;
+  scene.add(pBase);
+}
+
+/* ====================================================================== */
+/* SECOND (HORIZONTAL) HANDRAIL — top of parapet inside face at 2F level. */
+/* Continues where the climbing rail ends; runs x=[UF_X0, UF_X1].        */
+/* ====================================================================== */
+{
+  const railY = F1H + PARAPET_H + 0.04;        /* just above parapet cap */
+  const railZ = SH_Z0 + RAIL_INSET;
+  const p1 = new THREE.Vector3(UF_X0, railY, railZ);
+  const p2 = new THREE.Vector3(UF_X1, railY, railZ);
+  makeRailSegment(p1, p2, matRailPaint);
+  makeFerrule(p1, p2, 0.02);   /* end cap at west */
+  makeFerrule(p1, p2, 0.98);   /* end cap at east */
+  /* Two brackets — at 25% and 75% along the parapet */
+  for (const t of [0.25, 0.75]) {
+    const px = UF_X0 + (UF_X1 - UF_X0) * t;
+    makeBracket('z', +1, SH_Z0, railY, px);
+  }
+}
+
+/* ====================================================================== */
+/* LIGHT SWITCHES — 3 rocker plates on east landing wall (x=UF_X1).      */
+/* Standard Japanese switch height ≈ 1.20 m above 2F floor.              */
+/* ====================================================================== */
+{
+  const swX = UF_X1 + 0.001;                   /* just proud of the wall face */
+  const swY0 = F1H + 1.20;                     /* base of switch cluster */
+  const swZc = (SH_Z0 + SH_Z1) / 2 + 0.05;    /* centred on landing, offset slightly N */
+  const plateW = 0.086, plateH = 0.086, plateT = 0.007;
+  const rockerW = 0.036, rockerH = 0.060, rockerT = 0.005;
+  const matPlate  = matSwitch;
+  const matRocker = new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.40, metalness: 0.0 });
+  for (let i = 0; i < 3; i++) {
+    const swZ = swZc + (i - 1) * (plateW + 0.006);
+    /* Switch plate */
+    const plate = box(plateT, plateH, plateW, matPlate);
+    plate.position.set(swX + plateT / 2, swY0 + plateH / 2, swZ);
+    plate.castShadow = false; plate.receiveShadow = true;
+    scene.add(plate);
+    /* Rocker button */
+    const rocker = box(rockerT, rockerH, rockerW, matRocker);
+    rocker.position.set(swX + plateT + rockerT / 2, swY0 + plateH / 2, swZ);
+    rocker.castShadow = false; rocker.receiveShadow = true;
+    scene.add(rocker);
+  }
+}
+
+/* ====================================================================== */
+/* WALL-CORNER REVEAL TRIM — thin white strip at every wall-floor join.   */
+/* 20 mm × 8 mm profile, matches baseboard convention.                    */
+/* ====================================================================== */
+{
+  const TRIM_H = 0.020, TRIM_T = 0.008;
+  const matTrim = matBaseboard;
+  /* Parapet north face base (inside face, at y=F1H) */
+  const trimPar = box(UF_X1 - UF_X0, TRIM_H, TRIM_T, matTrim);
+  trimPar.position.set((UF_X0 + UF_X1) / 2, F1H + TRIM_H / 2, SH_Z0 + PARAPET_T + TRIM_T / 2);
+  trimPar.castShadow = false; trimPar.receiveShadow = true;
+  scene.add(trimPar);
+  /* East landing wall base (at y=F1H) */
+  const trimEast = box(TRIM_T, TRIM_H, SH_Z1 - SH_Z0, matTrim);
+  trimEast.position.set(UF_X1 - TRIM_T / 2, F1H + TRIM_H / 2, (SH_Z0 + SH_Z1) / 2);
+  trimEast.castShadow = false; trimEast.receiveShadow = true;
+  scene.add(trimEast);
+}
 
 /* ====================================================================== */
 /* Vantage button handlers (camera presets matching photo viewpoints)     */

@@ -1611,24 +1611,21 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       wallZ(1.80, 5.40, D,    [[5.50, 6.10]], F1H, 0);                 // laundry ↔ washroom (door)
       wallZ(3.60, 3.60, 4.50, [], F1H, 0);
       wallZ(3.60, 5.40, D,    [], F1H, 0);                             // washroom ↔ toilet partition
-      // x=4.50 wall, z=[3.60, 4.50] — height capped because the upper flight crosses this
-      // wall: step 11/12 treads span x∈[4.275, 4.75] at y≈2.08–2.31, and the wedge underside
-      // dips down to y≈2.10 at x=4.50. Cap at y=7*RISE so the upper flight clears it.
-      wallZ(4.50, 3.60, 4.50, [], 7 * F1H / 13, 0);
+      // x=4.50 wall, z=[3.60, 4.50] — step 12 riser sits at x=4.50; lowest overhead is
+      // step 11 tread bottom at 11*F1H/13-0.04 = 2.075 m. Stair-shaped height.
+      wallZ(4.50, 3.60, 4.50, [], 11 * F1H / 13 - 0.04, 0);
       wallZ(4.50, 5.40, 6.30, [[5.65, 6.30]], F1H, 0);
       wallZ(4.50, 6.30, D,    [], F1H, 0);
-      // 1F shaft east wall at x=5.40 — split because the upper flight extends WEST of this
-      // line at y=[7*RISE=1.346, 2.50] in the winder+upper-flight z range. A single full-height
-      // wall over z=[2.90, 4.50] would clip THROUGH step 8's riser/tread and bury the L-bend.
-      wallZ(5.40, 2.90, 3.575, [], F1H, 0);              // lower-flight enclosure: full 2.50 m height
-      wallZ(5.40, 3.575, 4.50, [], 7 * F1H / 13, 0);     // winder-zone east wall: cap at y=7*RISE so the upper flight clears it
+      // 1F shaft east wall at x=5.40 — merged to F1H across full z=[2.90, 4.50].
+      // Step 8 riser sits at x=5.40; only its 25 mm nosing clips the wall at y≈1.50 m — negligible.
+      wallZ(5.40, 2.90, 4.50, [], F1H, 0);
       wallX(2.90, 5.40, W,    [], F1H, 0);
-      // z=3.60 wall, x=[3.60, 4.50] — split because the upper flight crosses this wall at
-      // its south edge (UZ0=3.575, just 25mm south of z=3.60). Treads at x=[4.05, 4.50]
-      // sit at y=2.07–2.31 above this wall. Keep full height west of the upper-flight
-      // footprint; cap the portion under it.
-      wallX(3.60, 3.60, 4.05, [], F1H, 0);              // outside upper-flight x range — full height
-      wallX(3.60, 4.05, 4.50, [], 7 * F1H / 13, 0);     // under the upper flight — capped at y=7*RISE
+      // z=3.60 wall, x=[3.60, 4.50] — stair-shaped heights. Step 13 (x=[4.05, 4.275]):
+      // tread bottom at F1H-0.04 = 2.46 m. Step 12 (x=[4.275, 4.50]): tread bottom at
+      // 12*F1H/13-0.04 = 2.27 m. West of upper-flight x range: full height.
+      wallX(3.60, 3.60, 4.05, [], F1H, 0);               // west of upper-flight x range: full height
+      wallX(3.60, 4.05, 4.275, [], F1H - 0.04, 0);       // step 13 zone: up to tread bottom
+      wallX(3.60, 4.275, 4.50, [], 12 * F1H / 13 - 0.04, 0); // step 12 zone: up to tread bottom
       wallX(4.50, 0,    1.80, [[0.75, 1.35]], F1H, 0);                 // kitchen ↔ laundry (door)
       wallX(4.50, 1.80, 3.60, [], F1H, 0);                             // kitchen fridge-wall (east) + LDK ↔ corridor-1 washroom-approach
       wallX(4.50, 3.60, 4.50, [], F1H, 0);                             // LDK ↔ corridor-1 east-arm
@@ -5801,9 +5798,12 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // Ceiling spotlight fixture (4 dark cone shades on wood + crossbar)
       // ============================================================
       // Mounted at room center, crossbar arms along x and z (+ shape).
+      // PBR maps baked by bake_room2_spotlight_wood.py (A6000 Cycles).
       {
         const cX = RW / 2, cZ = RD / 2, ceilY = RH - 0.015;
-        const matWood = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.55 });
+        const matWood = pbrFromBase(
+          'ozu-test/room-2-textures/spotlight/wood/wood', 1, 1,
+        );
         const matBlack = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
         const matBulb = new THREE.MeshStandardMaterial({
           color: 0xfff4e0, emissive: 0xfff4e0, emissiveIntensity: 1.2,
@@ -5822,10 +5822,10 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         hub.position.set(cX, ceilY - 0.10, cZ);
         S.group.add(hub);
         // 4 cone shades at the ends of the 4 arms.
-        const lampMaterial = new THREE.MeshStandardMaterial({
-          color: 0x2a2520, roughness: 0.6, metalness: 0.1,
-          emissive: 0x1a1410, emissiveIntensity: 0.0,
-        });
+        const lampMaterial = pbrFromBase(
+          'ozu-test/room-2-textures/spotlight/shade/shade', 1, 1,
+          { metalness: 0.10, emissive: 0x1a1410, emissiveIntensity: 0.0 },
+        );
         const bulbMaterial = matBulb;
         const lampPointLights = [];
         const shadeOffsets = [
@@ -6538,10 +6538,16 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // ============================================================
       // Centered on ceiling. Cylindrical rattan shade, single warm bulb,
       // brass+wood hub.
+      // PBR maps baked by bake_room3_rattan.py (A6000 Cycles).
       {
         const cX = RW/2, cZ = RD/2, ceilY = RH - 0.015;
-        const matRattan = new THREE.MeshStandardMaterial({ color: 0xc9a980, roughness: 0.85 });
-        const matBrass = new THREE.MeshStandardMaterial({ color: 0xb88c4a, roughness: 0.4, metalness: 0.6 });
+        const matRattan = pbrFromBase(
+          'ozu-test/room-3-textures/rattan_pendant/rattan/rattan', 3, 2,
+        );
+        const matBrass = pbrFromBase(
+          'ozu-test/room-3-textures/rattan_pendant/brass/brass', 1, 1,
+          { metalness: 0.6 },
+        );
         const matBulb = new THREE.MeshStandardMaterial({
           color: 0xfff4e0, emissive: 0xfff4e0, emissiveIntensity: 1.5,
         });
@@ -7285,10 +7291,12 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // Photo-confirmed from corner-closet-window/05 (mid-sweep frame):
       // identical fixture to room-2's. Wood + crossbar (+ shape), central
       // black hub, 4 dark cone shades pointing down/outward, pull-chain.
-      // Same construction pattern as room-2's spotlight cluster.
+      // PBR maps baked by bake_room4_spotlight_wood.py (A6000 Cycles).
       {
         const cX = RW / 2, cZ = RD / 2, ceilY = RH - 0.015;
-        const matWood = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.55 });
+        const matWood = pbrFromBase(
+          'ozu-test/room-4-textures/spotlight/wood/wood', 1, 1,
+        );
         const matBlack = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
         const matBulb = new THREE.MeshStandardMaterial({
           color: 0xfff4e0, emissive: 0xfff4e0, emissiveIntensity: 1.2,
@@ -7307,10 +7315,10 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         hub.position.set(cX, ceilY - 0.10, cZ);
         S.group.add(hub);
         // 4 dark cone shades at the ends of the 4 arms.
-        const lampMaterial = new THREE.MeshStandardMaterial({
-          color: 0x2a2520, roughness: 0.6, metalness: 0.1,
-          emissive: 0x1a1410, emissiveIntensity: 0.0,
-        });
+        const lampMaterial = pbrFromBase(
+          'ozu-test/room-4-textures/spotlight/shade/shade', 1, 1,
+          { metalness: 0.10, emissive: 0x1a1410, emissiveIntensity: 0.0 },
+        );
         const bulbMaterial = matBulb;
         const lampPointLights = [];
         const shadeOffsets = [
