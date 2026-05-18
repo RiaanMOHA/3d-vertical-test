@@ -2,10 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<script>if(new URLSearchParams(location.search).has('journey'))document.documentElement.classList.add('journey-mode');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta name="theme-color" content="#1a1a1a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="living-dining-test" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
 <title>living-dining-test — 3D projects</title>
 <style>
+  .journey-mode #back-link,
+  .journey-mode #hint { display: none !important; }
+
   :root {
     --hotspot-surface: rgba(255, 255, 255, 0.92);
     --hotspot-text-primary: #000000;
@@ -29,10 +39,13 @@
     }
   }
   * { box-sizing: border-box; }
+  html { -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    margin: 0; padding: 0; height: 100svh; overflow: hidden;
+    overscroll-behavior: none;
     background: #1a1a1a;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
     color: #fff;
   }
   #app { position: fixed; inset: 0; }
@@ -49,6 +62,9 @@
     font-size: 20px; line-height: 1;
     border: 1px solid rgba(255,255,255,0.16);
     z-index: 100;
+  }
+  @media (min-width: 768px) {
+    #back-link { width: 60px; height: 60px; font-size: 24px; }
   }
   #hint {
     position: absolute;
@@ -101,7 +117,7 @@
     left: 50%; top: 50%;
     transform: translate(-50%, -50%);
     width: min(380px, calc(100vw - 32px));
-    max-height: calc(100vh - 32px);
+    max-height: calc(100svh - 32px);
     overflow-y: auto;
     background: var(--hotspot-surface);
     backdrop-filter: blur(20px) saturate(180%);
@@ -135,15 +151,24 @@
     color: #fff;
     border-color: transparent;
   }
+  #back-link:focus-visible,
+  .hotspot:focus-visible,
+  #popover .btn:focus-visible {
+    outline: 2px solid var(--hotspot-tint);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hotspot__dot { animation: none; }
+  }
 </style>
 </head>
 <body>
-<a id="back-link" href="index.html" aria-label="back">←</a>
-<div id="hint">click a dot · drag to orbit · wheel to zoom</div>
+<a id="back-link" href="index.html" aria-label="Back to projects">←</a>
+<div id="hint">tap a dot · drag to look · pinch to zoom</div>
 <div id="app"></div>
 <div id="hotspots-layer"></div>
 <div id="popover-scrim"></div>
-<div id="popover" role="dialog" aria-modal="true">
+<div id="popover" role="dialog" aria-modal="true" aria-labelledby="pv-name">
   <h2 id="pv-name"></h2>
   <div class="meta" id="pv-meta"></div>
   <dl id="pv-spec"></dl>
@@ -218,7 +243,11 @@ class OrbitControls {
   constructor(cam, el) {
     this.cam = cam; this.el = el;
     this.target = new THREE.Vector3(3.80, 1.20, 3.20);
-    this.spherical = new THREE.Spherical();
+    // radius=0 makes the constructor's _update() recompute spherical from the
+    // current camera.position - target offset, preserving the camera.position
+    // set above. With the default radius=1, _update() would overwrite
+    // camera.position with target + (0,1,0).
+    this.spherical = new THREE.Spherical(0, 0, 0);
     this.minDistance = 0.40; this.maxDistance = 12.0;
     this.minPolar = 0.10; this.maxPolar = Math.PI * 0.49;
     this._dragging = false; this._lastMouseupAt = 0;
@@ -279,6 +308,13 @@ class OrbitControls {
   }
 }
 const controls = new OrbitControls(camera, renderer.domElement);
+if (document.documentElement.classList.contains('journey-mode')) {
+  // Eye-height level view — lowered from y=1.45 to y=1.20 per user feedback (too high).
+  camera.position.set(1.40, 1.20, 1.40);
+  controls.target.set(3.80, 1.20, 3.20);
+  controls.spherical.radius = 0;
+  controls._update();
+}
 
 /* ====================================================================== */
 /* HDRI for IBL — kloppenheim puresky, filtered through PMREM.            */
@@ -3239,6 +3275,7 @@ const pvClose = document.getElementById('pv-close');
 function openPopover(id) {
   const p = PRODUCTS[id];
   if (!p) return;
+  _lastFocus = document.activeElement;
   pvName.textContent = p.name;
   pvMeta.textContent = p.meta;
   pvSpec.innerHTML = '';
@@ -3250,10 +3287,25 @@ function openPopover(id) {
   pvRef.href = p.refUrl;
   popover.classList.add('open');
   popoverScrim.classList.add('open');
+  document.addEventListener('keydown', _popoverKeyHandler);
+  setTimeout(() => { if (pvClose && pvClose.focus) pvClose.focus(); }, 0);
 }
 function closePopover() {
   popover.classList.remove('open');
   popoverScrim.classList.remove('open');
+  document.removeEventListener('keydown', _popoverKeyHandler);
+  if (_lastFocus && _lastFocus.focus) _lastFocus.focus();
+  _lastFocus = null;
+}
+let _lastFocus = null;
+function _popoverKeyHandler(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closePopover(); return; }
+  if (e.key !== 'Tab') return;
+  const focusables = popover.querySelectorAll('button, a[href]');
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+  else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
 }
 pvClose.addEventListener('click', closePopover);
 popoverScrim.addEventListener('click', closePopover);

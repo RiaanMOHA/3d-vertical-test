@@ -3,20 +3,33 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta name="theme-color" content="#1a1a1a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="stairs-test" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
 <title>stairs-test — 3D projects</title>
 <style>
   :root {
+    --glass-bg: rgba(28,28,30,0.78);
+    --glass-bg-hover: rgba(60,60,67,0.85);
+    --glass-bg-active: rgba(80,80,87,0.9);
+    --glass-stroke: rgba(255,255,255,0.16);
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
     --safe-right: env(safe-area-inset-right, 0px);
   }
   * { box-sizing: border-box; }
+  html { -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    margin: 0; padding: 0; height: 100svh; overflow: hidden;
+    overscroll-behavior: none;
     background: #1a1a1a;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
     color: #fff;
   }
   #app { position: fixed; inset: 0; }
@@ -28,11 +41,14 @@
     width: 44px; height: 44px;
     display: inline-flex; align-items: center; justify-content: center;
     border-radius: 999px;
-    background: rgba(28,28,30,0.78);
+    background: var(--glass-bg);
     color: #fff; text-decoration: none;
     font-size: 20px; line-height: 1;
-    border: 1px solid rgba(255,255,255,0.16);
+    border: 1px solid var(--glass-stroke);
     z-index: 100;
+  }
+  @media (min-width: 768px) {
+    #back-link { width: 60px; height: 60px; font-size: 24px; }
   }
   #hint {
     position: absolute;
@@ -40,8 +56,8 @@
     transform: translateX(-50%);
     max-width: calc(100vw - 120px - var(--safe-left) - var(--safe-right));
     padding: 8px 14px;
-    background: rgba(28,28,30,0.78);
-    border: 1px solid rgba(255,255,255,0.16);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-stroke);
     border-radius: 999px;
     font-size: 12px; line-height: 1.3;
     color: rgba(255,255,255,0.82);
@@ -58,21 +74,32 @@
     z-index: 100;
   }
   .v-btn {
-    padding: 8px 12px;
-    background: rgba(28,28,30,0.78);
-    border: 1px solid rgba(255,255,255,0.16);
+    min-height: 44px;
+    padding: 8px 14px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-stroke);
     color: #fff;
     border-radius: 999px;
     font-family: inherit;
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
+    transition: background 0.15s ease;
   }
-  .v-btn:hover { background: rgba(60,60,67,0.85); }
+  .v-btn:hover { background: var(--glass-bg-hover); }
+  .v-btn:active { background: var(--glass-bg-active); }
+  .v-btn:focus-visible,
+  #back-link:focus-visible {
+    outline: 2px solid #0A84FF;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .v-btn { transition: none; }
+  }
 </style>
 </head>
 <body>
-<a id="back-link" href="index.html" aria-label="back">←</a>
-<div id="hint">drag to orbit · wheel to zoom · click a vantage to match a photo</div>
+<a id="back-link" href="index.html" aria-label="Back to projects">←</a>
+<div id="hint">drag to look · pinch to zoom · tap a dot</div>
 <div id="app"></div>
 <div id="vantage">
   <button class="v-btn" data-v="iso">iso</button>

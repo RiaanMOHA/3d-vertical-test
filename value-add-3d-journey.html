@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<!--
+  value-add-3d-journey.html
+  A guided 5-step 3D property tour for Ozu-1.
+
+  Architecture: SINGLE iframe that swaps its src on each step.
+  This means only one three.js renderer is alive at a time — much smoother
+  than running all 5 in parallel.
+
+  Steps:
+    1. Exterior        → ozu-test.html?journey=1
+    2. Room 1          → ozu-test.html?journey=1&scene=room-1
+    3. Kitchen         → kitchen-test.html?journey=1
+    4. Laundry         → laundry-test.html?journey=1
+    5. Living + Dining → living-dining-test.html?journey=1
+    6. End screen      → placeholder (wire Mapbox here)
+
+  To deploy elsewhere, copy:
+    value-add-3d-journey.html
+    ozu-test.html
+    kitchen-test.html
+    laundry-test.html
+    living-dining-test.html
+    vendor/   (entire folder)
+    ozu-test/   (hdri + textures)
+    kitchen-test/
+    laundry-test/
+    living-dining-test/
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Ozu-1 Tour" />
+<title>Ozu-1 — Property Tour</title>
+<style>
+  /* ── Reset + safe areas ─────────────────────────────── */
+  :root {
+    --safe-top:    env(safe-area-inset-top,    0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left:   env(safe-area-inset-left,   0px);
+    --safe-right:  env(safe-area-inset-right,  0px);
+
+    --glass-bg:        rgba(28, 28, 30, 0.78);
+    --glass-stroke:    rgba(255, 255, 255, 0.14);
+    --glass-bg-hover:  rgba(44, 44, 46, 0.88);
+    --glass-bg-active: rgba(58, 58, 60, 0.92);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  html, body {
+    height: 100svh;
+    overflow: hidden;
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+                 "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+  }
+
+  /* ── Single iframe ────────────────────────────────────── */
+  #journey-frame {
+    position: fixed;
+    inset: 0;
+    border: none;
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #000;
+  }
+
+  /* ── End screen (step 6) ─────────────────────────────── */
+  #end-screen {
+    position: fixed;
+    inset: 0;
+    background: #0a0a0a;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 850;
+  }
+  #end-screen.active {
+    display: flex;
+  }
+
+  .end-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 20px;
+  }
+  .end-title {
+    font-size: 48px;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    color: rgba(255, 255, 255, 0.92);
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .end-subtitle {
+    font-size: 17px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: center;
+    line-height: 1.4;
+  }
+  .end-divider {
+    width: 40px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.15);
+    margin: 32px auto;
+  }
+
+  /* ── Fade overlay ────────────────────────────────────── */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 900;
+    will-change: opacity;
+  }
+
+  /* ── Loading spinner (shown during iframe load) ──────── */
+  #loader {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 910;
+    pointer-events: none;
+  }
+  #loader.visible { display: flex; }
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Nav buttons (forward + back) ─────────────────────── */
+  .nav-btn {
+    position: fixed;
+    bottom: calc(32px + var(--safe-bottom));
+    z-index: 800;
+
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-stroke);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255,255,255,0.06) inset;
+
+    color: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    transition:
+      background 0.14s ease,
+      transform 0.14s ease,
+      box-shadow 0.14s ease,
+      opacity 0.18s ease;
+
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  #next-btn { right: calc(24px + var(--safe-right)); }
+  #back-btn { left:  calc(24px + var(--safe-left));  }
+
+  .nav-btn:hover {
+    background: var(--glass-bg-hover);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255,255,255,0.08) inset;
+    transform: scale(1.04);
+  }
+  .nav-btn:active {
+    background: var(--glass-bg-active);
+    transform: scale(0.96);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+  .nav-btn:focus-visible {
+    outline: 2px solid #0A84FF;
+    outline-offset: 3px;
+  }
+
+  /* Hidden state (back btn on step 0, next btn on end screen) */
+  .nav-btn[hidden] {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .nav-btn {
+      width: 68px;
+      height: 68px;
+      bottom: calc(40px + var(--safe-bottom));
+    }
+    #next-btn { right: calc(32px + var(--safe-right)); }
+    #back-btn { left:  calc(32px + var(--safe-left));  }
+  }
+
+  /* ── Step dots ───────────────────────────────────────── */
+  #step-dots {
+    position: fixed;
+    bottom: calc(44px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 800;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.28);
+    transition: background 0.25s ease, transform 0.25s ease;
+  }
+  .dot.active {
+    background: rgba(255, 255, 255, 0.88);
+    transform: scale(1.25);
+  }
+
+  /* ── Step label ──────────────────────────────────────── */
+  #step-label {
+    position: fixed;
+    top: calc(var(--safe-top) + 18px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 800;
+
+    padding: 6px 16px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-stroke);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    border-radius: 999px;
+
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: rgba(255, 255, 255, 0.82);
+    white-space: nowrap;
+    pointer-events: none;
+
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-btn { transition: opacity 0.18s ease; }
+    .nav-btn:hover, .nav-btn:active { transform: none; }
+    .dot { transition: none; }
+    #step-label { transition: none; }
+    .spinner { animation-duration: 2s; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Single iframe — src is swapped on each step -->
+<iframe id="journey-frame" src="ozu-test.html?journey=1" title="Ozu-1 tour"></iframe>
+
+<!-- End screen (step 6) — wire Mapbox here -->
+<div id="end-screen" role="region" aria-label="Journey complete">
+  <p class="end-label">Ozu-1 · Kumamoto, Japan</p>
+  <h1 class="end-title">End of tour</h1>
+  <p class="end-subtitle">Property map coming next.</p>
+  <div class="end-divider"></div>
+  <p class="end-subtitle" style="font-size:13px; color:rgba(255,255,255,0.28);">
+    ← replace this screen with your Mapbox view →
+  </p>
+</div>
+
+<!-- Transition fade overlay -->
+<div id="overlay" aria-hidden="true"></div>
+
+<!-- Loading spinner during iframe load -->
+<div id="loader" aria-hidden="true">
+  <div class="spinner"></div>
+</div>
+
+<!-- Step dots progress indicator -->
+<div id="step-dots" aria-hidden="true">
+  <div class="dot active" data-step="0"></div>
+  <div class="dot" data-step="1"></div>
+  <div class="dot" data-step="2"></div>
+  <div class="dot" data-step="3"></div>
+  <div class="dot" data-step="4"></div>
+</div>
+
+<!-- Step name pill -->
+<div id="step-label" aria-live="polite">exterior</div>
+
+<!-- Back chevron -->
+<button id="back-btn" class="nav-btn" type="button" aria-label="Previous step" hidden>
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M14 5L7.5 11L14 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<!-- Forward chevron -->
+<button id="next-btn" class="nav-btn" type="button" aria-label="Next step">
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M8 5L14.5 11L8 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Steps config ─────────────────────────────────────
+  // src=null → end screen (no iframe)
+  const STEPS = [
+    { label: 'exterior',        src: 'ozu-test.html?journey=1' },
+    { label: 'room 1',          src: 'ozu-test.html?journey=1&scene=room-1' },
+    { label: 'kitchen',         src: 'kitchen-test.html?journey=1' },
+    { label: 'laundry',         src: 'laundry-test.html?journey=1' },
+    { label: 'living + dining', src: 'living-dining-test.html?journey=1' },
+    { label: '',                src: null },
+  ];
+
+  // ── State ─────────────────────────────────────────────
+  let currentStep = 0;
+  let transitioning = false;
+
+  // ── DOM refs ──────────────────────────────────────────
+  const frame      = document.getElementById('journey-frame');
+  const overlay    = document.getElementById('overlay');
+  const loader     = document.getElementById('loader');
+  const nextBtn    = document.getElementById('next-btn');
+  const backBtn    = document.getElementById('back-btn');
+  const stepLabel  = document.getElementById('step-label');
+  const endScreen  = document.getElementById('end-screen');
+  const dots       = document.querySelectorAll('.dot');
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── Update progress UI for the given step ─────────────
+  function updateUI(stepIndex) {
+    // Dots
+    dots.forEach((d, i) => d.classList.toggle('active', i === stepIndex));
+
+    // Label
+    const label = STEPS[stepIndex]?.label || '';
+    stepLabel.textContent = label;
+    stepLabel.style.opacity = label ? '1' : '0';
+
+    // Back button: hidden on step 0
+    backBtn.hidden = (stepIndex === 0);
+
+    // Next button: hidden on the last (end screen) step
+    nextBtn.hidden = (stepIndex === STEPS.length - 1);
+  }
+
+  // ── Show a step (instant — used for first render) ────
+  function showStepInstant(stepIndex) {
+    const step = STEPS[stepIndex];
+    if (!step) return;
+
+    if (step.src) {
+      endScreen.classList.remove('active');
+      frame.style.display = 'block';
+      if (frame.src !== new URL(step.src, location.href).href) {
+        frame.src = step.src;
+      }
+    } else {
+      frame.style.display = 'none';
+      endScreen.classList.add('active');
+    }
+    updateUI(stepIndex);
+  }
+
+  // ── Fade overlay ──────────────────────────────────────
+  function fadeOverlay(toOpacity, durationMs, easing) {
+    return new Promise(resolve => {
+      if (reducedMotion) {
+        overlay.style.opacity = toOpacity;
+        resolve();
+        return;
+      }
+      overlay.style.transition = `opacity ${durationMs}ms ${easing}`;
+      overlay.style.opacity = toOpacity;
+      const onEnd = () => {
+        overlay.removeEventListener('transitionend', onEnd);
+        resolve();
+      };
+      overlay.addEventListener('transitionend', onEnd, { once: true });
+    });
+  }
+
+  // ── Wait for iframe to finish loading ─────────────────
+  function waitForFrameLoad() {
+    return new Promise(resolve => {
+      const onLoad = () => {
+        frame.removeEventListener('load', onLoad);
+        resolve();
+      };
+      frame.addEventListener('load', onLoad);
+    });
+  }
+
+  // ── Transition to any step ────────────────────────────
+  // Direction: 'forward' or 'back' (purely cosmetic for now,
+  // could be used for slide direction in future).
+  //
+  // iPad HIG: full-screen transitions → 400–600 ms.
+  // Fade-out: 320ms (ease-in). Fade-in: 380ms (ease-out).
+  // Plus iframe load time (covered by spinner).
+  //
+  const FADE_OUT_MS = 320;
+  const FADE_IN_MS  = 380;
+  const POST_LOAD_PAUSE_MS = 250;  // give three.js a beat to render the first frame
+
+  async function goToStep(targetStep) {
+    if (transitioning) return;
+    if (targetStep < 0 || targetStep >= STEPS.length) return;
+    if (targetStep === currentStep) return;
+
+    transitioning = true;
+    nextBtn.style.pointerEvents = 'none';
+    backBtn.style.pointerEvents = 'none';
+
+    // Fade to black
+    await fadeOverlay(1, FADE_OUT_MS, 'cubic-bezier(0.4,0,1,1)');
+
+    const step = STEPS[targetStep];
+
+    if (step.src) {
+      // Show loading spinner while iframe loads
+      loader.classList.add('visible');
+      endScreen.classList.remove('active');
+      frame.style.display = 'block';
+
+      // Set up load wait BEFORE changing src
+      const loadPromise = waitForFrameLoad();
+      frame.src = step.src;
+      await loadPromise;
+
+      // Let three.js render its first frame
+      await new Promise(r => setTimeout(r, POST_LOAD_PAUSE_MS));
+      loader.classList.remove('visible');
+    } else {
+      // End screen — no iframe
+      frame.style.display = 'none';
+      endScreen.classList.add('active');
+    }
+
+    currentStep = targetStep;
+    updateUI(currentStep);
+
+    // Fade back in
+    await fadeOverlay(0, FADE_IN_MS, 'cubic-bezier(0.0,0.0,0.2,1)');
+
+    transitioning = false;
+    nextBtn.style.pointerEvents = '';
+    backBtn.style.pointerEvents = '';
+  }
+
+  function advance() { goToStep(currentStep + 1); }
+  function goBack()  { goToStep(currentStep - 1); }
+
+  // ── Button handlers ───────────────────────────────────
+  nextBtn.addEventListener('click', advance);
+  backBtn.addEventListener('click', goBack);
+
+  // Keyboard: arrow keys + space
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault();
+      advance();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      goBack();
+    }
+  });
+
+  // ── Swipe gesture (left = next, right = back) ─────────
+  // Only fires for swipes on parent (outside iframe). Inside the iframe,
+  // OrbitControls handles touch — we don't interfere with that.
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (transitioning) return;
+    const dx = touchStartX - e.changedTouches[0].clientX;
+    const dy = Math.abs(touchStartY - e.changedTouches[0].clientY);
+    if (Math.abs(dx) > 60 && dy < 80) {
+      if (dx > 0) advance();
+      else        goBack();
+    }
+  }, { passive: true });
+
+  // ── Init ──────────────────────────────────────────────
+  showStepInstant(0);
+})();
+</script>
+</body>
+</html>

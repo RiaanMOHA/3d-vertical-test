@@ -2,38 +2,125 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#1a1a1a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="test" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
 <title>test — 3D projects</title>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; color: #fff; }
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  html { -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100svh; overflow: hidden;
+    overscroll-behavior: none;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    color: #fff;
+  }
   #app { position: fixed; inset: 0; }
-  canvas { display: block; width: 100%; height: 100%; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
   .ui { position: absolute; pointer-events: none; user-select: none; font-size: 13px; letter-spacing: 0.02em; }
-  #back-link { position: absolute; top: 14px; left: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); color: #fff; text-decoration: none; font-size: 13px; letter-spacing: 0.02em; pointer-events: auto; }
+  #back-link {
+    position: absolute;
+    top: calc(14px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    min-height: 44px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.55);
+    border-radius: 6px; backdrop-filter: blur(6px);
+    color: #fff; text-decoration: none;
+    font-size: 13px; letter-spacing: 0.02em;
+    pointer-events: auto;
+    display: inline-flex; align-items: center;
+  }
   #back-link:hover { background: rgba(0,0,0,0.8); }
-  #project-badge { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.7); pointer-events: none; }
-  #mode-label { top: 54px; left: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); }
-  #room-label { top: 14px; right: 14px; padding: 8px 12px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); font-weight: 500; }
-  #hints { bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 14px; background: rgba(0,0,0,0.55); border-radius: 6px; backdrop-filter: blur(6px); text-align: center; line-height: 1.5; }
-  #chips { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
-  .chip { pointer-events: auto; padding: 8px 16px; border-radius: 999px; background: rgba(0,0,0,0.55); color: #fff; font-size: 13px; letter-spacing: 0.02em; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s; }
+  #back-link:active { background: rgba(0,0,0,0.85); }
+  #project-badge {
+    position: absolute;
+    top: calc(18px + var(--safe-top));
+    left: 50%; transform: translateX(-50%);
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    font-size: 11px; letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.7);
+    pointer-events: none;
+  }
+  #mode-label {
+    top: calc(54px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    padding: 8px 12px; background: rgba(0,0,0,0.55);
+    border-radius: 6px; backdrop-filter: blur(6px);
+  }
+  #room-label {
+    top: calc(14px + var(--safe-top));
+    right: calc(14px + var(--safe-right));
+    padding: 8px 12px; background: rgba(0,0,0,0.55);
+    border-radius: 6px; backdrop-filter: blur(6px); font-weight: 500;
+  }
+  #hints {
+    bottom: calc(14px + var(--safe-bottom));
+    left: 50%; transform: translateX(-50%);
+    padding: 8px 14px; background: rgba(0,0,0,0.55);
+    border-radius: 6px; backdrop-filter: blur(6px);
+    text-align: center; line-height: 1.5;
+  }
+  #chips {
+    position: absolute;
+    top: calc(54px + var(--safe-top));
+    left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; pointer-events: none;
+  }
+  .chip {
+    pointer-events: auto;
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px; letter-spacing: 0.02em;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(6px);
+    transition: background 0.15s, color 0.15s;
+    display: inline-flex; align-items: center;
+  }
+  .chip:focus-visible, #back-link:focus-visible {
+    outline: 2px solid #0A84FF;
+    outline-offset: 2px;
+  }
   .chip:hover { background: rgba(0,0,0,0.75); }
+  .chip:active { background: rgba(0,0,0,0.85); }
   .chip.active { background: #fff; color: #111; border-color: #fff; }
   kbd { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.15); border-radius: 3px; font-family: inherit; font-size: 12px; }
+  @media (prefers-reduced-motion: reduce) {
+    .chip, #back-link { transition: none; }
+  }
 </style>
 </head>
 <body>
 <div id="app"></div>
-<a id="back-link" href="index.html">← projects</a>
+<a id="back-link" href="index.html" aria-label="Back to projects">←</a>
 <div id="project-badge">test</div>
 <div id="chips">
-  <div class="chip active" data-scene="building">building</div>
-  <div class="chip" data-scene="interior">interior-room</div>
+  <button type="button" class="chip active" data-scene="building">building</button>
+  <button type="button" class="chip" data-scene="interior">interior-room</button>
 </div>
 <div id="mode-label" class="ui">mode: <span id="mode-val">orbit</span></div>
 <div id="room-label" class="ui">—</div>
 <div id="hints" class="ui">
-  <kbd>click</kbd> pointer-lock first-person · <kbd>WASD</kbd> move · <kbd>ESC</kbd> exit · drag to orbit · scroll to zoom
+  drag to look · pinch to zoom · tap to enter first-person
 </div>
 
 <script>

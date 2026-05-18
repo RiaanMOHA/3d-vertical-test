@@ -2,9 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<script>if(new URLSearchParams(location.search).has('journey'))document.documentElement.classList.add('journey-mode');</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#1a1a1a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="ozu-1" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
 <title>ozu-test — 3D projects</title>
 <style>
+  /* journey-mode: hide own nav when embedded in value-add-3d-journey.html */
+  .journey-mode #dock,
+  .journey-mode #back-link,
+  .journey-mode #entry-hint,
+  .journey-mode #views-popover,
+  .journey-mode #corner-hotspots-layer,
+  .journey-mode #lights-btn,
+  .journey-mode #lights-divider { display: none !important; }
+
   /* === Liquid Glass tokens (iOS 26 / visionOS 26) ===
      Tuned for WCAG AA: white text on --glass-bg yields ≥4.5:1 over
      bright scenes (exterior day) and ≥7:1 over dark scenes (interior). */
@@ -26,7 +43,15 @@
     --safe-right: env(safe-area-inset-right, 0px);
   }
 
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; color: #fff; }
+  html { -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100svh; overflow: hidden;
+    overscroll-behavior: none;
+    background: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    color: #fff;
+  }
   #app { position: fixed; inset: 0; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }
   .ui { position: absolute; pointer-events: none; user-select: none; font-size: 13px; letter-spacing: 0.02em; }
@@ -251,7 +276,7 @@
     transform: translateX(-50%);
     max-width: 360px;
     width: max-content;
-    max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 20px - 56px - 32px - 24px);
+    max-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 20px - 56px - 32px - 24px);
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -318,22 +343,31 @@
     #back-link { width: 40px; height: 40px; font-size: 17px; }
     #views-popover {
       bottom: calc(20px + var(--safe-bottom) + 52px + 24px);
-      max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 20px - 52px - 24px - 16px);
+      max-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 20px - 52px - 24px - 16px);
       max-width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
     }
     .popover { min-width: 160px; }
   }
   @media (min-width: 768px) {
     #dock { height: 60px; padding: 8px; }
-    #scene-segment .seg, #dock > button { height: 42px; }
+    #scene-segment .seg, #dock > button { height: 44px; }
+    #back-link { width: 60px; height: 60px; font-size: 22px; }
   }
   @media (min-width: 1024px) {
     #dock { max-width: 720px; }
     #views-popover { max-width: 540px; }
   }
+  #back-link:focus-visible,
+  #scene-segment .seg:focus-visible,
+  #dock > button:focus-visible,
+  .view-chip:focus-visible,
+  .qa-view:focus-visible {
+    outline: 2px solid #0A84FF;
+    outline-offset: 2px;
+  }
   @media (prefers-reduced-motion: reduce) {
     #back-link, #scene-segment .seg, #views-btn, .view-chip {
-      transition: background 0.12s ease;
+      transition: none;
     }
     #back-link:active, #scene-segment .seg:active, #views-btn:active, .view-chip:active {
       transform: none;
@@ -345,11 +379,11 @@
 <div id="app"></div>
 
 <!-- Top-leading: glass back button (icon only) -->
-<a id="back-link" href="http://localhost:8080/index.html" aria-label="Back to projects">‹</a>
+<a id="back-link" href="index.html" aria-label="Back to projects">←</a>
 
 <!-- Top-center: brief on-entry control hint. Shown after each scene switch,
      auto-fades so it doesn't sit permanently in the user's view. -->
-<div id="entry-hint" class="entry-hint" aria-live="polite">Drag to look · pinch to zoom</div>
+<div id="entry-hint" class="entry-hint" aria-live="polite">drag to look · pinch to zoom</div>
 
 <!-- Corner-jump hotspots — populated by JS. Hidden unless room-1 is active. -->
 <div id="corner-hotspots-layer" hidden></div>
@@ -357,20 +391,20 @@
 <!-- Bottom-center: glass dock with scene segmented control + views button -->
 <div id="dock" role="toolbar" aria-label="Scene controls">
   <div id="scene-segment" role="group" aria-label="Scene">
-    <button class="seg chip active" type="button" data-scene="exterior">Exterior</button>
-    <button class="seg chip" type="button" data-scene="room-1">Room 1</button>
-    <button class="seg chip" type="button" data-scene="room-2">Room 2</button>
-    <button class="seg chip" type="button" data-scene="room-3">Room 3</button>
-    <button class="seg chip" type="button" data-scene="room-4">Room 4</button>
-    <button class="seg chip" type="button" data-scene="interior">Interior</button>
+    <button class="seg chip active" type="button" data-scene="exterior">exterior</button>
+    <button class="seg chip" type="button" data-scene="room-1">room 1</button>
+    <button class="seg chip" type="button" data-scene="room-2">room 2</button>
+    <button class="seg chip" type="button" data-scene="room-3">room 3</button>
+    <button class="seg chip" type="button" data-scene="room-4">room 4</button>
+    <button class="seg chip" type="button" data-scene="interior">interior</button>
   </div>
   <div class="dock-divider" aria-hidden="true"></div>
   <button id="views-btn" type="button" aria-haspopup="menu" aria-expanded="false">
-    <span>Views</span>
+    <span>views</span>
     <span class="caret" aria-hidden="true">▴</span>
   </button>
   <div id="lights-divider" class="dock-divider" aria-hidden="true" hidden></div>
-  <button id="lights-btn" type="button" aria-pressed="false" hidden>Lights</button>
+  <button id="lights-btn" type="button" aria-pressed="false" hidden>lights</button>
 </div>
 
 <!-- Views popover (existing populateViewChips fills #view-chips) -->
@@ -379,8 +413,8 @@
 </div>
 
 <!-- Legacy elements kept for JS compatibility (hidden via CSS) -->
-<div id="project-badge">ozu-test</div>
-<div id="room-label" class="ui">—</div>
+<div id="project-badge" aria-hidden="true">ozu-test</div>
+<div id="room-label" class="ui" aria-hidden="true">—</div>
 
 <!-- Import map so example modules (HDRLoader etc.) can resolve `from 'three'` -->
 <script type="importmap">
@@ -421,12 +455,8 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
   const roomLabel = document.getElementById('room-label');
 
   // ---------- Renderer / camera / scene ----------
-  // WebGLRenderer with default MSAA. Tried WebGPURenderer (r184) but
-  // renderer.init() hangs in browsers without WebGPU support, so reverted.
-  // Pixel-ratio cap at 3 (instead of 2) keeps retina+ displays sharp on the
-  // transmission buffer for window glass.
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -441,11 +471,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 200);
   camera.position.set(5, 6, 5);
 
-  window.addEventListener('resize', () => {
+  const onResize = () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
 
   // ---------- Constants ----------
   const WT = 0.105;        // wall thickness
@@ -4960,8 +4992,8 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       //   corner-closet-entrance= (x=0,  z=0)
       //   corner-entrance-window= (x=RW, z=0)
       const COL = {
-        floor: 0xd4b896, ceiling: 0xf5f0e8, wall: 0xafa299,
-        doorway: 0x2a2a2a, closet: 0xf2ece4, frame: 0xffffff,
+        floor: 0xd4b896, ceiling: 0xf5f0e8, wall: 0x9a938c,
+        doorway: 0x2a2a2a, closet: 0xffffff, frame: 0xffffff,
         // Furniture colors added in Phase 3.
       };
       function box(w, h, d, cx, cy, cz, color, extra = {}) {
@@ -5051,31 +5083,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       );
       // Painted walls — literal taupe-grey paint, no light-direction tinting.
       // Corner darkening is added via per-wall AO maps once Phase 4 bake runs.
-      const wallPaintArgs = { color: COL.wall, toneMapped: false };
-      const matWall_x0 = new THREE.MeshBasicMaterial(wallPaintArgs);
-      const matWall_xW = new THREE.MeshBasicMaterial(wallPaintArgs);
-      const matWall_z0 = new THREE.MeshBasicMaterial(wallPaintArgs);
-      const matWall_zD = new THREE.MeshBasicMaterial(wallPaintArgs);
-      // Wire wall AO maps — produced by `bake_room2_ao.py` on the A6000.
-      (function attachWallAO() {
-        const aoLoader = new THREE.TextureLoader();
-        const maxAniso = renderer.capabilities.getMaxAnisotropy();
-        const load = (slug) => {
-          const tex = aoLoader.load(`ozu-test/room-2-textures/wall_ao/${slug}.png`);
-          tex.colorSpace = THREE.NoColorSpace;
-          tex.anisotropy = maxAniso;
-          tex.generateMipmaps = false;
-          tex.minFilter = THREE.LinearFilter;
-          tex.magFilter = THREE.LinearFilter;
-          tex.wrapS = THREE.ClampToEdgeWrapping;
-          tex.wrapT = THREE.ClampToEdgeWrapping;
-          return tex;
-        };
-        matWall_x0.map = load('wall_x0');
-        matWall_xW.map = load('wall_xW');
-        matWall_z0.map = load('wall_z0');
-        matWall_zD.map = load('wall_zD');
-      })();
+      const wallPaintArgs = { color: COL.wall, toneMapped: false, roughness: 0.82, metalness: 0.0 };
+      const matWall_x0 = new THREE.MeshStandardMaterial(wallPaintArgs);
+      const matWall_xW = new THREE.MeshStandardMaterial(wallPaintArgs);
+      const matWall_z0 = new THREE.MeshStandardMaterial(wallPaintArgs);
+      const matWall_zD = new THREE.MeshStandardMaterial(wallPaintArgs);
+      // Room-2 walls are flat taupe paint only; no AO maps so the color stays
+      // exactly #9A938C on all wall surfaces.
       const matGlassR2 = new THREE.MeshPhysicalMaterial({
         color: 0xeaf2f6, transparent: true, opacity: 1.0,
         transmission: 1.0, ior: 1.52, thickness: 0.02,
@@ -5088,9 +5102,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         attenuationColor: 0xffffff, attenuationDistance: 1.5,
       });
       const matFrameR2  = new THREE.MeshStandardMaterial({ color: COL.frame, roughness: 0.6 });
-      const matClosetR2 = new THREE.MeshStandardMaterial({ color: COL.closet, roughness: 0.7 });
+      const matClosetR2 = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
       const matHandleR2 = new THREE.MeshStandardMaterial({ color: 0xcfcfcf, metalness: 0.95, roughness: 0.20 });
-      const matSeamR2   = new THREE.MeshStandardMaterial({ color: 0xbababa });
+      const matSeamR2   = new THREE.MeshStandardMaterial({ color: 0xf2f2f0, roughness: 0.8 });
 
       // floor + ceiling
       const floor = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.02, RD), matFloorR2);
@@ -5225,21 +5239,23 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         S.group.add(lever);
       }
 
-      // ---- Closet bi-fold (closet-wall, x=0) ----
+      // ---- Closet bi-fold (the cabinet) at closet-wall × ac-wall corner ----
       // 4-panel bi-fold doors, full-height under the crown molding.
-      // Doors occupy z=[0.55, 1.95] (1.40 m total → 4 panels × 0.35 m each).
-      // Center seam at z=1.25, 2 internal fold lines at z=0.90 and z=1.60.
+      // Doors occupy z=[0.00, 1.40] (1.40 m total → 4 panels × 0.35 m each),
+      // flush against the ac-wall (z=RD=2.70). High-z edge sits in the
+      // corner of closet-wall × ac-wall.
+      // Center seam at z=2.00, 2 internal fold lines at z=1.65 and z=2.35.
       // Two small chrome recessed pulls at the center-seam-side edges, mid-height.
       {
-        const cZ1 = 0.55, cZ2_ = 1.95, cY1 = 0.05, cY2 = 2.30;
+        const cZ1 = 0.00, cZ2_ = 1.40, cY1 = 0.05, cY2 = 2.30;
         // Full bi-fold panel surface, flush against closet-wall.
         feat('x', 0, +1, { a1: cZ1, a2: cZ2_, b1: cY1, b2: cY2 }, matClosetR2);
         // Three vertical seams (thin dark slabs) — center seam slightly more
         // prominent (the meeting edge of the two bi-fold pairs).
         const seamW = 0.005;
-        const seamCenter = 1.25;
-        const seamFoldA  = 0.90;
-        const seamFoldB  = 1.60;
+        const seamCenter = 2.00;
+        const seamFoldA  = 1.65;
+        const seamFoldB  = 2.35;
         feat('x', 0, +1, { a1: seamCenter - seamW, a2: seamCenter + seamW, b1: cY1, b2: cY2 }, matSeamR2);
         feat('x', 0, +1, { a1: seamFoldA  - seamW/2, a2: seamFoldA  + seamW/2, b1: cY1, b2: cY2 }, matSeamR2);
         feat('x', 0, +1, { a1: seamFoldB  - seamW/2, a2: seamFoldB  + seamW/2, b1: cY1, b2: cY2 }, matSeamR2);
@@ -5390,20 +5406,19 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // Bed (white iron frame, head against closet-wall x=0)
+      // Bed (white iron frame, head in corner of window-wall × ac-wall)
       // ============================================================
-      // Long axis along +x, headboard at x≈0.05, foot at x=2.05. Width 1.00 m
-      // in z, centered on the bi-fold closet doors (z=[0.85, 1.85]).
-      // Mattress 0.20 m thick, frame 0.30 m above floor.
+      // Long axis along +x. Head against window-wall (high-x edge of frame
+      // at bX1≈2.65), foot toward closet-wall (low-x edge at bX0≈0.65).
+      // Long side of bed against ac-wall (high-z edge at bZ1≈2.65); 1 m
+      // bed width spans z=[1.65, 2.65]. Mattress 0.20 m thick, frame
+      // 0.30 m above floor.
       //
-      // Intentional overlap with the bi-fold closet doors (closet bi-fold
-      // panel sits at x≈0.043, bed headboard back-face at x=0.05): the bed
-      // nestles in front of the closet so the doors could not actually open
-      // without moving the bed. This matches the real staging visible in
-      // `corner-closet-entrance/01`. Per the "photos win over functional
-      // concerns" rule, don't reposition the bed to "free" the doors.
-      const bX0 = 0.05, bX1 = 2.05;
-      const bZ0 = 0.85, bZ1 = 1.85;
+      // bX0 < bX1 is preserved so RoundedBoxGeometry widths stay positive;
+      // bX1 is the HEAD end (taller posts, decorative tulip bars), bX0 is
+      // the FOOT end (shorter posts).
+      const bX0 = 0.65, bX1 = 2.65;
+      const bZ0 = 1.65, bZ1 = 2.65;
       const FRAME_Y_BOT = 0.30, MAT_TOP = 0.50;
       const mBox = { x1: bX0, x2: bX1, z1: bZ0, z2: bZ1 };
       {
@@ -5435,15 +5450,15 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           cap.position.set(cx, topY + capR * 0.7, cz);
           S.group.add(cap);
         }
-        // Headboard posts (taller, decorative side) at x≈0.05.
-        cornerPost(bX0, bZ0, 1.10);
-        cornerPost(bX0, bZ1, 1.10);
-        // Footboard posts (shorter) at x≈2.05.
-        cornerPost(bX1, bZ0, 0.75);
-        cornerPost(bX1, bZ1, 0.75);
-        // Headboard rails: 3 horizontal bars connecting the 2 head posts.
+        // Headboard posts (taller, decorative side) at bX1 ≈ 2.65 (against window-wall).
+        cornerPost(bX1, bZ0, 1.10);
+        cornerPost(bX1, bZ1, 1.10);
+        // Footboard posts (shorter) at bX0 ≈ 0.65 (toward closet-wall).
+        cornerPost(bX0, bZ0, 0.75);
+        cornerPost(bX0, bZ1, 0.75);
+        // Headboard rails: 3 horizontal bars connecting the 2 head posts at bX1.
         const railR = 0.012;
-        function railZ(yPos, x = bX0) {
+        function railZ(yPos, x = bX1) {
           const rail = new THREE.Mesh(
             new THREE.CylinderGeometry(railR, railR, bZ1 - bZ0, 14),
             matIron
@@ -5455,7 +5470,7 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         railZ(0.32);   // bottom rail (just above mattress base)
         railZ(0.85);   // middle rail
         railZ(1.05);   // top rail (just below ball caps)
-        // 5 decorative tulip bars between middle and top rails on the headboard.
+        // 5 decorative tulip bars between middle and top rails on the headboard (at bX1).
         // Approximated as thin vertical cylinders with a small sphere "flower" at top.
         for (let i = 0; i < 5; i++) {
           const tz = bZ0 + (bZ1 - bZ0) * (0.18 + 0.16 * i);
@@ -5463,15 +5478,15 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
             new THREE.CylinderGeometry(0.006, 0.006, 0.20, 10),
             matIron
           );
-          stem.position.set(bX0, 0.95, tz);
+          stem.position.set(bX1, 0.95, tz);
           S.group.add(stem);
           const flower = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 8), matIron);
-          flower.position.set(bX0, 1.04, tz);
+          flower.position.set(bX1, 1.04, tz);
           S.group.add(flower);
         }
-        // Footboard rails: 2 horizontal bars connecting the 2 foot posts.
-        railZ(0.32, bX1);
-        railZ(0.70, bX1);
+        // Footboard rails: 2 horizontal bars connecting the 2 foot posts at bX0.
+        railZ(0.32, bX0);
+        railZ(0.70, bX0);
         // Side rails (long sides of the bed frame) — 2 horizontal bars under the mattress.
         {
           const sideR = 0.014;
@@ -5529,24 +5544,44 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
             new RoundedBoxGeometry(0.40, 0.12, 0.42, 6, 0.040),
             matRose
           );
-          cushion.position.set(bX1 - 0.30, MAT_TOP + 0.06 + 0.005, (bZ0 + bZ1) / 2);
+          cushion.position.set(bX0 + 0.30, MAT_TOP + 0.06 + 0.005, (bZ0 + bZ1) / 2);
           S.group.add(cushion);
         }
       }
 
       // ============================================================
-      // Desk + chair at corner-entrance-window (x=RW, z=0)
+      // Desk + chair right next to shelf on entrance-wall, facing ac-wall
       // ============================================================
-      // Desk top against window-wall (x=RW), drawer on -x face. Light-maple
-      // tapered legs (4). Chair: tan leather, 5-spoke caster base.
+      // Desk long side flush with entrance-wall (z=0), drawer on +z face.
+      // Light-maple tapered legs (4). Chair: tan leather, 5-spoke caster base.
       {
-        const dX0 = 2.25, dX1 = 2.70, dZ0 = 0.30, dZ1 = 1.10;
+        const dX0 = 0.90, dX1 = 2.10, dZ0 = 0.00, dZ1 = 0.45;
         const dTopY = 0.72, dTopT = 0.025;
-        const matDeskTop = new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.55 });
-        const matDeskLeg = new THREE.MeshStandardMaterial({ color: 0xd9b88e, roughness: 0.7 });
+        const matDeskTop = new THREE.MeshPhysicalMaterial({
+          color: 0xf2efe6,
+          roughness: 0.48,
+          metalness: 0.0,
+          clearcoat: 0.08,
+          clearcoatRoughness: 0.2,
+          reflectivity: 0.25,
+        });
+        const matDeskLeg = new THREE.MeshPhysicalMaterial({
+          color: 0xd9b88e,
+          roughness: 0.64,
+          metalness: 0.0,
+          clearcoat: 0.05,
+          clearcoatRoughness: 0.35,
+        });
         const matChair   = new THREE.MeshPhysicalMaterial({
-          color: 0xa05b34, roughness: 0.55, metalness: 0.0,
-          sheen: 0.5, sheenColor: new THREE.Color(0xe6a07e), sheenRoughness: 0.6,
+          color: 0xa05b34,
+          roughness: 0.52,
+          metalness: 0.0,
+          sheen: 0.45,
+          sheenColor: new THREE.Color(0xe6a07e),
+          sheenRoughness: 0.58,
+          clearcoat: 0.08,
+          clearcoatRoughness: 0.25,
+          reflectivity: 0.22,
         });
         const matChairLeg = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.5 });
         // Desk top.
@@ -5572,27 +5607,27 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           leg.position.set(lx, legH / 2, lz);
           S.group.add(leg);
         }
-        // Small drawer in the front face (under desk top, on -x face).
+        // Small drawer in the front face (under desk top, on +z face).
         {
           const drwY = dTopY - dTopT - 0.045;
           const drwFace = new THREE.Mesh(
-            new THREE.BoxGeometry(0.005, 0.07, topD * 0.55),
+            new THREE.BoxGeometry(topW * 0.55, 0.07, 0.005),
             matDeskTop
           );
-          drwFace.position.set(dX0 - 0.001, drwY, (dZ0 + dZ1) / 2);
+          drwFace.position.set((dX0 + dX1) / 2, drwY, dZ1 + 0.001);
           S.group.add(drwFace);
           // Drawer pull (thin chrome bar).
           const pull = new THREE.Mesh(
-            new THREE.BoxGeometry(0.005, 0.010, 0.090),
+            new THREE.BoxGeometry(0.090, 0.010, 0.005),
             matHandleR2
           );
-          pull.position.set(dX0 - 0.005, drwY, (dZ0 + dZ1) / 2);
+          pull.position.set((dX0 + dX1) / 2, drwY, dZ1 + 0.005);
           S.group.add(pull);
         }
         // Chair — tan leather seat + back, 5-spoke caster base.
         {
-          const cX = dX0 - 0.32;  // chair center 32 cm in front of desk
-          const cZ = (dZ0 + dZ1) / 2;
+          const cX = (dX0 + dX1) / 2;  // chair center in front of desk
+          const cZ = dZ1 + 0.10; // keep the chair close to the shelf
           // Seat
           const seatY = 0.46;
           const seat = new THREE.Mesh(
@@ -5647,13 +5682,19 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // Tall grey-blue hutch at corner-ac-window (x=RW, z=RD)
+      // Tall grey-blue hutch (a.k.a. the shelf) at corner of
+      // entrance-wall × window-wall, facing toward ac-wall (+z)
       // ============================================================
       // Cabinet base (lower) + open shelves (upper) + arched top.
-      // Footprint: x=[2.10, 2.70] (0.60 m wide), z=[2.30, 2.70] (0.40 m deep).
-      // Full height 1.95 m (under crown molding).
+      // Footprint: x=[1.30, 1.90] (0.60 m wide, flush against window-wall),
+      // z=[0.00, 0.40] (0.40 m deep, BACK against entrance-wall at z=0).
+      // Full height 1.95 m (under crown molding). Front (doors + open
+      // shelves + knobs) FACES +z toward the ac-wall — opposite of the
+      // original orientation. The `+ cabT/2` / `+ 0.006` offsets below
+      // bias the bottom/top/shelves toward the back (low-z) so their
+      // FRONT edge sits flush with hZ1 = the user-facing face.
       {
-        const hX0 = 2.10, hX1 = 2.70, hZ0 = 2.30, hZ1 = 2.70;
+        const hX0 = 2.10, hX1 = 2.65, hZ0 = 0.00, hZ1 = 0.40;
         const hBaseY = 0.95;   // top of cabinet base
         const hTopY  = 1.95;   // top of arch
         // Painted grey-blue PBR maps baked offline on the A6000 via
@@ -5681,7 +5722,7 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
             aoMapIntensity: 1.0,
           });
         })();
-        const matHutchBack = new THREE.MeshStandardMaterial({ color: 0xe8dfcf, roughness: 0.85 });
+        const matHutchBack = new THREE.MeshStandardMaterial({ color: 0xd8d3ca, roughness: 0.80, metalness: 0.0 });
         const matKnob = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3 });
         const hW = hX1 - hX0, hD = hZ1 - hZ0;
         const cabT = 0.015;
@@ -5693,45 +5734,46 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           S.group.add(m);
           return m;
         };
-        // Cabinet base — 2 doors on the front (-z face) + side panels + top counter.
+        // Cabinet base — 2 doors on the front (+z face, toward ac-wall)
+        // + side panels + back panel at -z (against entrance-wall) + top counter.
         hutchBox(cabT, hBaseY, hD, hX0 + cabT/2, hBaseY/2, (hZ0 + hZ1)/2);
         hutchBox(cabT, hBaseY, hD, hX1 - cabT/2, hBaseY/2, (hZ0 + hZ1)/2);
-        hutchBox(hW, hBaseY, cabT, (hX0 + hX1)/2, hBaseY/2, hZ1 - cabT/2);
-        hutchBox(hW - 2*cabT, cabT, hD - cabT, (hX0 + hX1)/2, cabT/2, (hZ0 + hZ1)/2 - cabT/2);
-        hutchBox(hW + 0.020, cabT * 2, hD + 0.012, (hX0 + hX1)/2, hBaseY + cabT, (hZ0 + hZ1)/2 - 0.006);
-        // 2 cabinet doors on the front face.
+        hutchBox(hW, hBaseY, cabT, (hX0 + hX1)/2, hBaseY/2, hZ0 + cabT/2);
+        hutchBox(hW - 2*cabT, cabT, hD - cabT, (hX0 + hX1)/2, cabT/2, (hZ0 + hZ1)/2 + cabT/2);
+        hutchBox(hW + 0.020, cabT * 2, hD + 0.012, (hX0 + hX1)/2, hBaseY + cabT, (hZ0 + hZ1)/2 + 0.006);
+        // 2 cabinet doors on the front face (high-z, toward ac-wall).
         const doorH = hBaseY - 0.04, doorY = 0.02 + doorH/2;
         const doorW = (hW - 3*cabT) / 2;
         for (let i = 0; i < 2; i++) {
           const dcx = hX0 + cabT + doorW * (i + 0.5) + cabT * i;
-          hutchBox(doorW, doorH, cabT, dcx, doorY, hZ0 + cabT/2 + 0.001);
+          hutchBox(doorW, doorH, cabT, dcx, doorY, hZ1 - cabT/2 - 0.001);
           const knob = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 10), matKnob);
-          knob.position.set(i === 0 ? dcx + doorW/2 - 0.05 : dcx - doorW/2 + 0.05, doorY, hZ0 - 0.001);
+          knob.position.set(i === 0 ? dcx + doorW/2 - 0.05 : dcx - doorW/2 + 0.05, doorY, hZ1 + 0.001);
           S.group.add(knob);
         }
         // Open shelves above the counter.
         const shelfTopY = hTopY - 0.10;
         const shelfBotY = hBaseY + 0.03;
         const nShelves = 4;
-        hutchBox(cabT, shelfTopY - shelfBotY, hD - cabT, hX0 + cabT/2, (shelfBotY + shelfTopY)/2, (hZ0 + hZ1)/2 - cabT/2);
-        hutchBox(cabT, shelfTopY - shelfBotY, hD - cabT, hX1 - cabT/2, (shelfBotY + shelfTopY)/2, (hZ0 + hZ1)/2 - cabT/2);
+        hutchBox(cabT, shelfTopY - shelfBotY, hD - cabT, hX0 + cabT/2, (shelfBotY + shelfTopY)/2, (hZ0 + hZ1)/2 + cabT/2);
+        hutchBox(cabT, shelfTopY - shelfBotY, hD - cabT, hX1 - cabT/2, (shelfBotY + shelfTopY)/2, (hZ0 + hZ1)/2 + cabT/2);
         // Beadboard back panel uses the lighter matHutchBack material.
         {
           const back = new THREE.Mesh(
             new THREE.BoxGeometry(hW - 2*cabT, shelfTopY - shelfBotY, cabT),
             matHutchBack
           );
-          back.position.set((hX0 + hX1)/2, (shelfBotY + shelfTopY)/2, hZ1 - cabT/2);
+          back.position.set((hX0 + hX1)/2, (shelfBotY + shelfTopY)/2, hZ0 + cabT/2);
           S.group.add(back);
         }
         for (let i = 0; i < nShelves; i++) {
           const sy = shelfBotY + (shelfTopY - shelfBotY) * (i / (nShelves - 1));
-          hutchBox(hW - 2*cabT, 0.012, hD - cabT, (hX0 + hX1)/2, sy, (hZ0 + hZ1)/2 - cabT/2);
+          hutchBox(hW - 2*cabT, 0.012, hD - cabT, (hX0 + hX1)/2, sy, (hZ0 + hZ1)/2 + cabT/2);
         }
         // Arch top approximation.
-        hutchBox(hW + 0.020, 0.045, hD + 0.012, (hX0 + hX1)/2, shelfTopY + 0.022, (hZ0 + hZ1)/2 - 0.006);
-        hutchBox(hW - 0.10, 0.045, hD + 0.008, (hX0 + hX1)/2, shelfTopY + 0.065, (hZ0 + hZ1)/2 - 0.004);
-        hutchBox(hW - 0.20, 0.040, hD + 0.006, (hX0 + hX1)/2, shelfTopY + 0.100, (hZ0 + hZ1)/2 - 0.003);
+        hutchBox(hW + 0.020, 0.045, hD + 0.012, (hX0 + hX1)/2, shelfTopY + 0.022, (hZ0 + hZ1)/2 + 0.006);
+        hutchBox(hW - 0.10, 0.045, hD + 0.008, (hX0 + hX1)/2, shelfTopY + 0.065, (hZ0 + hZ1)/2 + 0.004);
+        hutchBox(hW - 0.20, 0.040, hD + 0.006, (hX0 + hX1)/2, shelfTopY + 0.100, (hZ0 + hZ1)/2 + 0.003);
       }
 
       // ============================================================
@@ -6166,8 +6208,8 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       setUVsByLocal(wC.geometry, (lx, ly, lz) => [ 0.5 + lx / RW, 0.5 + ly / RH ], 'z');
       // frosted-wall (x=RW) — long wall, narrow vertical privacy window cutout
       matWall_xW.side = THREE.DoubleSide;
-      // hole at z=[0.40, 0.66], y=[0.95, 1.80]
-      const wB = new THREE.Mesh(wallShapeWithHole(RD, RH, 0.40, 0.95, 0.66, 1.80), matWall_xW);
+      // hole at z=[-1, -0.5], y=[0.95, 1.80] (outside the wall)
+      const wB = new THREE.Mesh(wallShapeWithHole(RD, RH, -1, 0.95, -0.5, 1.80), matWall_xW);
       wB.rotation.y = -Math.PI/2;
       wB.position.set(RW, 0, 0);
       S.group.add(wB);
@@ -6260,9 +6302,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         bunch(2.15, 0.10, 1.30);
       }
 
-      // ---- Narrow vertical frosted privacy window (frosted-wall, x=RW) ----
-      feat('x', RW, -1, { a1: 0.40, a2: 0.66, b1: 0.95, b2: 1.80 }, matFrostedR3);
-      winFrame('x', RW, -1, 0.40, 0.66, 0.95, 1.80, matFrameR3);
+      // ---- Narrow vertical frosted privacy window (ac-wall, z=RD) ----
+      feat('z', RD, -1, { a1: 1.70, a2: 1.96, b1: 1.80, b2: 2.05 }, matFrostedR3);
+      winFrame('z', RD, -1, 1.70, 1.96, 1.80, 2.05, matFrameR3);
 
       // ---- Entrance door (entrance-wall, z=0) ----
       // Centered-ish, x=[0.95, 1.75], hinge on -x side.
@@ -6298,27 +6340,6 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         S.group.add(lever);
       }
 
-      // ---- Coat rack on entrance-wall (z=0), right of door ----
-      {
-        const crX0 = 1.95, crX1 = 2.35, crY = 1.55;
-        const matWood = new THREE.MeshStandardMaterial({ color: 0x5e4630, roughness: 0.7 });
-        const matHook = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.3 });
-        feat('z', 0, +1, { a1: crX0, a2: crX1, b1: crY - 0.06, b2: crY + 0.06 }, matWood);
-        for (let i = 0; i < 3; i++) {
-          const hx = crX0 + (i + 0.5) * ((crX1 - crX0) / 3);
-          const stem = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.005, 0.005, 0.06, 10),
-            matHook
-          );
-          stem.rotation.x = Math.PI / 2;
-          stem.position.set(hx, crY, FEAT + BIAS + 0.030);
-          S.group.add(stem);
-          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.010, 10, 8), matHook);
-          cap.position.set(hx, crY, FEAT + BIAS + 0.060);
-          S.group.add(cap);
-        }
-      }
-
       // ---- AC remote panel + light switch on entrance-wall (latch side) ----
       {
         const matPanel = new THREE.MeshStandardMaterial({ color: 0xf5f4ef, roughness: 0.55 });
@@ -6347,8 +6368,9 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       // Bed (iron frame with DARK iron + DARK WOOD HEADBOARD INSET)
       // ============================================================
       // Long axis along z, head at z=RD (touching window-wall area), foot at
-      // z=RD-2.0 = 1.60. Width 1.00 m centered in x at x=[0.85, 1.85].
-      const bX0 = 0.85, bX1 = 1.85, bZ0 = 1.60, bZ1 = 3.55;
+      // z=RD-2.0 = 1.60. Width 1.00 m along the closet-wall side, close to the
+      // AC+window corner.
+      const bX0 = 0.30, bX1 = 1.30, bZ0 = 1.65, bZ1 = RD;
       const FRAME_Y_BOT = 0.30, MAT_TOP = 0.50;
       {
         // Bed iron: Cycles-baked black_iron PBR (originally baked for the
@@ -6477,12 +6499,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // Dark-wood + black-metal freestanding shelving (closet-wall, x=0)
+      // Dark-wood + black-metal freestanding shelving (right of desk)
       // ============================================================
       // 3-tier industrial-style shelving. Dark stained pine shelves on a
-      // black iron frame. Positioned near corner-closet-entrance.
+      // black iron frame. Positioned flush with the entrance-wall to the
+      // right of the desk.
       {
-        const shX0 = 0.05, shX1 = 0.45, shZ0 = 0.30, shZ1 = 1.85, shY1 = 1.55;
+        const shX0 = 2.30, shX1 = 2.65, shZ0 = 0.05, shZ1 = 0.40, shY1 = 1.55;
         // PBR maps baked offline via ozu-test/bake/bake_room3_shelf.py.
         const pbrFromBase = (base, repU, repV, extras = {}) => {
           const loader = new THREE.TextureLoader();
@@ -6504,14 +6527,12 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         };
         const matWood = pbrFromBase('ozu-test/room-3-textures/shelf/dark_wood/dark_wood', 1, 1);
         const matIron = pbrFromBase('ozu-test/room-3-textures/shelf/black_iron/black_iron', 1, 1, { metalness: 0.6 });
-        // 4 corner posts.
         const postT = 0.020;
         for (const [px, pz] of [[shX0, shZ0],[shX1, shZ0],[shX0, shZ1],[shX1, shZ1]]) {
           const post = new THREE.Mesh(new THREE.BoxGeometry(postT, shY1, postT), matIron);
           post.position.set(px, shY1/2, pz);
           S.group.add(post);
         }
-        // 4 horizontal shelves at y = 0, 0.50, 1.00, 1.50.
         const shelfT = 0.025;
         for (const sy of [0.05, 0.55, 1.05, shY1 - 0.025]) {
           const sh = new THREE.Mesh(
@@ -6521,7 +6542,6 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           sh.position.set((shX0 + shX1)/2, sy, (shZ0 + shZ1)/2);
           S.group.add(sh);
         }
-        // 2 horizontal cross-bracing iron rods at mid-height.
         for (const sy of [0.30, 0.80, 1.30]) {
           const rod = new THREE.Mesh(
             new THREE.CylinderGeometry(0.005, 0.005, shZ1 - shZ0, 10),
@@ -6531,6 +6551,76 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
           rod.position.set(shX1 - 0.005, sy, (shZ0 + shZ1)/2);
           S.group.add(rod);
         }
+      }
+
+      // ============================================================
+      // Corner cabinet on entrance-wall + closet-wall
+      // ============================================================
+      // Slim storage cabinet placed in the entrance-wall corner.
+      {
+        const cX0 = 0.05, cX1 = 0.45, cZ0 = 0.00, cZ1 = 0.40, cY = 0.90;
+        const matCabinet = new THREE.MeshStandardMaterial({ color: 0xd1c3b5, roughness: 0.55 });
+        const cabinet = new THREE.Mesh(
+          new THREE.BoxGeometry(cX1 - cX0, cY, cZ1 - cZ0),
+          matCabinet
+        );
+        cabinet.position.set((cX0 + cX1) / 2, cY / 2, (cZ0 + cZ1) / 2);
+        S.group.add(cabinet);
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0x2d2926, roughness: 0.3, metalness: 0.7 });
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.01, 0.01), handleMat);
+        handle.position.set((cX0 + cX1) / 2, cY * 0.55, cZ1 + 0.01);
+        S.group.add(handle);
+      }
+
+      // ============================================================
+      // Desk and chair on entrance-wall
+      // ============================================================
+      // Desk flush with the entrance-wall, with the chair facing the wall.
+      {
+        const dX0 = 1.80, dX1 = 2.40, dZ0 = 0.00, dZ1 = 0.45, dY = 0.72;
+        const matDeskTop = new THREE.MeshStandardMaterial({ color: 0x7d593f, roughness: 0.55 });
+        const matDeskLeg = new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.45, metalness: 0.25 });
+        const deskTop = new THREE.Mesh(
+          new THREE.BoxGeometry(dX1 - dX0, 0.03, dZ1 - dZ0),
+          matDeskTop
+        );
+        deskTop.position.set((dX0 + dX1) / 2, dY, (dZ0 + dZ1) / 2);
+        S.group.add(deskTop);
+        for (const [lx, lz] of [[dX0 + 0.05, dZ0 + 0.05], [dX1 - 0.05, dZ0 + 0.05], [dX0 + 0.05, dZ1 - 0.05], [dX1 - 0.05, dZ1 - 0.05]]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, dY, 12), matDeskLeg);
+          leg.position.set(lx, dY / 2, lz);
+          leg.rotation.x = Math.PI / 2;
+          S.group.add(leg);
+        }
+        const matChairSeat = new THREE.MeshStandardMaterial({ color: 0x5b3d2d, roughness: 0.7 });
+        const matChairLeg = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.4, metalness: 0.6 });
+        const cX = (dX0 + dX1) / 2;
+        const cZ = dZ1 + 0.25;
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.06, 0.44), matChairSeat);
+        seat.position.set(cX, 0.46, cZ);
+        S.group.add(seat);
+        const back = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.46, 0.06), matChairSeat);
+        back.position.set(cX, 0.67, cZ + 0.24);
+        S.group.add(back);
+        for (const [lx, lz] of [[cX - 0.18, cZ], [cX + 0.18, cZ]]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.32, 12), matChairLeg);
+          leg.position.set(lx, 0.16, lz);
+          leg.rotation.x = Math.PI / 2;
+          S.group.add(leg);
+        }
+      }
+
+      // Clothing hook at the closet-wall end of the window-wall corner.
+      {
+        const hookX = 0.03, hookZ = RD - 0.45, hookY = 1.45;
+        const matHook = new THREE.MeshStandardMaterial({ color: 0x2c2c2c, roughness: 0.35, metalness: 0.7 });
+        const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.20, 12), matHook);
+        hook.position.set(hookX, hookY, hookZ);
+        hook.rotation.z = Math.PI / 2;
+        S.group.add(hook);
+        const peg = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 8), matHook);
+        peg.position.set(hookX + 0.09, hookY, hookZ);
+        S.group.add(peg);
       }
 
       // ============================================================
@@ -7602,32 +7692,82 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
   }
   const orbit = new OrbitControls(camera, renderer.domElement);
 
-  // ---------- Corner-jump hotspots (room-1 only) ----------
-  // Four floating dots, one in each corner of room-1 at eye level. Click a
-  // dot → camera flies to that corner, looking at the room centre. Layer is
-  // hidden unless room-1 is the active scene; an individual dot is hidden
-  // when the camera is < 0.7 m from its target so the dot you just clicked
-  // doesn't sit in your face.
+  // ---------- Corner-jump hotspots (room-1 / room-2 / room-3 / room-4) ----------
+  // Four (or three) floating dots, one in each corner of the active room at
+  // eye level. Click a dot → camera flies to that corner, looking at the room
+  // centre. Layer is hidden unless one of these room scenes is active; an
+  // individual dot is hidden when the camera is < 0.7 m from its target so
+  // the dot you just clicked doesn't sit in your face. Room-3 omits the SW
+  // corner (corner-closet-window) because the bed-head blocks tripod
+  // placement there in the real photo sweep — there is no panorama folder
+  // for that corner, so the dot is absent on purpose.
   const cornerHotspotsLayer = document.getElementById('corner-hotspots-layer');
-  const ROOM1_TARGET = new THREE.Vector3(1.35, 1.0, 1.35);
-  const ROOM1_CORNERS = [
-    { id: 'corner-cabinet-entrance', dotWorld: new THREE.Vector3(0.05, 1.5, 0.05), camPos: new THREE.Vector3(0.30, 1.55, 0.30) },
-    { id: 'corner-cabinet-window',   dotWorld: new THREE.Vector3(2.65, 1.5, 0.05), camPos: new THREE.Vector3(2.40, 1.55, 0.30) },
-    { id: 'corner-ac-window',        dotWorld: new THREE.Vector3(2.65, 1.5, 2.65), camPos: new THREE.Vector3(2.40, 1.55, 2.40) },
-    { id: 'corner-ac-entrance',      dotWorld: new THREE.Vector3(0.05, 1.5, 2.65), camPos: new THREE.Vector3(0.30, 1.55, 2.40) },
-  ];
-  const cornerHotspots = [];
-  for (const c of ROOM1_CORNERS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'corner-hotspot';
-    btn.dataset.id = c.id;
-    btn.setAttribute('aria-label', `Move camera to ${c.id}`);
-    btn.innerHTML = '<span class="corner-hotspot__dot" aria-hidden="true"></span>';
-    btn.addEventListener('click', () => orbit.flyTo(c.camPos, ROOM1_TARGET));
-    cornerHotspotsLayer.appendChild(btn);
-    cornerHotspots.push({ btn, world: c.dotWorld, camPos: c.camPos });
+  const ROOM_CORNERS_BY_SCENE = {
+    'room-1': {
+      target: new THREE.Vector3(1.35, 1.0, 1.35),
+      corners: [
+        { id: 'corner-cabinet-entrance', dotWorld: new THREE.Vector3(0.05, 1.5, 0.05), camPos: new THREE.Vector3(0.30, 1.55, 0.30) },
+        { id: 'corner-cabinet-window',   dotWorld: new THREE.Vector3(2.65, 1.5, 0.05), camPos: new THREE.Vector3(2.40, 1.55, 0.30) },
+        { id: 'corner-ac-window',        dotWorld: new THREE.Vector3(2.65, 1.5, 2.65), camPos: new THREE.Vector3(2.40, 1.55, 2.40) },
+        { id: 'corner-ac-entrance',      dotWorld: new THREE.Vector3(0.05, 1.5, 2.65), camPos: new THREE.Vector3(0.30, 1.55, 2.40) },
+      ],
+    },
+    'room-2': {
+      // 2.70 × 2.70. Walls: closet@x=0, window@x=2.70, entrance@z=0, ac@z=2.70.
+      target: new THREE.Vector3(1.35, 1.0, 1.35),
+      corners: [
+        { id: 'corner-closet-entrance', dotWorld: new THREE.Vector3(0.05, 1.5, 0.05), camPos: new THREE.Vector3(0.30, 1.55, 0.30) },
+        { id: 'corner-entrance-window', dotWorld: new THREE.Vector3(2.65, 1.5, 0.05), camPos: new THREE.Vector3(2.40, 1.55, 0.30) },
+        { id: 'corner-ac-window',       dotWorld: new THREE.Vector3(2.65, 1.5, 2.65), camPos: new THREE.Vector3(2.40, 1.55, 2.40) },
+        { id: 'corner-ac-closet',       dotWorld: new THREE.Vector3(0.05, 1.5, 2.65), camPos: new THREE.Vector3(0.30, 1.55, 2.40) },
+      ],
+    },
+    'room-3': {
+      // 2.70 × 3.60. Walls: closet@x=0, frosted@x=2.70, entrance@z=0,
+      // window@z=3.60. All four corners present — note that
+      // corner-closet-window has NO matching photo folder (the real photo
+      // sweep skipped it because the bed-head blocks tripod placement),
+      // but the 3D camera-jump dot is still useful for inspection.
+      target: new THREE.Vector3(1.35, 1.0, 1.80),
+      corners: [
+        { id: 'corner-closet-entrance',  dotWorld: new THREE.Vector3(0.05, 1.5, 0.05), camPos: new THREE.Vector3(0.30, 1.55, 0.30) },
+        { id: 'corner-entrance-frosted', dotWorld: new THREE.Vector3(2.65, 1.5, 0.05), camPos: new THREE.Vector3(2.40, 1.55, 0.30) },
+        { id: 'corner-frosted-window',   dotWorld: new THREE.Vector3(2.65, 1.5, 3.55), camPos: new THREE.Vector3(2.40, 1.55, 3.30) },
+        { id: 'corner-closet-window',    dotWorld: new THREE.Vector3(0.05, 1.5, 3.55), camPos: new THREE.Vector3(0.30, 1.55, 3.30) },
+      ],
+    },
+    'room-4': {
+      // 2.70 × 3.60, mirror of room-3. Walls: frosted@x=0, closet@x=2.70,
+      // entrance@z=0, window@z=3.60. All four corners present.
+      target: new THREE.Vector3(1.35, 1.0, 1.80),
+      corners: [
+        { id: 'corner-frosted-entrance', dotWorld: new THREE.Vector3(0.05, 1.5, 0.05), camPos: new THREE.Vector3(0.30, 1.55, 0.30) },
+        { id: 'corner-closet-entrance',  dotWorld: new THREE.Vector3(2.65, 1.5, 0.05), camPos: new THREE.Vector3(2.40, 1.55, 0.30) },
+        { id: 'corner-closet-window',    dotWorld: new THREE.Vector3(2.65, 1.5, 3.55), camPos: new THREE.Vector3(2.40, 1.55, 3.30) },
+        { id: 'corner-frosted-window',   dotWorld: new THREE.Vector3(0.05, 1.5, 3.55), camPos: new THREE.Vector3(0.30, 1.55, 3.30) },
+      ],
+    },
+  };
+  let cornerHotspots = [];
+  function rebuildCornerHotspots(sceneId) {
+    cornerHotspotsLayer.innerHTML = '';
+    cornerHotspots = [];
+    const cfg = ROOM_CORNERS_BY_SCENE[sceneId];
+    if (!cfg) return;
+    for (const c of cfg.corners) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'corner-hotspot';
+      btn.dataset.id = c.id;
+      btn.setAttribute('aria-label', `Move camera to ${c.id}`);
+      btn.innerHTML = '<span class="corner-hotspot__dot" aria-hidden="true"></span>';
+      btn.addEventListener('click', () => orbit.flyTo(c.camPos, cfg.target));
+      cornerHotspotsLayer.appendChild(btn);
+      cornerHotspots.push({ btn, world: c.dotWorld, camPos: c.camPos });
+    }
   }
+  // Initial build for room-1 (default scene at load).
+  rebuildCornerHotspots('room-1');
   const _cornerProjV = new THREE.Vector3();
   function updateCornerHotspots() {
     if (cornerHotspotsLayer.hidden) return;
@@ -7986,8 +8126,10 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
     for (const chip of document.querySelectorAll('.chip[data-scene]')) {
       chip.classList.toggle('active', chip.dataset.scene === id);
     }
-    // Corner-jump hotspots are room-1 only.
-    cornerHotspotsLayer.hidden = (id !== 'room-1');
+    // Corner-jump hotspots: rebuild for the active room sandbox (or hide).
+    const hasCornerDots = ROOM_CORNERS_BY_SCENE[id] != null;
+    cornerHotspotsLayer.hidden = !hasCornerDots;
+    if (hasCornerDots) rebuildCornerHotspots(id);
     // Briefly surface the camera controls so the user learns them on entry.
     showEntryHint();
     // Show the "Lights" toggle only when room-1 is active.
@@ -8079,6 +8221,18 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
   }
 
   switchScene('exterior');
+  const _urlScene = new URLSearchParams(location.search).get('scene');
+  if (_urlScene && _urlScene !== 'exterior') switchScene(_urlScene);
+  // Journey mode camera overrides.
+  if (new URLSearchParams(location.search).has('journey')) {
+    if (_urlScene === 'room-1') {
+      // Inside room-1: fpStart position, look at room centre (slight tilt down — user prefers this).
+      orbit.setFrom(new THREE.Vector3(0.50, 1.60, 0.50), new THREE.Vector3(1.35, 1.0, 1.35));
+    } else {
+      // Exterior: lower camera from y=6 to eye height, level target to match.
+      orbit.setFrom(new THREE.Vector3(12, 1.60, 14), new THREE.Vector3(3.15, 1.60, 3.6));
+    }
+  }
 
   // ---------- Animation loop ----------
   function animate() {

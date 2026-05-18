@@ -2,12 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<script>if(new URLSearchParams(location.search).has('journey'))document.documentElement.classList.add('journey-mode');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-<meta http-equiv="Pragma" content="no-cache" />
-<meta http-equiv="Expires" content="0" />
+<meta name="theme-color" content="#1a1a1a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="kitchen-test" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
 <title>kitchen-test — 3D projects</title>
 <style>
+  .journey-mode #back-link,
+  .journey-mode #loadbox,
+  .journey-mode #hint { display: none !important; }
+
   /* === Apple HIG color tokens === */
   :root {
     --hotspot-surface: rgba(255, 255, 255, 0.92);
@@ -33,10 +42,13 @@
   }
 
   * { box-sizing: border-box; }
+  html { -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    margin: 0; padding: 0; height: 100svh; overflow: hidden;
+    overscroll-behavior: none;
     background: #1a1a1a;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
     color: #fff;
   }
   #app { position: fixed; inset: 0; }
@@ -58,6 +70,48 @@
   }
   #back-link:hover { background: rgba(44,44,46,0.85); }
   #back-link:active { transform: scale(0.96); }
+  #back-link:focus-visible {
+    outline: 2px solid var(--hotspot-tint);
+    outline-offset: 2px;
+  }
+  @media (min-width: 768px) {
+    #back-link { width: 60px; height: 60px; font-size: 24px; }
+  }
+
+  /* Loading + error overlays — glass language, not devtool */
+  #loadbox {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    z-index: 9000;
+    padding: 14px 18px;
+    background: rgba(28,28,30,0.78);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 14px;
+    color: rgba(255,255,255,0.86);
+    font-family: inherit;
+    font-size: 13px; line-height: 1.4; letter-spacing: 0.01em;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    pointer-events: none;
+  }
+  #errbox {
+    display: none;
+    position: fixed;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    left: calc(8px + env(safe-area-inset-left, 0px));
+    right: calc(8px + env(safe-area-inset-right, 0px));
+    z-index: 9999;
+    padding: 12px 16px;
+    background: rgba(60,12,18,0.92);
+    border: 1px solid rgba(255,100,100,0.35);
+    border-radius: 12px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    max-height: 50svh;
+    overflow: auto;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  }
 
   #hint {
     position: absolute;
@@ -194,6 +248,8 @@
     .hotspot__dot { animation: none; }
     #popover, #scrim { transition: opacity 0s; }
     #popover { transform: none !important; }
+    #back-link, .close { transition: none; }
+    #back-link:active { transform: none; }
   }
 
   .close {
@@ -253,8 +309,8 @@
 <body>
 
 <div id="app"></div>
-<div id="loadbox" style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9000;background:#222;color:#fff;font:14px/1.5 ui-monospace,monospace;padding:18px 22px;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">kitchen-test: loading…</div>
-<div id="errbox" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#b00020;color:#fff;font-family:ui-monospace,monospace;font-size:12px;padding:12px 16px;white-space:pre-wrap;line-height:1.5;max-height:50vh;overflow:auto;"></div>
+<div id="loadbox" role="status" aria-live="polite">loading kitchen…</div>
+<div id="errbox" role="alert"></div>
 <script>
   (function(){
     var box = document.getElementById('errbox');
@@ -277,7 +333,7 @@
           '  • importmap parse error\n\n' +
           'press F12, click "Console" tab, copy any red text and paste it back.'
         );
-        if (lb) lb.textContent = 'kitchen-test: module did not start';
+        if (lb) lb.textContent = 'module did not start';
       }
     }, 4000);
   })();
@@ -289,8 +345,8 @@
     box.textContent = 'this browser is too old: it does not support JavaScript modules. update your browser (Chrome, Firefox, Safari, or Edge).';
   })();
 </script>
-<a id="back-link" href="index.html" aria-label="Back to projects">&larr;</a>
-<div id="hint">click a dot · drag to orbit · wheel to zoom · alt-click any surface to log world coords</div>
+<a id="back-link" href="index.html" aria-label="Back to projects">←</a>
+<div id="hint">tap a dot · drag to look · pinch to zoom</div>
 
 <div id="hotspots-layer"></div>
 
@@ -316,7 +372,7 @@
 <script type="module">
 window.__moduleStarted = true;
 const _loadbox = document.getElementById('loadbox');
-function step(t){ if (_loadbox) _loadbox.textContent = 'kitchen-test: ' + t; }
+function step(t){ if (_loadbox) _loadbox.textContent = t; }
 step('module started');
 
 import * as THREE from 'three';
@@ -429,7 +485,7 @@ const PRODUCTS = {
 const container = document.getElementById('app');
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -2890,7 +2946,14 @@ function updatePopoverPosition() {
 closeEl.addEventListener('click', closePopover);
 scrim.addEventListener('click', closePopover);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && openHotspot) closePopover();
+  if (e.key === 'Escape' && openHotspot) { closePopover(); return; }
+  if (e.key === 'Tab' && openHotspot) {
+    const focusables = popover.querySelectorAll('button, a[href]:not([style*="display: none"])');
+    if (focusables.length <= 1) { e.preventDefault(); return; }
+    const first = focusables[0], last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+  }
 });
 window.addEventListener('resize', () => {
   if (openHotspot) updatePopoverPosition();
@@ -2974,6 +3037,10 @@ class OrbitControls {
   }
 }
 const orbit = new OrbitControls(camera, renderer.domElement);
+if (document.documentElement.classList.contains('journey-mode')) {
+  orbit.target.setY(camera.position.y);   // raise target to eye height
+  orbit._updateSph();                     // recompute cached spherical from new (level) offset
+}
 orbit.update();
 
 /* ====================================================================== */
