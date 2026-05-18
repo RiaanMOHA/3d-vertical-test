@@ -13,19 +13,14 @@
     3. Kitchen         → kitchen-test.html?journey=1
     4. Laundry         → laundry-test.html?journey=1
     5. Living + Dining → living-dining-test.html?journey=1
-    6. End screen      → placeholder (wire Mapbox here)
 
-  To deploy elsewhere, copy:
-    value-add-journey.html
-    ozu-test.html
-    kitchen-test.html
-    laundry-test.html
-    living-dining-test.html
-    vendor/   (entire folder)
-    ozu-test/   (hdri + textures)
-    kitchen-test/
-    laundry-test/
-    living-dining-test/
+  End behavior: when the user taps the forward chevron on step 5, this page
+  posts { type: 'journeyComplete' } to its parent window. When embedded inside
+  another project (e.g. map-prototype), the parent listens for that message and
+  removes this iframe to return the user to their map / previous view.
+
+  Deployed at: https://3d-vertical-test.vercel.app/value-add-journey.html
+  Other projects embed this URL in an iframe — no file copying needed.
 -->
 <html lang="en">
 <head>
@@ -75,52 +70,6 @@
     height: 100%;
     display: block;
     background: #000;
-  }
-
-  /* ── End screen (step 6) ─────────────────────────────── */
-  #end-screen {
-    position: fixed;
-    inset: 0;
-    background: #0a0a0a;
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 850;
-  }
-  #end-screen.active {
-    display: flex;
-  }
-
-  .end-label {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.4);
-    margin-bottom: 20px;
-  }
-  .end-title {
-    font-size: 48px;
-    font-weight: 300;
-    letter-spacing: -0.01em;
-    line-height: 1.1;
-    color: rgba(255, 255, 255, 0.92);
-    text-align: center;
-    margin-bottom: 8px;
-  }
-  .end-subtitle {
-    font-size: 17px;
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.45);
-    text-align: center;
-    line-height: 1.4;
-  }
-  .end-divider {
-    width: 40px;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.15);
-    margin: 32px auto;
   }
 
   /* ── Fade overlay ────────────────────────────────────── */
@@ -286,17 +235,6 @@
 <!-- Single iframe — src is swapped on each step -->
 <iframe id="journey-frame" src="ozu-test.html?journey=1" title="Ozu-1 tour"></iframe>
 
-<!-- End screen (step 6) — wire Mapbox here -->
-<div id="end-screen" role="region" aria-label="Journey complete">
-  <p class="end-label">Ozu-1 · Kumamoto, Japan</p>
-  <h1 class="end-title">End of tour</h1>
-  <p class="end-subtitle">Property map coming next.</p>
-  <div class="end-divider"></div>
-  <p class="end-subtitle" style="font-size:13px; color:rgba(255,255,255,0.28);">
-    ← replace this screen with your Mapbox view →
-  </p>
-</div>
-
 <!-- Transition fade overlay -->
 <div id="overlay" aria-hidden="true"></div>
 
@@ -336,14 +274,12 @@
   'use strict';
 
   // ── Steps config ─────────────────────────────────────
-  // src=null → end screen (no iframe)
   const STEPS = [
     { label: 'exterior',        src: 'ozu-test.html?journey=1' },
     { label: 'room 1',          src: 'ozu-test.html?journey=1&scene=room-1' },
     { label: 'kitchen',         src: 'kitchen-test.html?journey=1' },
     { label: 'laundry',         src: 'laundry-test.html?journey=1' },
     { label: 'living + dining', src: 'living-dining-test.html?journey=1' },
-    { label: '',                src: null },
   ];
 
   // ── State ─────────────────────────────────────────────
@@ -357,7 +293,6 @@
   const nextBtn    = document.getElementById('next-btn');
   const backBtn    = document.getElementById('back-btn');
   const stepLabel  = document.getElementById('step-label');
-  const endScreen  = document.getElementById('end-screen');
   const dots       = document.querySelectorAll('.dot');
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -368,15 +303,13 @@
     dots.forEach((d, i) => d.classList.toggle('active', i === stepIndex));
 
     // Label
-    const label = STEPS[stepIndex]?.label || '';
-    stepLabel.textContent = label;
-    stepLabel.style.opacity = label ? '1' : '0';
+    stepLabel.textContent = STEPS[stepIndex]?.label || '';
 
     // Back button: hidden on step 0
     backBtn.hidden = (stepIndex === 0);
 
-    // Next button: hidden on the last (end screen) step
-    nextBtn.hidden = (stepIndex === STEPS.length - 1);
+    // Next button always visible. On the last step, tapping it ends the tour
+    // (see advance() — posts journeyComplete to the parent window).
   }
 
   // ── Show a step (instant — used for first render) ────
@@ -384,15 +317,8 @@
     const step = STEPS[stepIndex];
     if (!step) return;
 
-    if (step.src) {
-      endScreen.classList.remove('active');
-      frame.style.display = 'block';
-      if (frame.src !== new URL(step.src, location.href).href) {
-        frame.src = step.src;
-      }
-    } else {
-      frame.style.display = 'none';
-      endScreen.classList.add('active');
+    if (frame.src !== new URL(step.src, location.href).href) {
+      frame.src = step.src;
     }
     updateUI(stepIndex);
   }
@@ -452,25 +378,17 @@
 
     const step = STEPS[targetStep];
 
-    if (step.src) {
-      // Show loading spinner while iframe loads
-      loader.classList.add('visible');
-      endScreen.classList.remove('active');
-      frame.style.display = 'block';
+    // Show loading spinner while iframe loads
+    loader.classList.add('visible');
 
-      // Set up load wait BEFORE changing src
-      const loadPromise = waitForFrameLoad();
-      frame.src = step.src;
-      await loadPromise;
+    // Set up load wait BEFORE changing src
+    const loadPromise = waitForFrameLoad();
+    frame.src = step.src;
+    await loadPromise;
 
-      // Let three.js render its first frame
-      await new Promise(r => setTimeout(r, POST_LOAD_PAUSE_MS));
-      loader.classList.remove('visible');
-    } else {
-      // End screen — no iframe
-      frame.style.display = 'none';
-      endScreen.classList.add('active');
-    }
+    // Let three.js render its first frame
+    await new Promise(r => setTimeout(r, POST_LOAD_PAUSE_MS));
+    loader.classList.remove('visible');
 
     currentStep = targetStep;
     updateUI(currentStep);
@@ -483,8 +401,19 @@
     backBtn.style.pointerEvents = '';
   }
 
-  function advance() { goToStep(currentStep + 1); }
-  function goBack()  { goToStep(currentStep - 1); }
+  function advance() {
+    if (currentStep === STEPS.length - 1) {
+      // Last step — signal the parent (e.g. map-prototype) that the tour is
+      // complete. The parent listens for this and removes the iframe to
+      // return the user to whatever was behind it (the map, usually).
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'journeyComplete' }, '*');
+      }
+      return;
+    }
+    goToStep(currentStep + 1);
+  }
+  function goBack() { goToStep(currentStep - 1); }
 
   // ── Button handlers ───────────────────────────────────
   nextBtn.addEventListener('click', advance);
