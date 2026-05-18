@@ -155,6 +155,31 @@ Every interior render needs ALL THREE pieces below. Shadows are non-negotiable �
 
 **This rule overrides** any earlier interior-render lighting decisions that picked warmer / lower-angle / golden-hour values.
 
+## Workflow
+
+### At the start of every new feature branch
+
+When `/feature <name>` creates a new branch, BEFORE doing any work, ask the user which sub-project the feature targets. Sub-projects each live in their own top-level `*.html` file:
+
+- `ozu-test.html` — Ozu-1 (the full property: exterior + interior, all rooms)
+- `kitchen-test.html`
+- `laundry-test.html`
+- `living-dining-test.html`
+- `bbq-test.html`
+- `stairs-test.html`
+- `value-add-journey.html` — the multi-scene tour wrapper that embeds the above
+- `index.html` — the project hub / card index
+
+Never assume from the branch name. Ask, wait for the answer, then begin.
+
+### After every `/feature finish` (post-merge deploy)
+
+Once `/feature finish` has merged the branch to master, prompt the user with this exact line:
+
+> Ready to deploy? Run: `Push my master branch also to vercel location`
+
+That is the user's standard step to publish the change to https://3d-vertical-test.vercel.app/. Don't try to deploy on the user's behalf — wait for them to give the deploy prompt.
+
 ## Commands
 
 - Start dev server: `npm run dev` (runs `python3 -m http.server 8080` and opens `localhost:8080/index.html`)
