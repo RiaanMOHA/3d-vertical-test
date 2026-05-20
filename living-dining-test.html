@@ -464,36 +464,58 @@ const paintCanvas = (() => {
 })();
 const paintNormalTex = deriveNormalFromCanvas(paintCanvas, 0.5);
 
-/* Brick — warm red-brown terracotta with white mortar grid, matching the
- * brick-wall in dining/a/01 + dining/b/01 + living/a/35. Bricks read
- * narrow & long (Japanese 化粧ブリック / decorative-brick format). */
+/* Brick — dark earthy chocolate-brown 化粧ブリック with very dark mortar,
+ * matching the brick-wall in dining/b/01, dining/b/05, dining/b/15. Real
+ * bricks read as a mixed palette: deep chocolate, warm brown, occasional
+ * rust-tinted and tan bricks, separated by near-black mortar lines. */
 const brickCanvas = (() => {
   const c = makeCanvas(512, 512);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#e8e2d4';      /* cream-white mortar */
+  ctx.fillStyle = '#1a130d';      /* near-black mortar (matches photo grout shadows) */
   ctx.fillRect(0, 0, 512, 512);
-  const bw = 56, bh = 22, mortar = 3;
+  /* Brick is ~210 mm wide × 65 mm tall (Japanese decorative-brick format).
+   * With repeat 4.5 across a 4.5 m wall, one canvas tile = 1.0 m, so:
+   *   bw = 0.210 × 512 ≈ 107 px, bh = 0.065 × 512 ≈ 33 px. */
+  const bw = 104, bh = 32, mortar = 4;
+  /* Palette of brick base hues — sampled from the dining/b photos.
+   * Each cell picks one entry at random, then jitter is added on top. */
+  const palette = [
+    [ 78, 48, 36],   // dark chocolate (most common)
+    [ 92, 58, 42],   // warm brown
+    [ 64, 40, 30],   // very dark chocolate
+    [108, 66, 46],   // rust-tinted
+    [124, 84, 58],   // weathered tan highlight (uncommon)
+    [ 82, 50, 36],   // medium chocolate
+    [ 70, 42, 30],   // deep brown
+  ];
   for (let row = 0; row < 512 / bh + 1; row++) {
     const offset = (row % 2) * (bw / 2);
     for (let col = -1; col <= 512 / bw + 1; col++) {
       const x = col * bw + offset;
       const y = row * bh;
-      /* Each brick varies between a few warm-earth bands */
-      const baseR = 120 + Math.floor(Math.random() * 38);
-      const baseG = 64  + Math.floor(Math.random() * 22);
-      const baseB = 48  + Math.floor(Math.random() * 18);
-      ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+      const [pR, pG, pB] = palette[Math.floor(Math.random() * palette.length)];
+      /* Small per-brick jitter on top of the palette pick */
+      const jR = pR + Math.floor(Math.random() * 14 - 6);
+      const jG = pG + Math.floor(Math.random() * 12 - 6);
+      const jB = pB + Math.floor(Math.random() * 10 - 4);
+      ctx.fillStyle = `rgb(${jR},${jG},${jB})`;
       ctx.fillRect(x + mortar / 2, y + mortar / 2, bw - mortar, bh - mortar);
-      /* Speckle on each brick — micro variation */
-      for (let i = 0; i < 22; i++) {
+      /* Speckle — micro grain across the brick face */
+      for (let i = 0; i < 32; i++) {
         const sx = x + mortar / 2 + Math.random() * (bw - mortar);
         const sy = y + mortar / 2 + Math.random() * (bh - mortar);
-        const dv = -22 + Math.random() * 44;
-        const r = Math.max(0, Math.min(255, baseR + dv));
-        const g = Math.max(0, Math.min(255, baseG + dv));
-        const b = Math.max(0, Math.min(255, baseB + dv));
-        ctx.fillStyle = `rgba(${r},${g},${b},0.55)`;
+        const dv = -18 + Math.random() * 30;
+        const r = Math.max(0, Math.min(255, jR + dv));
+        const g = Math.max(0, Math.min(255, jG + dv));
+        const b = Math.max(0, Math.min(255, jB + dv));
+        ctx.fillStyle = `rgba(${r},${g},${b},0.5)`;
         ctx.fillRect(sx, sy, 1, 1);
+      }
+      /* Occasional darker edge shadow along the bottom of the brick —
+       * mimics the soft shading seen on real decorative brick faces. */
+      if (Math.random() < 0.5) {
+        ctx.fillStyle = `rgba(0,0,0,${0.10 + Math.random() * 0.15})`;
+        ctx.fillRect(x + mortar / 2, y + bh - mortar - 1, bw - mortar, 1);
       }
     }
   }
@@ -683,6 +705,23 @@ applyLightmap(matWallKitchenMid,       'kitchen_wall_mid');
 applyLightmap(matWallKitchenBelowPt,   'kitchen_wall_below_pt');
 applyLightmap(matWallKitchenAbovePt,   'kitchen_wall_above_pt');
 applyLightmap(matWallKitchenEast,      'kitchen_wall_east');
+
+/* Per-fragment brick-material factory. The four brick-wall pieces around
+ * the east window (and the kitchen alcove splash) all use BoxGeometry,
+ * whose default UV [0,1] tiles the diffuse map the same number of times
+ * regardless of the face's real-world dimensions — short panels above /
+ * below the window otherwise end up with squashed-tiny bricks. By cloning
+ * the base brick material per fragment with map.repeat set to the
+ * fragment's world width × height (1 repeat per metre), brick density
+ * stays constant at ~210 × 65 mm everywhere. The shared baked lightmap is
+ * inherited from the base clone, so per-wall GI keeps working. */
+function brickMatFor(base, worldW, worldH) {
+  const m = base.clone();
+  m.map       = texFromCanvas(brickCanvas, { repeat: [worldW, worldH] });
+  m.normalMap = cloneTex(brickNormalTex, worldW, worldH);
+  m.needsUpdate = true;
+  return m;
+}
 
 /* worldToUv functions per bake — must match the bake quad's vertex→UV
  * mapping (see bake_room_lightmap.py). The setLightmapUV1 helper writes
@@ -1020,9 +1059,11 @@ scene.add(wallBox(PT_X1, PT_X1 + WALL_T, 0, ROOM_H, ALCOVE_Z0, ALCOVE_Z1, matWal
   /* Plain wall below counter level (hidden behind counter / fridge base) */
   scene.add(wallBox(PT_X0, PT_X1, 0, PT_SILL, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matWallKitchen));
   /* Brick splash from counter sill to ceiling — visible through pass-thru.
-   * Lightmap on -Z face (faces LDK from alcove side). */
+   * Lightmap on -Z face (faces LDK from alcove side). Per-fragment material
+   * so the brick density matches the rest of the brick-wall. */
+  const matAlcoveBrickSized = brickMatFor(matAlcoveBrick, PT_X1 - PT_X0, ROOM_H - PT_SILL);
   addLm(
-    wallBox(PT_X0, PT_X1, PT_SILL, ROOM_H, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matAlcoveBrick),
+    wallBox(PT_X0, PT_X1, PT_SILL, ROOM_H, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matAlcoveBrickSized),
     'alcove_brick', 'z', -1,
   );
 }
@@ -1587,14 +1628,21 @@ const BX0 = ROOM_W, BX1 = ROOM_W + WALL_T;
 
 /* Wall fragments around the window — each samples brick_wall.png on its
  * -X face (the LDK-facing side at x=ROOM_W). The shared bake's worldToUv
- * (z/ROOM_D, y/ROOM_H) maps each fragment to its sub-rect. */
-addLm(wallBox(BX0, BX1, 0,     ROOM_H, 0,     BW_Z0,  matBrickEast),
+ * (z/ROOM_D, y/ROOM_H) maps each fragment to its sub-rect. Each fragment
+ * gets its own brick material with map.repeat tied to the fragment's
+ * world dimensions so brick density stays constant across all four. */
+const matBrickS  = brickMatFor(matBrickEast, BW_Z0,         ROOM_H);          // south of window: 1.50 × 2.50
+const matBrickN  = brickMatFor(matBrickEast, ROOM_D - BW_Z1, ROOM_H);         // north of window: 1.50 × 2.50
+const matBrickBe = brickMatFor(matBrickEast, BW_Z1 - BW_Z0, BW_Y0);           // below window: 1.50 × 0.80
+const matBrickAb = brickMatFor(matBrickEast, BW_Z1 - BW_Z0, ROOM_H - BW_Y1);  // above window: 1.50 × 0.50
+
+addLm(wallBox(BX0, BX1, 0,     ROOM_H, 0,     BW_Z0,  matBrickS),
       'brick_wall', 'x', -1);   // south of window
-addLm(wallBox(BX0, BX1, 0,     ROOM_H, BW_Z1, ROOM_D, matBrickEast),
+addLm(wallBox(BX0, BX1, 0,     ROOM_H, BW_Z1, ROOM_D, matBrickN),
       'brick_wall', 'x', -1);   // north of window
-addLm(wallBox(BX0, BX1, 0,     BW_Y0,  BW_Z0, BW_Z1,  matBrickEast),
+addLm(wallBox(BX0, BX1, 0,     BW_Y0,  BW_Z0, BW_Z1,  matBrickBe),
       'brick_wall', 'x', -1);   // below window
-addLm(wallBox(BX0, BX1, BW_Y1, ROOM_H, BW_Z0, BW_Z1,  matBrickEast),
+addLm(wallBox(BX0, BX1, BW_Y1, ROOM_H, BW_Z0, BW_Z1,  matBrickAb),
       'brick_wall', 'x', -1);   // above window
 
 /* Brick-wall window — single 引違 with 2 panels */
