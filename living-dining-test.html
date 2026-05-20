@@ -706,6 +706,23 @@ applyLightmap(matWallKitchenBelowPt,   'kitchen_wall_below_pt');
 applyLightmap(matWallKitchenAbovePt,   'kitchen_wall_above_pt');
 applyLightmap(matWallKitchenEast,      'kitchen_wall_east');
 
+/* Per-fragment brick-material factory. The four brick-wall pieces around
+ * the east window (and the kitchen alcove splash) all use BoxGeometry,
+ * whose default UV [0,1] tiles the diffuse map the same number of times
+ * regardless of the face's real-world dimensions — short panels above /
+ * below the window otherwise end up with squashed-tiny bricks. By cloning
+ * the base brick material per fragment with map.repeat set to the
+ * fragment's world width × height (1 repeat per metre), brick density
+ * stays constant at ~210 × 65 mm everywhere. The shared baked lightmap is
+ * inherited from the base clone, so per-wall GI keeps working. */
+function brickMatFor(base, worldW, worldH) {
+  const m = base.clone();
+  m.map       = texFromCanvas(brickCanvas, { repeat: [worldW, worldH] });
+  m.normalMap = cloneTex(brickNormalTex, worldW, worldH);
+  m.needsUpdate = true;
+  return m;
+}
+
 /* worldToUv functions per bake — must match the bake quad's vertex→UV
  * mapping (see bake_room_lightmap.py). The setLightmapUV1 helper writes
  * these UVs into the mesh's uv1 channel, with all non-target vertices
@@ -1042,9 +1059,11 @@ scene.add(wallBox(PT_X1, PT_X1 + WALL_T, 0, ROOM_H, ALCOVE_Z0, ALCOVE_Z1, matWal
   /* Plain wall below counter level (hidden behind counter / fridge base) */
   scene.add(wallBox(PT_X0, PT_X1, 0, PT_SILL, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matWallKitchen));
   /* Brick splash from counter sill to ceiling — visible through pass-thru.
-   * Lightmap on -Z face (faces LDK from alcove side). */
+   * Lightmap on -Z face (faces LDK from alcove side). Per-fragment material
+   * so the brick density matches the rest of the brick-wall. */
+  const matAlcoveBrickSized = brickMatFor(matAlcoveBrick, PT_X1 - PT_X0, ROOM_H - PT_SILL);
   addLm(
-    wallBox(PT_X0, PT_X1, PT_SILL, ROOM_H, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matAlcoveBrick),
+    wallBox(PT_X0, PT_X1, PT_SILL, ROOM_H, ALCOVE_Z1, ALCOVE_Z1 + WALL_T, matAlcoveBrickSized),
     'alcove_brick', 'z', -1,
   );
 }
@@ -1609,14 +1628,21 @@ const BX0 = ROOM_W, BX1 = ROOM_W + WALL_T;
 
 /* Wall fragments around the window — each samples brick_wall.png on its
  * -X face (the LDK-facing side at x=ROOM_W). The shared bake's worldToUv
- * (z/ROOM_D, y/ROOM_H) maps each fragment to its sub-rect. */
-addLm(wallBox(BX0, BX1, 0,     ROOM_H, 0,     BW_Z0,  matBrickEast),
+ * (z/ROOM_D, y/ROOM_H) maps each fragment to its sub-rect. Each fragment
+ * gets its own brick material with map.repeat tied to the fragment's
+ * world dimensions so brick density stays constant across all four. */
+const matBrickS  = brickMatFor(matBrickEast, BW_Z0,         ROOM_H);          // south of window: 1.50 × 2.50
+const matBrickN  = brickMatFor(matBrickEast, ROOM_D - BW_Z1, ROOM_H);         // north of window: 1.50 × 2.50
+const matBrickBe = brickMatFor(matBrickEast, BW_Z1 - BW_Z0, BW_Y0);           // below window: 1.50 × 0.80
+const matBrickAb = brickMatFor(matBrickEast, BW_Z1 - BW_Z0, ROOM_H - BW_Y1);  // above window: 1.50 × 0.50
+
+addLm(wallBox(BX0, BX1, 0,     ROOM_H, 0,     BW_Z0,  matBrickS),
       'brick_wall', 'x', -1);   // south of window
-addLm(wallBox(BX0, BX1, 0,     ROOM_H, BW_Z1, ROOM_D, matBrickEast),
+addLm(wallBox(BX0, BX1, 0,     ROOM_H, BW_Z1, ROOM_D, matBrickN),
       'brick_wall', 'x', -1);   // north of window
-addLm(wallBox(BX0, BX1, 0,     BW_Y0,  BW_Z0, BW_Z1,  matBrickEast),
+addLm(wallBox(BX0, BX1, 0,     BW_Y0,  BW_Z0, BW_Z1,  matBrickBe),
       'brick_wall', 'x', -1);   // below window
-addLm(wallBox(BX0, BX1, BW_Y1, ROOM_H, BW_Z0, BW_Z1,  matBrickEast),
+addLm(wallBox(BX0, BX1, BW_Y1, ROOM_H, BW_Z0, BW_Z1,  matBrickAb),
       'brick_wall', 'x', -1);   // above window
 
 /* Brick-wall window — single 引違 with 2 panels */
