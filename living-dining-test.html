@@ -179,18 +179,39 @@
 </div>
 
 <script type="importmap">
-{ "imports": { "three": "./vendor/three/build/three.module.min.js" } }
+{ "imports": { "three": "./vendor/three/build/three.webgpu.min.js", "three/webgpu": "./vendor/three/build/three.webgpu.min.js", "three/tsl": "./vendor/three/build/three.tsl.min.js" } }
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { pass }                     from 'three/tsl';
+import { bloom }                    from './vendor/three/examples/jsm/tsl/display/BloomNode.js';
 import { HDRLoader }                from './vendor/three/examples/jsm/loaders/HDRLoader.js';
 import { RoundedBoxGeometry }       from './vendor/three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { RectAreaLightUniformsLib } from './vendor/three/examples/jsm/lights/RectAreaLightUniformsLib.js';
-import { EffectComposer }           from './vendor/three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass }               from './vendor/three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass }          from './vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass }               from './vendor/three/examples/jsm/postprocessing/OutputPass.js';
-RectAreaLightUniformsLib.init();
+import { RectAreaLightTexturesLib } from './vendor/three/examples/jsm/lights/RectAreaLightTexturesLib.js';
+RectAreaLightTexturesLib.init();
+THREE.RectAreaLightNode.setLTC(RectAreaLightTexturesLib);   /* point WebGPU RectAreaLightNode at the LTC textures */
+
+/* ====================================================================== */
+/* TextureLoader placeholder shim for WebGPU r184.                         */
+/* WebGL silently tolerated textures whose image hadn't loaded yet;        */
+/* WebGPU r184 calls image.complete during shadow render and crashes if   */
+/* image is null/undefined. Pre-seed every TextureLoader-created texture   */
+/* with a 1x1 white pixel; it gets replaced when the real image loads.    */
+/* ====================================================================== */
+const _PLACEHOLDER_1X1 = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 1;
+  const x = c.getContext('2d');
+  x.fillStyle = '#ffffff';
+  x.fillRect(0, 0, 1, 1);
+  return c;
+})();
+const _origTextureLoad = THREE.TextureLoader.prototype.load;
+THREE.TextureLoader.prototype.load = function (url, onLoad, onProgress, onError) {
+  const tex = _origTextureLoad.call(this, url, onLoad, onProgress, onError);
+  if (!tex.image) tex.image = _PLACEHOLDER_1X1;
+  return tex;
+};
 
 /* ====================================================================== */
 /* LDK (Living-Dining-Kitchen) — full-room reconstruction sandbox.        */
@@ -217,11 +238,12 @@ const WALL_T = 0.05;
 /* Renderer + Scene + Camera                                              */
 /* ====================================================================== */
 const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGPURenderer({ antialias: true, samples: 8 });
+await renderer.init();
+renderer.setPixelRatio(window.devicePixelRatio);   /* uncapped, per GPU mandate */
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;  /* default soft shadows; VSM needs extra setup under WebGPU r184 */
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.68;        /* Kumamoto 11 AM clear sky — recipe sweet spot */
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -339,7 +361,9 @@ scene.add(new THREE.HemisphereLight(0xc8d6e8, 0xa89878, 0.55));
 /* ====================================================================== */
 /* Texture helpers (parity with laundry-test).                            */
 /* ====================================================================== */
-const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+/* WebGPU spec caps anisotropy at 16 across all conformant implementations.
+ * WebGLRenderer exposed renderer.capabilities.getMaxAnisotropy(); WebGPURenderer does not. */
+const MAX_ANISO = (typeof renderer.getMaxAnisotropy === 'function') ? renderer.getMaxAnisotropy() : 16;
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
@@ -3359,20 +3383,15 @@ pvClose.addEventListener('click', closePopover);
 popoverScrim.addEventListener('click', closePopover);
 
 /* ====================================================================== */
-/* Postprocessing — recipe defaults (bloom strength 0.16, threshold 1.0). */
+/* Postprocessing — WebGPU PostProcessing + TSL bloom node (r184).         */
+/* Recipe defaults preserved: strength 0.16, radius 0.70, threshold 1.0.   */
 /* ====================================================================== */
-const composer = new EffectComposer(renderer);
-composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-composer.setSize(window.innerWidth, window.innerHeight);
-composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  /* strength */ 0.16,
-  /* radius   */ 0.70,
-  /* threshold*/ 1.00
-);
-composer.addPass(bloom);
-composer.addPass(new OutputPass());
+/* PostProcessing was renamed to RenderPipeline in r184; use the new name.
+ * RenderPipeline has no setSize() — it tracks the renderer's canvas size. */
+const post = new THREE.RenderPipeline(renderer);
+const scenePass = pass(scene, camera);
+const bloomPass = bloom(scenePass, /* strength */ 0.16, /* radius */ 0.70, /* threshold */ 1.00);
+post.outputNode = scenePass.add(bloomPass);
 
 /* ====================================================================== */
 /* Render loop                                                             */
@@ -3388,8 +3407,8 @@ function projectHotspots() {
   }
 }
 
-function tick() {
-  composer.render();
+async function tick() {
+  await post.renderAsync();
   projectHotspots();
   requestAnimationFrame(tick);
 }
@@ -3399,8 +3418,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
-  bloom.setSize(window.innerWidth, window.innerHeight);
+  /* RenderPipeline tracks the renderer's canvas size automatically — no setSize on it. */
 });
 </script>
 </body>

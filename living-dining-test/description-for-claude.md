@@ -89,7 +89,7 @@ The intercom panel is white, with a small rectangular video screen and a couple 
 
 Power outlets — white plastic duplex receptacles — are visible near the skirting in several places, including beside the dining table and on the corridor partition. Nothing brass or metallic.
 
-There is no visible visible duct work or vents beyond the AC head.
+There is no visible duct work or vents beyond the AC head.
 
 ## Lighting and atmosphere in the photos
 
