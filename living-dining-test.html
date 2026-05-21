@@ -488,64 +488,36 @@ const paintCanvas = (() => {
 })();
 const paintNormalTex = deriveNormalFromCanvas(paintCanvas, 0.5);
 
-/* Brick — dark earthy chocolate-brown 化粧ブリック with very dark mortar,
- * matching the brick-wall in dining/b/01, dining/b/05, dining/b/15. Real
- * bricks read as a mixed palette: deep chocolate, warm brown, occasional
- * rust-tinted and tan bricks, separated by near-black mortar lines. */
+/* Brick — cool grey-white blocks with white mortar (EXACT color + pattern
+ * copy of laundry-test brickCanvas, per user instruction). */
 const brickCanvas = (() => {
   const c = makeCanvas(512, 512);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#1a130d';      /* near-black mortar (matches photo grout shadows) */
+  ctx.fillStyle = '#e3e1dc';      /* mortar */
   ctx.fillRect(0, 0, 512, 512);
-  /* Brick is ~210 mm wide × 65 mm tall (Japanese decorative-brick format).
-   * With repeat 4.5 across a 4.5 m wall, one canvas tile = 1.0 m, so:
-   *   bw = 0.210 × 512 ≈ 107 px, bh = 0.065 × 512 ≈ 33 px. */
-  const bw = 104, bh = 32, mortar = 4;
-  /* Palette of brick base hues — sampled from the dining/b photos.
-   * Each cell picks one entry at random, then jitter is added on top. */
-  const palette = [
-    [ 78, 48, 36],   // dark chocolate (most common)
-    [ 92, 58, 42],   // warm brown
-    [ 64, 40, 30],   // very dark chocolate
-    [108, 66, 46],   // rust-tinted
-    [124, 84, 58],   // weathered tan highlight (uncommon)
-    [ 82, 50, 36],   // medium chocolate
-    [ 70, 42, 30],   // deep brown
-  ];
-  for (let row = 0; row < 512 / bh + 1; row++) {
+  const bw = 64, bh = 28, mortar = 4;
+  for (let row = 0; row < 512 / bh; row++) {
     const offset = (row % 2) * (bw / 2);
-    for (let col = -1; col <= 512 / bw + 1; col++) {
+    for (let col = -1; col <= 512 / bw; col++) {
       const x = col * bw + offset;
       const y = row * bh;
-      const [pR, pG, pB] = palette[Math.floor(Math.random() * palette.length)];
-      /* Small per-brick jitter on top of the palette pick */
-      const jR = pR + Math.floor(Math.random() * 14 - 6);
-      const jG = pG + Math.floor(Math.random() * 12 - 6);
-      const jB = pB + Math.floor(Math.random() * 10 - 4);
-      ctx.fillStyle = `rgb(${jR},${jG},${jB})`;
+      const tone = 138 + Math.floor(Math.random() * 30);
+      const r = tone, g = tone - 3, b = tone - 8;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(x + mortar / 2, y + mortar / 2, bw - mortar, bh - mortar);
-      /* Speckle — micro grain across the brick face */
-      for (let i = 0; i < 32; i++) {
+      /* Speckle on each brick */
+      for (let i = 0; i < 14; i++) {
         const sx = x + mortar / 2 + Math.random() * (bw - mortar);
         const sy = y + mortar / 2 + Math.random() * (bh - mortar);
-        const dv = -18 + Math.random() * 30;
-        const r = Math.max(0, Math.min(255, jR + dv));
-        const g = Math.max(0, Math.min(255, jG + dv));
-        const b = Math.max(0, Math.min(255, jB + dv));
-        ctx.fillStyle = `rgba(${r},${g},${b},0.5)`;
+        const v  = tone - 20 + Math.random() * 30;
+        ctx.fillStyle = `rgba(${v},${v - 4},${v - 8},0.4)`;
         ctx.fillRect(sx, sy, 1, 1);
-      }
-      /* Occasional darker edge shadow along the bottom of the brick —
-       * mimics the soft shading seen on real decorative brick faces. */
-      if (Math.random() < 0.5) {
-        ctx.fillStyle = `rgba(0,0,0,${0.10 + Math.random() * 0.15})`;
-        ctx.fillRect(x + mortar / 2, y + bh - mortar - 1, bw - mortar, 1);
       }
     }
   }
   return c;
 })();
-const brickNormalTex = deriveNormalFromCanvas(brickCanvas, 1.6);
+const brickNormalTex = deriveNormalFromCanvas(brickCanvas, 1.5);
 
 /* Whitewashed wood-plank ceiling — light cream base, parallel plank
  * lines, weathered grey streaks. Plank long axis runs along U (which
@@ -619,14 +591,15 @@ const matWall = new THREE.MeshPhysicalMaterial({
   roughness: 0.94, metalness: 0.0, envMapIntensity: 0.30,
 });
 
-/* Brick — full-height east wall coverage; repeat tuned so a real brick
- * reads ~200 mm wide. Wall is 4.50 m wide × 2.50 m tall → repeat U≈4.5
- * at canvas brick width 56 px / 512 px ≈ 11 cm per repeat unit. */
+/* Brick — full-height east wall coverage. PBR values match laundry-test
+ * matBrick exactly (cool grey-white look). The base repeat is overridden
+ * per fragment by brickMatFor() further below so brick density stays
+ * constant across the four pieces around the window. */
 const matBrick = new THREE.MeshPhysicalMaterial({
-  map: texFromCanvas(brickCanvas, { repeat: [4.5, 2.6] }),
-  normalMap: cloneTex(brickNormalTex, 4.5, 2.6),
-  normalScale: new THREE.Vector2(0.6, 0.6),
-  roughness: 0.88, metalness: 0.04, envMapIntensity: 0.35,
+  map: texFromCanvas(brickCanvas, { repeat: [2.0, 4.0] }),
+  normalMap: cloneTex(brickNormalTex, 2.0, 4.0),
+  normalScale: new THREE.Vector2(0.5, 0.5),
+  roughness: 0.85, metalness: 0.05, envMapIntensity: 0.4,
 });
 
 /* Light oak floor — Poly Haven laminate_floor_02 (full PBR with ARM packed) */
@@ -737,7 +710,8 @@ applyLightmap(matWallKitchenEast,      'kitchen_wall_east');
  * below the window otherwise end up with squashed-tiny bricks. By cloning
  * the base brick material per fragment with map.repeat set to the
  * fragment's world width × height (1 repeat per metre), brick density
- * stays constant at ~210 × 65 mm everywhere. The shared baked lightmap is
+ * stays constant at ~125 × 55 mm everywhere (matches laundry-test brick
+ * tile, 64 × 28 px on a 512 px canvas). The shared baked lightmap is
  * inherited from the base clone, so per-wall GI keeps working. */
 function brickMatFor(base, worldW, worldH) {
   const m = base.clone();
@@ -2875,7 +2849,7 @@ scene.add(buildAC(
  * Per living/a/01 + living/c/20 photos: mounted on the kitchen-wall
  * just above/east of the corridor entry (the corridor entry sits on
  * the west end of the kitchen-wall; the clock arm reaches out into
- * the LDK so both faces are visible from the living + dining sides). */
+ * the LDK so both faces are visible from the living-dining sides). */
 {
   const matClockBody = new THREE.MeshPhysicalMaterial({
     color: 0x161616, roughness: 0.55, metalness: 0.45,
@@ -2943,7 +2917,7 @@ scene.add(buildAC(
   /* Mount position on the kitchen-wall — centred ABOVE the corridor
    * entry door (door at x=[COR_X0, COR_X1], head y=COR_HEAD=2.05).
    * The clock arm extends INTO the LDK so both faces are visible from
-   * the living + dining sides. */
+   * the living-dining sides. */
   const CLK_X = (COR_X0 + COR_X1) / 2;   // 1.50 — centred above corridor
   const CLK_Y = 2.22;                     // above door head with clearance
   const CLK_Z = ROOM_D - 0.01;            // against kitchen-wall
