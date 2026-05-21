@@ -8,10 +8,10 @@ In **Step 10 ("Investment properties")**, when the user taps the **Ozu-1 marker 
 
 - The tour is a self-contained HTML page already deployed at:
   **`https://3d-vertical-test.vercel.app/value-add-journey.html`**
-- It runs three.js inside its own internal iframe and walks the user through 5 scenes: exterior → room 1 → kitchen → laundry → living + dining.
+- It runs three.js inside its own internal iframe and walks the user through 5 scenes: exterior → room 1 → kitchen → laundry → living-dining.
 - It owns its own forward/back chevron nav, step dots, and step label. Do not try to replicate, override, restyle, or message-command any of those.
 - It is mobile-first, assumes a pure black background, and renders edge-to-edge.
-- When the user reaches the **final step (living + dining)** and taps the forward chevron, the page calls:
+- When the user reaches the **final step (living-dining)** and taps the forward chevron, the page calls:
   ```js
   window.parent.postMessage({ type: 'journeyComplete' }, '*');
   ```

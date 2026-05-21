@@ -4,7 +4,7 @@
 
 the LDK is the main open ground-floor space — 26.13 ㎡ (16.1 帖) per the blueprint. it has four walls but no internal walls separating living, dining, and kitchen zones; only a half-height kitchen counter (L=2,550 mm) divides the kitchen zone visually.
 
-photo organisation splits the LDK into two folders: `living-dining/` (this document — covers the open living + dining area, 6 panorama positions) and `kitchen/` (separate, has its own map). this document covers `living-dining/` only.
+photo organisation splits the LDK into two folders: `living-dining/` (this document — covers the open living-dining area, 6 panorama positions) and `kitchen/` (separate, has its own map). this document covers `living-dining/` only.
 
 assumed dimensions from blueprint (page-coords, before X-mirror to 3D code coords):
 - footprint: 6,300 mm × 4,500 mm
