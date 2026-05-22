@@ -5777,12 +5777,13 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // AC unit (ac-wall, z=RD, near corner-ac-window)
+      // AC unit (ac-wall, z=RD, near corner-ac-closet)
       // ============================================================
       // Toshiba split-system body — high on the wall (y≈1.95-2.20),
-      // positioned near corner-ac-window (x=[1.60, 2.40]).
+      // positioned near corner-ac-closet (x=[0.20, 1.00]) — see room-map.md
+      // ("wall-mounted AC unit (Toshiba): high on ac-wall, near corner-ac-closet").
       {
-        const acX0 = 1.60, acX1 = 2.40, acY0 = 1.95, acY1 = 2.20;
+        const acX0 = 0.20, acX1 = 1.00, acY0 = 1.95, acY1 = 2.20;
         // AC body: Cycles-baked abs_plastic PBR (smooth white ABS with subtle
         // injection-mold micro-grain). Shared across all 4 rooms.
         const matAC = pbrFromBase('ozu-test/room-1-textures/ac/abs/abs', 1, 1);
