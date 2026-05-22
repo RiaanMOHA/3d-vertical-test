@@ -1,0 +1,28 @@
+# Files Wrangler should skip when uploading static assets to Cloudflare.
+# (Matches the .gitignore spirit, plus tooling-only paths that bloat the
+# upload without being served at runtime.)
+
+.git
+.github
+.vercel
+.claude
+.handoffs
+.DS_Store
+node_modules
+package.json
+package-lock.json
+pnpm-lock.yaml
+wrangler.jsonc
+.assetsignore
+.vercelignore
+CLAUDE.md
+QA_*.md
+*.md
+bake
+**/bake/
+**/bake/**
+showcase
+ipad-research
+test
+test.html
+sanity.html

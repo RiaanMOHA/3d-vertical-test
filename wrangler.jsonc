@@ -1,0 +1,21 @@
+/**
+ * Cloudflare Workers — static asset deploy for 3d-vertical-test.
+ *
+ * Serves every .html scene + the textures/HDRI folders directly from the
+ * repo root, no build step. Mirrors the existing Vercel deploy so that
+ * either CDN can serve the property tour iframes embedded by the
+ * value-add-prototype deck.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "3d-vertical-test",
+  "compatibility_date": "2025-05-01",
+  "assets": {
+    "directory": ".",
+    "not_found_handling": "404-page",
+    // Keep explicit .html extensions — value-add-journey.html embeds child
+    // scenes via `<iframe src="living-dining-test.html?journey=1">`, and a
+    // 307 redirect to the extensionless URL breaks query-string handling.
+    "html_handling": "none"
+  }
+}
