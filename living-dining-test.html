@@ -466,22 +466,26 @@ function setLightmapUV1(mesh, faceAxis, faceSign, worldToUv) {
 
 /* ====================================================================== */
 /* Photo-driven canvas textures — paint, brick, whitewashed plank.        */
-/* Floor reuses the Poly Haven laminate_floor_02 PBR set (already         */
-/* downloaded under kitchen-test/textures/).                              */
+/* Floor uses the Poly Haven laminate_floor_02 PBR set, kept inside this */
+/* scene's own folder per living-dining-test/3d-models-reference.md.     */
 /* ====================================================================== */
 
-/* Wall paint — warm grey-beige (lighter / cleaner than laundry-test
- * taupe; matches the LDK photos: photos in dining/b/01 + dining/c/01
- * show a fairly clean cream-beige with subtle stipple). */
+/* Wall paint — warm neutral grey-beige with faint matte sandy granularity,
+ * per living-dining-test/description-for-claude.md ("slightly warm
+ * beige-grey, not cold blue-grey") and the reference render in
+ * living-dining-test/new-living-dining-test-renders/. The previous
+ * `#cdc4b3` base read too yellow / cream against those targets. */
 const paintCanvas = (() => {
   const c = makeCanvas(256, 256);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#cdc4b3';
+  ctx.fillStyle = '#bdb6a8';
   ctx.fillRect(0, 0, 256, 256);
   for (let i = 0; i < 1800; i++) {
     const x = Math.random() * 256, y = Math.random() * 256;
-    const v = 195 + Math.random() * 30;
-    ctx.fillStyle = `rgba(${v},${v - 8},${v - 18},0.06)`;
+    const v = 188 + Math.random() * 28;
+    /* Stipple: lift R+G slightly, keep B close — gentle warm cast,
+     * no yellow shift (previous -18 on B pushed it cream). */
+    ctx.fillStyle = `rgba(${v},${v - 4},${v - 8},0.06)`;
     ctx.fillRect(x, y, 1, 1);
   }
   return c;
@@ -573,9 +577,9 @@ function phLoad(path, sRGB) {
   t.anisotropy = MAX_ANISO;
   return t;
 }
-const phWoodDiff = phLoad('kitchen-test/textures/laminate_floor_02_diff.jpg',  true);
-const phWoodNor  = phLoad('kitchen-test/textures/laminate_floor_02_nor_gl.jpg', false);
-const phWoodArm  = phLoad('kitchen-test/textures/laminate_floor_02_arm.jpg',    false);
+const phWoodDiff = phLoad('living-dining-test/textures/laminate_floor_02_diff.jpg',  true);
+const phWoodNor  = phLoad('living-dining-test/textures/laminate_floor_02_nor_gl.jpg', false);
+const phWoodArm  = phLoad('living-dining-test/textures/laminate_floor_02_arm.jpg',    false);
 
 /* ====================================================================== */
 /* Materials — base versions; per-face clones below for the LDK walls so  */
