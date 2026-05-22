@@ -6500,13 +6500,14 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // Dark-wood + black-metal freestanding shelving (right of desk)
+      // Dark-wood + black-metal freestanding shelving (closet-wall, NW)
       // ============================================================
       // 3-tier industrial-style shelving. Dark stained pine shelves on a
-      // black iron frame. Positioned flush with the entrance-wall to the
-      // right of the desk.
+      // black iron frame. Sits along closet-wall (x=0) near
+      // corner-closet-entrance — see room-map.md line 56 + line 114, visible
+      // in corner-entrance-frosted/01.
       {
-        const shX0 = 2.30, shX1 = 2.65, shZ0 = 0.05, shZ1 = 0.40, shY1 = 1.55;
+        const shX0 = 0.05, shX1 = 0.40, shZ0 = 0.05, shZ1 = 0.40, shY1 = 1.55;
         // PBR maps baked offline via ozu-test/bake/bake_room3_shelf.py.
         const pbrFromBase = (base, repU, repV, extras = {}) => {
           const loader = new THREE.TextureLoader();
@@ -6555,25 +6556,6 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       }
 
       // ============================================================
-      // Corner cabinet on entrance-wall + closet-wall
-      // ============================================================
-      // Slim storage cabinet placed in the entrance-wall corner.
-      {
-        const cX0 = 0.05, cX1 = 0.45, cZ0 = 0.00, cZ1 = 0.40, cY = 0.90;
-        const matCabinet = new THREE.MeshStandardMaterial({ color: 0xd1c3b5, roughness: 0.55 });
-        const cabinet = new THREE.Mesh(
-          new THREE.BoxGeometry(cX1 - cX0, cY, cZ1 - cZ0),
-          matCabinet
-        );
-        cabinet.position.set((cX0 + cX1) / 2, cY / 2, (cZ0 + cZ1) / 2);
-        S.group.add(cabinet);
-        const handleMat = new THREE.MeshStandardMaterial({ color: 0x2d2926, roughness: 0.3, metalness: 0.7 });
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.01, 0.01), handleMat);
-        handle.position.set((cX0 + cX1) / 2, cY * 0.55, cZ1 + 0.01);
-        S.group.add(handle);
-      }
-
-      // ============================================================
       // Desk and chair on entrance-wall
       // ============================================================
       // Desk flush with the entrance-wall, with the chair facing the wall.
@@ -6611,17 +6593,30 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
       }
 
-      // Clothing hook at the closet-wall end of the window-wall corner.
+      // ============================================================
+      // Multi-hook coat rack on entrance-wall (latch side of door)
+      // ============================================================
+      // Light-wood plank backing with 3 black metal hooks — same style as
+      // room-2's coat rack. Per room-map.md line 41 + 115, visible in
+      // corner-entrance-frosted/01 and corner-closet-entrance/01.
       {
-        const hookX = 0.03, hookZ = RD - 0.45, hookY = 1.45;
-        const matHook = new THREE.MeshStandardMaterial({ color: 0x2c2c2c, roughness: 0.35, metalness: 0.7 });
-        const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.20, 12), matHook);
-        hook.position.set(hookX, hookY, hookZ);
-        hook.rotation.z = Math.PI / 2;
-        S.group.add(hook);
-        const peg = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 8), matHook);
-        peg.position.set(hookX + 0.09, hookY, hookZ);
-        S.group.add(peg);
+        const crX = 2.10, crY = 1.55, crW = 0.40;
+        const matWood = new THREE.MeshStandardMaterial({ color: 0xc9a07c, roughness: 0.7 });
+        const matHook = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.3 });
+        feat('z', 0, +1, { a1: crX, a2: crX + crW, b1: crY - 0.06, b2: crY + 0.06 }, matWood);
+        for (let i = 0; i < 3; i++) {
+          const hx = crX + (i + 0.5) * (crW / 3);
+          const stem = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.005, 0.005, 0.06, 10),
+            matHook
+          );
+          stem.rotation.x = Math.PI / 2;
+          stem.position.set(hx, crY, FEAT + BIAS + 0.030);
+          S.group.add(stem);
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.010, 10, 8), matHook);
+          cap.position.set(hx, crY, FEAT + BIAS + 0.060);
+          S.group.add(cap);
+        }
       }
 
       // ============================================================
@@ -7183,8 +7178,8 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
       {
         const cX0 = RW - 0.40, cX1 = RW;
         const cZ0_ = 1.40, cZ1_ = 2.50;
-        const cBaseY = 0.95;          // top of drawer section
-        const cTopY  = 1.75;          // top of cabinet
+        const cBaseY = 0.95;          // top of bin section
+        const cTopY  = 2.00;          // top of cabinet — taller per corner-frosted-entrance/01
         // PBR maps shared with room-3 shelf (same dark-wood + black-iron
         // industrial style). Baked via ozu-test/bake/bake_room3_shelf.py.
         const pbrFromBase = (base, repU, repV, extras = {}) => {
@@ -7208,11 +7203,21 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         const matCabFrame = pbrFromBase('ozu-test/room-3-textures/shelf/black_iron/black_iron', 1, 1, { metalness: 0.6 });
         const matCabWood  = pbrFromBase('ozu-test/room-3-textures/shelf/dark_wood/dark_wood', 1, 1);
         const matKnob     = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3 });
+        // Dark perforated metal — bin fronts (3×3 grid) read as wire/mesh
+        // storage baskets in corner-frosted-entrance/01, not solid wood drawers.
+        const matCabMesh  = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.85, metalness: 0.35 });
         const cW = cX1 - cX0, cD = cZ1_ - cZ0_;
         const t = 0.018;
         // Helper: box that uses the shared matCabWood PBR material.
         const woodBox = (w, h, d, cx, cy, cz) => {
           const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matCabWood);
+          m.position.set(cx, cy, cz);
+          S.group.add(m);
+          return m;
+        };
+        // Helper: box that uses the shared matCabMesh material (3×3 bin fronts).
+        const binBox = (w, h, d, cx, cy, cz) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matCabMesh);
           m.position.set(cx, cy, cz);
           S.group.add(m);
           return m;
@@ -7225,15 +7230,17 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
         // Bottom shelf (under drawer grid).
         woodBox(cW, t, cD, (cX0 + cX1)/2, t/2 + 0.01, (cZ0_ + cZ1_)/2);
-        // Drawer fronts: 3×3 grid in the bottom half.
+        // Bin fronts: 3×3 grid in the bottom half — dark perforated metal
+        // (small handle/pull indented in the front face).
         const drwYs = [0.20, 0.50, 0.80];
         const drwZs = [cZ0_ + cD * 1/6, cZ0_ + cD * 3/6, cZ0_ + cD * 5/6];
         for (const dy of drwYs) {
           for (const dz of drwZs) {
-            woodBox(0.020, 0.24, cD / 3 * 0.88, cX0 - 0.010 + 0.005, dy, dz);
-            const knob = new THREE.Mesh(new THREE.SphereGeometry(0.010, 10, 8), matKnob);
-            knob.position.set(cX0 - 0.015, dy, dz);
-            S.group.add(knob);
+            binBox(0.020, 0.24, cD / 3 * 0.88, cX0 - 0.010 + 0.005, dy, dz);
+            // Recessed grip — small dark slot rather than a sphere knob.
+            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.012, 0.05), matKnob);
+            grip.position.set(cX0 - 0.013, dy, dz);
+            S.group.add(grip);
           }
         }
         // 3 open shelves on top half.
