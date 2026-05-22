@@ -2250,299 +2250,377 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
         }
       }
 
-      // ───────────────── L-SHAPE STAIR (13 risers: 3 lower + 4 winders + 6 upper) ─────────────────
-      // Per blueprint at 400 DPI: 1F panel shows steps 1–3 straight then 4 winders in a 0.9 ×
-      // 0.9 square; 2F panel shows steps 8–13 ascending west→east. Footprint 1.42 m² label =
-      // 0.9 × 3 × 0.225 + 0.9 × 0.9 = 1.4175 m² ✓. Materials match the photos: light maple wood
-      // treads + risers + stringer, white-painted wall-mounted handrail, brushed-chrome
-      // brackets, white elbow at the L-bend, two parallel dark inlay strips on each nosing.
-      const TOTAL_RISERS = 13;
-      const RISE = F1H / TOTAL_RISERS;            // 0.192 m
-      const TREAD_T = 0.04;
-      const NOSING = 0.025;
-      const treadMat = new THREE.MeshStandardMaterial({ color: 0xe6cca3, roughness: 0.7 });
-      const riserMat = new THREE.MeshStandardMaterial({ color: 0xe0c498, roughness: 0.75 });
-      // carriageMat + stringerMat removed — no soffit/wedge/stringer geometry left to color
-      // (matched stairs-test by stripping those sub-blocks).
-      // Handrail is smooth matte cream/ivory paint — NO visible wood grain. Confirmed across
-      // stairs-4, 5, 7, 8, 9, 10, 12, 13, 19, 20, 22, 25 (paint reads uniform; in same frames
-      // the wood treads show clear grain figure but the rail does not).
-      const handrailMat = new THREE.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 0.55 });
-      const handrailBracketMat = new THREE.MeshStandardMaterial({ color: 0xc4c6c8, metalness: 0.7, roughness: 0.3 });
-      const nosingMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.6 });
-
-      // Helper: 2 parallel dark inlay grooves on the front edge of a tread (the anti-slip strips
-      // visible in stairs-10, stairs-17, stairs-27). Strips are inset 12 mm and 25 mm from the
-      // nosing edge, run along the tread's long axis, and stand 3 mm proud of the tread surface.
-      function addNosingStrips(yTop, axis, longCenter, longLen, frontEdge, frontDir) {
-        // axis 'X' = strips run along x (tread's nosing is parallel to x); frontDir = ±1 sign in z
-        // axis 'Z' = strips run along z; frontDir = ±1 sign in x
-        const stripT = 0.003, stripW = 0.005, margin = 0.04;
-        const offsets = [0.012, 0.025];
-        for (const off of offsets) {
-          const dimX = axis === 'X' ? (longLen - 2 * margin) : stripW;
-          const dimZ = axis === 'X' ? stripW : (longLen - 2 * margin);
-          const m = new THREE.Mesh(new THREE.BoxGeometry(dimX, stripT, dimZ), nosingMat);
-          const px = axis === 'X' ? longCenter : frontEdge - frontDir * off;
-          const pz = axis === 'X' ? frontEdge - frontDir * off : longCenter;
-          m.position.set(px, yTop + stripT / 2 - 0.0005, pz);
-          S.group.add(m);
-        }
-      }
-
-      // ── LOWER FLIGHT — 3 straight risers, climbing +z along the west exterior wall ──
-      // Tread depth 0.225 m per blueprint 踏面225. Lower flight occupies the south third of
-      // the 1F shaft; winder zone fills the north 0.9 × 0.9 square (z=[3.575, 4.475]).
-      const LX0 = 5.40, LX1 = W, LXc = (LX0 + LX1) / 2, LW = LX1 - LX0;   // LW = 0.9
-      const LZ0 = 2.90;
-      const TREAD = 0.225;
-      const LZ1 = LZ0 + 3 * TREAD;                // 3.575 — north edge of step 3 / south edge of winder zone
-      for (let i = 0; i < 3; i++) {
-        const yTop = (i + 1) * RISE;
-        const z0 = LZ0 + i * TREAD;
-        const z1 = z0 + TREAD;
-        const tDepth = TREAD + NOSING;
-        const tread = new THREE.Mesh(new THREE.BoxGeometry(LW, TREAD_T, tDepth), treadMat);
-        tread.position.set(LXc, yTop - TREAD_T / 2, (z0 - NOSING + z1) / 2);
-        S.group.add(tread);
-        const riser = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
-        riser.position.set(LXc, yTop - RISE / 2, z0);
-        S.group.add(riser);
-        addNosingStrips(yTop, 'X', LXc, LW, z0 - NOSING, -1);
-      }
-      // Lower-flight soffit wedge + stringer removed — stairs-test (the canonical source)
-      // has neither. The wedge had an incorrect smooth-slope underside that didn't match
-      // the stepped tread bottoms, and the stringer sat west of the LDK partition where
-      // it was clipping into other geometry. The treads now sit unsoffited, matching
-      // the stairs-test "stairs only" view.
-
-      // ── WINDERS — 4 triangular treads fanning from the L-bend SE pivot (real-world) ──
-      // Per blueprint at 400 DPI: 0.9 × 0.9 square winder zone north of the lower flight,
-      // 4 winders pivoting from the inside corner at (LX0, LZ1) — real-world south-east of
-      // the winder zone. Each winder turns 22.5°. Boundary rays from pivot at theta = 0°
-      // (south wall, step 3 → winder 4), 22.5°, 45° (diagonal hits the far corner), 67.5°,
-      // and 90° (east boundary in real-world, winder 7 → step 8).
-      const WZ0 = LZ1;
-      const WZ1 = LZ1 + LW;                                            // 4.475 — 0.9 × 0.9 square
-      const PIVOT = [LX0, WZ0];                                        // real-world SE corner
-      const TAN22 = Math.tan(Math.PI / 8);                             // 0.4142
-      const OUT_0  = [LX1, WZ0];                                       // theta=0°: south boundary outer
-      const OUT_22 = [LX1, WZ0 + LW * TAN22];                          // theta=22.5°
-      const OUT_45 = [LX1, WZ1];                                       // theta=45°: diagonal corner
-      const OUT_67 = [LX1 - LW * TAN22, WZ1];                          // theta=67.5°
-      const OUT_90 = [LX0, WZ1];                                       // theta=90°: east boundary outer
-      function makeWinder(verts2D, yTop, mat) {
-        // Triangular prism, verts2D order CCW from above. BufferGeometry instead of
-        // ExtrudeGeometry+rotate to avoid the z-mirror bug that hid winders below the floor.
-        const yBot = yTop - TREAD_T;
-        const positions = new Float32Array([
-          verts2D[0][0], yTop, verts2D[0][1],
-          verts2D[1][0], yTop, verts2D[1][1],
-          verts2D[2][0], yTop, verts2D[2][1],
-          verts2D[0][0], yBot, verts2D[0][1],
-          verts2D[1][0], yBot, verts2D[1][1],
-          verts2D[2][0], yBot, verts2D[2][1],
-        ]);
-        const indices = [
-          0, 1, 2,                          // top, +Y
-          3, 5, 4,                          // bottom, -Y
-          0, 4, 1,  0, 3, 4,                // side a-b
-          1, 4, 5,  1, 5, 2,                // side b-c
-          2, 3, 0,  2, 5, 3,                // side c-a
-        ];
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geo.setIndex(indices);
-        geo.computeVertexNormals();
-        const m = new THREE.Mesh(geo, mat);
-        S.group.add(m);
-        return m;
-      }
-      // CCW order from above is (pivot, later-boundary, earlier-boundary) in this x-mirrored
-      // frame. Heights step up by one RISE per winder: 4, 5, 6, 7.
-      makeWinder([PIVOT, OUT_22, OUT_0],  4 * RISE, treadMat);
-      makeWinder([PIVOT, OUT_45, OUT_22], 5 * RISE, treadMat);
-      makeWinder([PIVOT, OUT_67, OUT_45], 6 * RISE, treadMat);
-      makeWinder([PIVOT, OUT_90, OUT_67], 7 * RISE, treadMat);
-
-      // Riser between step 3 (lower flight top) and winder 4 — south boundary, full shaft width.
+      // ───────────────── L-SHAPE STAIR (wholesale port from stairs-test.html) ─────────────────
+      // Ported verbatim from the canonical `stairs-test.html` build. The stair geometry,
+      // materials (PBR-baked wood, painted handrail, brushed-chrome brackets, white parapet
+      // with stained-wood cap), rail, skirting, parapet, top horizontal rail, light switches,
+      // and corner reveal trim are all copied directly. The only adaptation is an X-mirror
+      // wrapper to map the stairs-test local frame into ozu-test world coordinates:
+      //   ozu world x  =  W  - stairs_x      (X-mirror: stairs-test +x is real-world east,
+      //   ozu world y  =  stairs_y           matches ozu-test's real-world east at code x=0)
+      //   ozu world z  =  LZ0 + stairs_z     (LZ0 = 2.90, south edge of 1F stair shaft)
+      // Texture assets live in stairs-test/textures/{treads,handrail,nosing,brackets,parapet}.
       {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(LW, RISE, 0.02), riserMat);
-        m.position.set(LXc, 4 * RISE - RISE / 2, WZ0 + 0.010);
-        S.group.add(m);
-      }
-      // Radial risers between adjacent winders (W4–W5, W5–W6, W6–W7).
-      function makeRadialRiser(outer, yBottom) {
-        const dx = outer[0] - PIVOT[0];
-        const dz = outer[1] - PIVOT[1];
-        const len = Math.hypot(dx, dz);
-        const yaw = Math.atan2(dz, dx);
-        const m = new THREE.Mesh(new THREE.BoxGeometry(len, RISE, 0.02), riserMat);
-        m.position.set((PIVOT[0] + outer[0]) / 2, yBottom + RISE / 2, (PIVOT[1] + outer[1]) / 2);
-        m.rotation.y = -yaw;
-        S.group.add(m);
-      }
-      makeRadialRiser(OUT_22, 4 * RISE);   // W4 → W5
-      makeRadialRiser(OUT_45, 5 * RISE);   // W5 → W6
-      makeRadialRiser(OUT_67, 6 * RISE);   // W6 → W7
+        const STAIR_PORT_W = 0.90;
+        const TOTAL_RISERS = 13;
+        const RISE = F1H / TOTAL_RISERS;            // 0.1923 m
+        const TREAD = 0.225;
+        const TREAD_T = 0.040;
+        const NOSING = 0.025;
+        const LF_Z_END = 3 * TREAD;                 // 0.675 — north edge of step 3 tread
+        const WB_Z0 = LF_Z_END;                     // 0.675 — south edge of winder zone
+        const WB_Z1 = WB_Z0 + 4 * TREAD;            // 1.575 — north edge (0.9 m square)
+        const UF_X0 = STAIR_PORT_W;                 // 0.90 — step 8 west edge
+        const UF_X1 = UF_X0 + 6 * TREAD;            // 2.25 — step 13 east edge / 2F floor
+        const SH_Z0 = WB_Z0;
+        const SH_Z1 = WB_Z1;
+        const PARAPET_H = 1.05;
+        const PARAPET_T = 0.06;
 
-      // Nosing strips on each winder leading edge. Winder 4's south edge is straight, so
-      // reuses addNosingStrips. Winders 5/6/7 have radial leading edges.
-      addNosingStrips(4 * RISE, 'X', LXc, LW, WZ0, -1);
-      function addRadialNosing(outer, yTop) {
-        const dx = outer[0] - PIVOT[0];
-        const dz = outer[1] - PIVOT[1];
-        const len = Math.hypot(dx, dz);
-        const yaw = Math.atan2(dz, dx);
-        const perpX = -dz / len;             // CCW perpendicular (toward next winder)
-        const perpZ =  dx / len;
-        const stripT = 0.003, stripD = 0.005;
-        const offsets = [0.012, 0.025];
-        for (const off of offsets) {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(len, stripT, stripD), nosingMat);
-          const cx = (PIVOT[0] + outer[0]) / 2 + perpX * off;
-          const cz = (PIVOT[1] + outer[1]) / 2 + perpZ * off;
-          m.position.set(cx, yTop + stripT / 2, cz);
+        // X-mirror group wrapper. scale.x = -1 reflects stairs-test's +x into ozu-test's -x;
+        // three.js auto-flips face winding when the matrix has negative determinant, so
+        // FrontSide materials still render the visually correct face. Position translates the
+        // mirrored origin to ozu-test world (W, 0, LZ0=2.90).
+        const stairGroup = new THREE.Group();
+        stairGroup.scale.set(-1, 1, 1);
+        stairGroup.position.set(W, 0, 2.90);
+        S.group.add(stairGroup);
+
+        // ─────────── PBR texture loaders + materials (verbatim from stairs-test) ───────────
+        const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+        const phLoader = new THREE.TextureLoader();
+        function loadPbrSet(dir, slug) {
+          const base = `stairs-test/textures/${dir}/${slug}`;
+          const albedo = phLoader.load(`${base}/${slug}_albedo.png`);
+          albedo.colorSpace = THREE.SRGBColorSpace;
+          albedo.wrapS = albedo.wrapT = THREE.RepeatWrapping;
+          albedo.anisotropy = MAX_ANISO;
+          const normal = phLoader.load(`${base}/${slug}_normal.png`);
+          normal.colorSpace = THREE.NoColorSpace;
+          normal.wrapS = normal.wrapT = THREE.RepeatWrapping;
+          normal.anisotropy = MAX_ANISO;
+          const rough = phLoader.load(`${base}/${slug}_roughness.png`);
+          rough.colorSpace = THREE.NoColorSpace;
+          rough.wrapS = rough.wrapT = THREE.RepeatWrapping;
+          rough.anisotropy = MAX_ANISO;
+          return { albedo, normal, rough };
+        }
+        function cloneTex(t, rx, ry) {
+          const c = t.clone();
+          c.needsUpdate = true;
+          c.repeat.set(rx, ry);
+          c.anisotropy = MAX_ANISO;
+          return c;
+        }
+        function pbrMat(set, repeat, opts = {}) {
+          return new THREE.MeshStandardMaterial({
+            map:          cloneTex(set.albedo, repeat[0], repeat[1]),
+            normalMap:    cloneTex(set.normal, repeat[0], repeat[1]),
+            normalScale:  new THREE.Vector2(opts.normalScale ?? 0.5, opts.normalScale ?? 0.5),
+            roughnessMap: cloneTex(set.rough,  repeat[0], repeat[1]),
+            color:        opts.color ?? 0xffffff,
+            roughness:    1.0,
+            metalness:    opts.metalness ?? 0.0,
+            envMapIntensity: opts.envMapIntensity ?? 0.40,
+          });
+        }
+        const pbrMaple   = loadPbrSet('treads',   'light_maple');
+        const pbrCream   = loadPbrSet('handrail', 'painted_cream');
+        const pbrWalnut  = loadPbrSet('nosing',   'dark_walnut');
+        const pbrChrome  = loadPbrSet('brackets', 'brushed_chrome');
+        const pbrPaint   = loadPbrSet('parapet',  'white_paint');
+        const pbrCapWood = loadPbrSet('parapet',  'white_cap_wood');
+
+        const matWoodTread = pbrMat(pbrMaple, [2.0, 1.0]);
+        const matWoodRiser = pbrMat(pbrMaple, [2.0, 0.5], { color: 0xf0e0c0 });
+        const matNosing    = pbrMat(pbrWalnut, [0.8, 0.3]);
+        const matRailPaint = pbrMat(pbrCream, [3.0, 1.0]);
+        const matRailFerrule = pbrMat(pbrChrome, [1.5, 1.0], { metalness: 1.0, normalScale: 0.2, envMapIntensity: 0.55 });
+        const matBracket     = pbrMat(pbrChrome, [1.0, 1.0], { metalness: 1.0, normalScale: 0.2, envMapIntensity: 0.55 });
+        const matWhite     = pbrMat(pbrPaint,   [3.0, 2.0]);
+        const matCapWood   = pbrMat(pbrCapWood, [4.0, 1.0]);
+        const matSkirt     = new THREE.MeshStandardMaterial({ color: 0xfafaf0, roughness: 0.70 });
+        const matSwitch    = new THREE.MeshStandardMaterial({ color: 0xf2f0eb, roughness: 0.50, metalness: 0.0 });
+        const matBaseboard = new THREE.MeshStandardMaterial({ color: 0xfafaf6, roughness: 0.80, metalness: 0.0 });
+
+        // ─────────── helpers (verbatim, but add to stairGroup not scene) ───────────
+        function box(w, h, d, mat) {
+          return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        }
+        function addToGroup(mesh) {
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          stairGroup.add(mesh);
+          return mesh;
+        }
+
+        // ─────────── LOWER FLIGHT (steps 1..3, ascending +Z) ───────────
+        function nosingStrips(treadX0, treadX1, treadZ_front, yTop) {
+          const stripW = treadX1 - treadX0;
+          const stripD = 0.005;
+          const stripT = 0.003;
+          const offsets = [0.012, 0.025];
+          for (const off of offsets) {
+            const m = box(stripW, stripT, stripD, matNosing);
+            m.position.set((treadX0 + treadX1) / 2, yTop + stripT / 2, treadZ_front + off);
+            addToGroup(m);
+          }
+        }
+        for (let i = 1; i <= 3; i++) {
+          const z0 = (i - 1) * TREAD;
+          const yTop = i * RISE;
+          const tread = box(STAIR_PORT_W, TREAD_T, TREAD + NOSING, matWoodTread);
+          tread.position.set(STAIR_PORT_W / 2, yTop - TREAD_T / 2, z0 + (TREAD + NOSING) / 2 - NOSING);
+          addToGroup(tread);
+          const riser = box(STAIR_PORT_W, RISE, 0.020, matWoodRiser);
+          riser.position.set(STAIR_PORT_W / 2, yTop - RISE / 2, z0 + 0.010);
+          addToGroup(riser);
+          nosingStrips(0, STAIR_PORT_W, z0 - NOSING, yTop);
+        }
+
+        // ─────────── WINDERS (steps 4..7, 90° L-bend CW around SE pivot) ───────────
+        const TAN22 = Math.tan(Math.PI / 8);
+        const P_PIVOT = [STAIR_PORT_W, WB_Z0];
+        const P_SW    = [0, WB_Z0];
+        const P_W_157 = [0, WB_Z0 + STAIR_PORT_W * TAN22];
+        const P_NW    = [0, WB_Z1];
+        const P_N_112 = [STAIR_PORT_W - (WB_Z1 - WB_Z0) * TAN22, WB_Z1];
+        const P_NE    = [STAIR_PORT_W, WB_Z1];
+        function makeWinder(verts2D, yTop, mat) {
+          const yBot = yTop - TREAD_T;
+          const positions = new Float32Array([
+            verts2D[0][0], yTop, verts2D[0][1],
+            verts2D[1][0], yTop, verts2D[1][1],
+            verts2D[2][0], yTop, verts2D[2][1],
+            verts2D[0][0], yBot, verts2D[0][1],
+            verts2D[1][0], yBot, verts2D[1][1],
+            verts2D[2][0], yBot, verts2D[2][1],
+          ]);
+          const indices = [
+            0, 1, 2,
+            3, 5, 4,
+            0, 4, 1,  0, 3, 4,
+            1, 4, 5,  1, 5, 2,
+            2, 3, 0,  2, 5, 3,
+          ];
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          geo.setIndex(indices);
+          geo.computeVertexNormals();
+          const m = new THREE.Mesh(geo, mat);
+          addToGroup(m);
+          return m;
+        }
+        makeWinder([P_PIVOT, P_SW,    P_W_157], 4 * RISE, matWoodTread);
+        makeWinder([P_PIVOT, P_W_157, P_NW   ], 5 * RISE, matWoodTread);
+        makeWinder([P_PIVOT, P_NW,    P_N_112], 6 * RISE, matWoodTread);
+        makeWinder([P_PIVOT, P_N_112, P_NE   ], 7 * RISE, matWoodTread);
+
+        // Riser between step 3 and winder 4 (south wall, full width).
+        {
+          const m = box(STAIR_PORT_W, RISE, 0.020, matWoodRiser);
+          m.position.set(STAIR_PORT_W / 2, 3.5 * RISE, WB_Z0 + 0.010);
+          addToGroup(m);
+        }
+        // Radial risers between adjacent winders.
+        function makeRadialRiser(pivot, outer, yBottom, mat) {
+          const dx = outer[0] - pivot[0];
+          const dz = outer[1] - pivot[1];
+          const len = Math.hypot(dx, dz);
+          const yaw = Math.atan2(dz, dx);
+          const m = box(len, RISE, 0.020, mat);
+          m.position.set((pivot[0] + outer[0]) / 2, yBottom + RISE / 2, (pivot[1] + outer[1]) / 2);
           m.rotation.y = -yaw;
-          S.group.add(m);
+          addToGroup(m);
         }
-      }
-      addRadialNosing(OUT_22, 5 * RISE);   // W5 leading edge
-      addRadialNosing(OUT_45, 6 * RISE);   // W6 leading edge (NW–SE diagonal)
-      addRadialNosing(OUT_67, 7 * RISE);   // W7 leading edge
+        makeRadialRiser(P_PIVOT, P_W_157, 4 * RISE, matWoodRiser);
+        makeRadialRiser(P_PIVOT, P_NW,    5 * RISE, matWoodRiser);
+        makeRadialRiser(P_PIVOT, P_N_112, 6 * RISE, matWoodRiser);
 
-      // Winder soffit removed — was a floating 0.9 × 0.02 × 0.9 m slab at y≈0.72 visible
-      // from the LDK below through the 1F ceiling hole. stairs-test (canonical) has no such
-      // slab.
+        // Nosing strips on each winder leading edge.
+        nosingStrips(0, STAIR_PORT_W, WB_Z0, 4 * RISE);
+        function radialNosingStrips(pivot, outer, yTop) {
+          const dx = outer[0] - pivot[0];
+          const dz = outer[1] - pivot[1];
+          const len = Math.hypot(dx, dz);
+          const yaw = Math.atan2(dz, dx);
+          const perpX = -dz / len;
+          const perpZ =  dx / len;
+          const stripD = 0.005, stripT = 0.003;
+          const offsets = [0.012, 0.025];
+          for (const off of offsets) {
+            const m = box(len, stripT, stripD, matNosing);
+            const cx = (pivot[0] + outer[0]) / 2 + perpX * off;
+            const cz = (pivot[1] + outer[1]) / 2 + perpZ * off;
+            m.position.set(cx, yTop + stripT / 2, cz);
+            m.rotation.y = -yaw;
+            addToGroup(m);
+          }
+        }
+        radialNosingStrips(P_PIVOT, P_W_157, 5 * RISE);
+        radialNosingStrips(P_PIVOT, P_NW,    6 * RISE);
+        radialNosingStrips(P_PIVOT, P_N_112, 7 * RISE);
 
-      // ── UPPER FLIGHT — 6 risers, climbing -x along the north wall (real-world east) ──
-      // Tread depth 0.225 m per blueprint (uniform with lower flight). Upper flight runs
-      // from the L-bend east edge (code x=LX0) into the corridor, lands at UX0 = LX0 -
-      // 6 × 0.225 = 4.05. Starts at y=7*RISE (after winder 7), tops out at y=13*RISE = F1H.
-      const UX1 = LX0;                       // 5.40 — L-bend east edge (code = step 8 west edge)
-      const TREAD_UP = TREAD;                // 0.225 — uniform
-      const UPPER_RUN = 6 * TREAD_UP;        // 1.35
-      const UX0 = UX1 - UPPER_RUN;           // 4.05 — step 13 east edge (2F landing)
-      const UZ0 = WZ0, UZ1 = WZ1, UZc = (UZ0 + UZ1) / 2, UD = UZ1 - UZ0;
-      for (let i = 0; i < 6; i++) {
-        const yTop = 7 * RISE + (i + 1) * RISE;
-        const x1 = UX1 - i * TREAD_UP;
-        const x0 = x1 - TREAD_UP;
-        const tDepth = TREAD_UP + NOSING;
-        const tread = new THREE.Mesh(new THREE.BoxGeometry(tDepth, TREAD_T, UD), treadMat);
-        tread.position.set((x0 + x1 + NOSING) / 2, yTop - TREAD_T / 2, UZc);
-        S.group.add(tread);
-        const riser = new THREE.Mesh(new THREE.BoxGeometry(0.02, RISE, UD), riserMat);
-        riser.position.set(x1, yTop - RISE / 2, UZc);
-        S.group.add(riser);
-        addNosingStrips(yTop, 'Z', UZc, UD, x1 + NOSING, +1);
-      }
-      // Upper-flight wedge + stringer removed — same reason as the lower flight: stairs-test
-      // doesn't have them and they were the source of the big red triangle visible from
-      // every angle in qa-23..28.
+        // ─────────── UPPER FLIGHT (steps 8..13, ascending +X) ───────────
+        for (let i = 8; i <= 13; i++) {
+          const stepIdx = i - 8;
+          const xLeft  = UF_X0 + stepIdx * TREAD;
+          const yTop = i * RISE;
+          if (i < 13) {
+            const tread = box(TREAD + NOSING, TREAD_T, SH_Z1 - SH_Z0, matWoodTread);
+            tread.position.set(xLeft + (TREAD + NOSING) / 2 - NOSING, yTop - TREAD_T / 2, (SH_Z0 + SH_Z1) / 2);
+            addToGroup(tread);
+          }
+          const riser = box(0.020, RISE, SH_Z1 - SH_Z0, matWoodRiser);
+          riser.position.set(xLeft + 0.010, yTop - RISE / 2, (SH_Z0 + SH_Z1) / 2);
+          addToGroup(riser);
+          if (i < 13) {
+            const stripD = 0.005, stripT = 0.003;
+            const offsets = [0.012, 0.025];
+            for (const off of offsets) {
+              const m = box(stripD, stripT, SH_Z1 - SH_Z0, matNosing);
+              m.position.set(xLeft - NOSING + off, yTop + stripT / 2, (SH_Z0 + SH_Z1) / 2);
+              addToGroup(m);
+            }
+          }
+        }
 
-      // ── HANDRAILS — white-painted, wall-mounted with brushed-chrome brackets ──
-      // Lower flight rail: along the west wall (x=W), inset 0.05 m. Climbs from y=0.85 to
-      // y=3*RISE+0.85 over z=[LZ0, LZ1]. Brushed-chrome brackets at 5%/50%/95% of length.
-      {
-        const HR_R = 0.025, HR_INSET = 0.05;
-        const sZ = LZ0, eZ = LZ1;
-        const sY = 0.85, eY = 3 * RISE + 0.85;
-        const dz = eZ - sZ, dy = eY - sY;
-        const len = Math.sqrt(dz * dz + dy * dy);
-        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
-        rail.rotation.x = Math.atan2(dz, dy);
-        rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
-        S.group.add(rail);
-        for (const t of [0.05, 0.5, 0.95]) {
-          const z = sZ + t * dz, y = sY + t * dy;
-          const BR_R = 0.012, ESC_R = 0.022, ESC_T = 0.004;
-          const bracket = new THREE.Mesh(new THREE.CylinderGeometry(BR_R, BR_R, 0.04, 12), handrailBracketMat);
-          bracket.rotation.z = Math.PI / 2;
-          bracket.position.set(LX1 - HR_INSET / 2, y - HR_R - BR_R, z);
-          const esc = new THREE.Mesh(new THREE.CylinderGeometry(ESC_R, ESC_R, ESC_T, 16), handrailBracketMat);
-          esc.rotation.z = Math.PI / 2;
-          esc.position.set(LX1 - ESC_T / 2, y - HR_R - BR_R, z);
-          S.group.add(esc);
-          S.group.add(bracket);
+        // ─────────── HANDRAIL — cream paint + brushed-chrome brackets/ferrules ───────────
+        const RAIL_R = 0.020;
+        const RAIL_INSET = 0.05;
+        const RAIL_HEIGHT_ABOVE_TREAD = 0.85;
+        function makeBracket(wallAxis, wallSign, wallC, posY, posOnWall) {
+          const esc = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.026, 0.026, 0.006, 6),
+            matBracket
+          );
+          if (wallAxis === 'x') {
+            esc.rotation.z = Math.PI / 2;
+            esc.position.set(wallC + wallSign * 0.003, posY, posOnWall);
+          } else {
+            esc.rotation.x = Math.PI / 2;
+            esc.position.set(posOnWall, posY, wallC + wallSign * 0.003);
+          }
+          addToGroup(esc);
+          let p0, p1, p2, p3;
+          const INSET = RAIL_INSET;
+          if (wallAxis === 'x') {
+            const wx = wallC + wallSign * 0.006;
+            const rx = wallC + wallSign * INSET;
+            p0 = new THREE.Vector3(wx,                          posY,         posOnWall);
+            p1 = new THREE.Vector3(wx + wallSign * INSET * 0.35, posY - 0.012, posOnWall);
+            p2 = new THREE.Vector3(wx + wallSign * INSET * 0.65, posY + 0.012, posOnWall);
+            p3 = new THREE.Vector3(rx,                          posY,         posOnWall);
+          } else {
+            const wz = wallC + wallSign * 0.006;
+            const rz = wallC + wallSign * INSET;
+            p0 = new THREE.Vector3(posOnWall, posY,         wz);
+            p1 = new THREE.Vector3(posOnWall, posY - 0.012, wz + wallSign * INSET * 0.35);
+            p2 = new THREE.Vector3(posOnWall, posY + 0.012, wz + wallSign * INSET * 0.65);
+            p3 = new THREE.Vector3(posOnWall, posY,         rz);
+          }
+          const curve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
+          const tube = new THREE.Mesh(
+            new THREE.TubeGeometry(curve, 10, 0.006, 8, false),
+            matBracket
+          );
+          addToGroup(tube);
+          const collar = new THREE.Mesh(
+            new THREE.CylinderGeometry(RAIL_R + 0.004, RAIL_R + 0.004, 0.020, 16),
+            matBracket
+          );
+          if (wallAxis === 'x') {
+            collar.rotation.z = Math.PI / 2;
+            collar.position.set(wallC + wallSign * RAIL_INSET, posY, posOnWall);
+          } else {
+            collar.rotation.x = Math.PI / 2;
+            collar.position.set(posOnWall, posY, wallC + wallSign * RAIL_INSET);
+          }
+          addToGroup(collar);
         }
-        for (const [stubY, stubZ] of [[sY, sZ], [eY, eZ]]) {
-          const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
-          stub.rotation.z = Math.PI / 2;
-          stub.position.set(LX1 - HR_INSET / 2, stubY, stubZ);
-          S.group.add(stub);
+        function makeFerrule(p1, p2, atFraction) {
+          const t = atFraction;
+          const px = p1.x + (p2.x - p1.x) * t;
+          const py = p1.y + (p2.y - p1.y) * t;
+          const pz = p1.z + (p2.z - p1.z) * t;
+          const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+          const ferrule = new THREE.Mesh(
+            new THREE.CylinderGeometry(RAIL_R + 0.003, RAIL_R + 0.003, 0.030, 24),
+            matRailFerrule
+          );
+          const up = new THREE.Vector3(0, 1, 0);
+          const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+          ferrule.quaternion.copy(quat);
+          ferrule.position.set(px, py, pz);
+          addToGroup(ferrule);
         }
-      }
-      // Winder rail — short section along the west exterior wall through the winder zone,
-      // climbing from 3*RISE+0.85 to 7*RISE+0.85 over z=[LZ1, WZ1].
-      {
-        const HR_R = 0.025, HR_INSET = 0.05;
-        const sZ = LZ1, eZ = WZ1;
-        const sY = 3 * RISE + 0.85, eY = 7 * RISE + 0.85;
-        const dz = eZ - sZ, dy = eY - sY;
-        const len = Math.sqrt(dz * dz + dy * dy);
-        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
-        rail.rotation.x = Math.atan2(dz, dy);
-        rail.position.set(LX1 - HR_INSET, (sY + eY) / 2, (sZ + eZ) / 2);
-        S.group.add(rail);
-        // Brushed-chrome cuff at the L-bend (clean mitre joint per stairs-6/7/12/13).
-        const cuff = new THREE.Mesh(
-          new THREE.TorusGeometry(0.030, 0.005, 8, 20),
-          handrailBracketMat
-        );
-        cuff.rotation.x = Math.PI / 2;
-        cuff.position.set(LX1 - HR_INSET, eY, eZ);
-        S.group.add(cuff);
-      }
-      // Upper flight rail: along the south parapet inside face (z=UZ0=3.575), climbing
-      // from 7*RISE+0.85 to 13*RISE+0.85 over x=[UX1, UX0]. Per stairs-1/2/3/6 the rail
-      // mounts on the parapet's INSIDE face (the face that looks into the shaft, not
-      // toward the LDK drop), projecting +Z into the shaft. Mirror image of the lower
-      // flight rail, which mounts on the real-world-west wall projecting toward the shaft.
-      {
-        const HR_R = 0.025, HR_INSET = 0.05;
-        const sX = UX1, eX = UX0;
-        const sY = 7 * RISE + 0.85, eY = 13 * RISE + 0.85;
-        const dx = eX - sX, dy = eY - sY;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const railZ = UZ0 + HR_INSET;
-        const rail = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, len, 16), handrailMat);
-        rail.rotation.z = Math.atan2(-dx, dy);
-        rail.position.set((sX + eX) / 2, (sY + eY) / 2, railZ);
-        S.group.add(rail);
-        for (const t of [0.05, 0.5, 0.95]) {
-          const x = sX + t * dx, y = sY + t * dy;
-          const BR_R = 0.012, ESC_R = 0.022, ESC_T = 0.004;
-          const bracket = new THREE.Mesh(new THREE.CylinderGeometry(BR_R, BR_R, 0.04, 12), handrailBracketMat);
-          bracket.rotation.x = Math.PI / 2;
-          bracket.position.set(x, y - HR_R - BR_R, railZ - HR_INSET / 2);
-          const esc = new THREE.Mesh(new THREE.CylinderGeometry(ESC_R, ESC_R, ESC_T, 16), handrailBracketMat);
-          esc.rotation.x = Math.PI / 2;
-          esc.position.set(x, y - HR_R - BR_R, UZ0 + ESC_T / 2);
-          S.group.add(esc);
-          S.group.add(bracket);
+        function makeRailSegment(p1, p2, mat) {
+          const len = p1.distanceTo(p2);
+          const cyl = new THREE.Mesh(
+            new THREE.CylinderGeometry(RAIL_R, RAIL_R, len, 18),
+            mat
+          );
+          const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+          const up = new THREE.Vector3(0, 1, 0);
+          const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+          cyl.quaternion.copy(quat);
+          cyl.position.copy(p1).add(p2).multiplyScalar(0.5);
+          addToGroup(cyl);
+          return cyl;
         }
-        for (const [stubX, stubY] of [[sX, sY], [eX, eY]]) {
-          const stub = new THREE.Mesh(new THREE.CylinderGeometry(HR_R, HR_R, HR_INSET, 16), handrailMat);
-          stub.rotation.x = Math.PI / 2;
-          stub.position.set(stubX, stubY, railZ - HR_INSET / 2);
-          S.group.add(stub);
-        }
-      }
 
-      // ───────────────── WHITE SKIRTING BASEBOARD ─────────────────
-      // ~80 mm white-painted skirting tracing every edge where the stair meets a wall.
-      // Critical for the photographic silhouette — the white outline reads as the boundary
-      // between stair and wall in the photos. Mirrored from stairs-test.html via:
-      //   x_code = LX1 - x_local   (real-world WEST wall at code LX1, real-world EAST wall at code LX0/UX0)
-      //   z_code = LZ0 + z_local
-      //   x-axis projection signs flip; z-axis projection signs stay
-      {
+        // Lower-flight rail (west wall x=0, projects +x).
+        {
+          const wallC = 0, wallSign = +1;
+          const railX = wallC + wallSign * RAIL_INSET;
+          const yBottom = 1 * RISE + RAIL_HEIGHT_ABOVE_TREAD;
+          const yTop    = 5 * RISE + RAIL_HEIGHT_ABOVE_TREAD;
+          const zBottom = 0.5 * TREAD;
+          const zTop    = 4.5 * TREAD;
+          const p1 = new THREE.Vector3(railX, yBottom, zBottom);
+          const p2 = new THREE.Vector3(railX, yTop, zTop);
+          makeRailSegment(p1, p2, matRailPaint);
+          const nBrackets = 3;
+          for (let i = 0; i < nBrackets; i++) {
+            const t = (i + 0.5) / nBrackets;
+            const py = p1.y + (p2.y - p1.y) * t;
+            const pz = p1.z + (p2.z - p1.z) * t;
+            makeBracket('x', wallSign, wallC, py, pz);
+          }
+        }
+        // Upper-flight rail (south parapet inside face z=SH_Z0, projects +z).
+        {
+          const wallC = SH_Z0, wallSign = +1;
+          const railZ = wallC + wallSign * RAIL_INSET;
+          const yBottom = 8 * RISE + RAIL_HEIGHT_ABOVE_TREAD;
+          const yTop    = 13 * RISE + RAIL_HEIGHT_ABOVE_TREAD;
+          const xBottom = UF_X0 + 0.5 * TREAD;
+          const xTop    = UF_X0 + 5.5 * TREAD;
+          const p1 = new THREE.Vector3(xBottom, yBottom, railZ);
+          const p2 = new THREE.Vector3(xTop, yTop, railZ);
+          makeRailSegment(p1, p2, matRailPaint);
+          makeFerrule(p1, p2, 0.5);
+          const nBrackets = 3;
+          for (let i = 0; i < nBrackets; i++) {
+            const t = (i + 0.5) / nBrackets;
+            const px = p1.x + (p2.x - p1.x) * t;
+            const py = p1.y + (p2.y - p1.y) * t;
+            makeBracket('z', wallSign, wallC, py, px);
+          }
+        }
+        // L-bend ferrule at the geometric corner of the two flights.
+        {
+          const ferrule = new THREE.Mesh(
+            new THREE.CylinderGeometry(RAIL_R + 0.003, RAIL_R + 0.003, 0.060, 24),
+            matRailFerrule
+          );
+          ferrule.position.set(RAIL_INSET, 7 * RISE + RAIL_HEIGHT_ABOVE_TREAD, SH_Z0 + RAIL_INSET);
+          addToGroup(ferrule);
+        }
+
+        // ─────────── SKIRTING BASEBOARD (~80 mm white, traces every stair-wall edge) ───────────
         const SKIRT_H = 0.080;
         const SKIRT_T = 0.015;
-        const matSkirt = new THREE.MeshStandardMaterial({ color: 0xfafaf0, roughness: 0.70 });
-        // Sloped skirt on a wall at x=const (slope in YZ plane). sign=+1 projects +X,
-        // sign=-1 projects -X. (y0,z0)=bottom of slope, (y1,z1)=top.
         function slopedSkirtX(x, sign, y0, z0, y1, z1) {
           const dz = z1 - z0, dy = y1 - y0;
           const length = Math.hypot(dz, dy);
@@ -2554,9 +2632,8 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
             (z0 + z1) / 2 - Math.sin(angle) * SKIRT_H / 2
           );
           m.rotation.x = -angle;
-          S.group.add(m);
+          addToGroup(m);
         }
-        // Sloped skirt on a wall at z=const (slope in XY plane).
         function slopedSkirtZ(z, sign, y0, x0, y1, x1) {
           const dx = x1 - x0, dy = y1 - y0;
           const length = Math.hypot(dx, dy);
@@ -2568,72 +2645,96 @@ import { RoundedBoxGeometry } from './vendor/three/examples/jsm/geometries/Round
             z + sign * SKIRT_T / 2
           );
           m.rotation.z = angle;
-          S.group.add(m);
+          addToGroup(m);
         }
-        // Horizontal skirt at x=const wall, running along z, at height y.
         function flatSkirtX(x, sign, y, z0, z1) {
           const m = new THREE.Mesh(new THREE.BoxGeometry(SKIRT_T, SKIRT_H, z1 - z0), matSkirt);
           m.position.set(x + sign * SKIRT_T / 2, y + SKIRT_H / 2, (z0 + z1) / 2);
-          S.group.add(m);
+          addToGroup(m);
         }
-        // Horizontal skirt at z=const wall, running along x, at height y.
         function flatSkirtZ(z, sign, y, x0, x1) {
           const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, SKIRT_H, SKIRT_T), matSkirt);
           m.position.set((x0 + x1) / 2, y + SKIRT_H / 2, z + sign * SKIRT_T / 2);
-          S.group.add(m);
+          addToGroup(m);
+        }
+        // West wall (x=0) — skirt projects +X.
+        slopedSkirtX(0, +1, 0, -NOSING, 3 * RISE, 3 * TREAD);
+        flatSkirtX  (0, +1, 4 * RISE, WB_Z0, WB_Z0 + STAIR_PORT_W * TAN22);
+        flatSkirtX  (0, +1, 5 * RISE, WB_Z0 + STAIR_PORT_W * TAN22, WB_Z1);
+        // East wall of lower flight (x=STAIR_PORT_W) — skirt projects -X.
+        slopedSkirtX(STAIR_PORT_W, -1, 0, -NOSING, 3 * RISE, 3 * TREAD);
+        // North wall (z=WB_Z1) — skirt projects -Z.
+        flatSkirtZ  (WB_Z1, -1, 6 * RISE, 0, STAIR_PORT_W - STAIR_PORT_W * TAN22);
+        flatSkirtZ  (WB_Z1, -1, 7 * RISE, STAIR_PORT_W - STAIR_PORT_W * TAN22, STAIR_PORT_W);
+        slopedSkirtZ(WB_Z1, -1, 7 * RISE, UF_X0, 13 * RISE, UF_X1);
+        // South parapet base (z=SH_Z0) — skirt projects +Z.
+        slopedSkirtZ(SH_Z0, +1, 7 * RISE, UF_X0, 13 * RISE, UF_X1);
+        // East wall of upper flight (x=UF_X1) — skirt projects -X.
+        flatSkirtX  (UF_X1, -1, 13 * RISE, SH_Z0, SH_Z1);
+
+        // ─────────── PARAPET (south boundary of 2F landing, white body + wood cap) ───────────
+        {
+          const pBody = box(UF_X1 - UF_X0, PARAPET_H, PARAPET_T, matWhite);
+          pBody.position.set((UF_X0 + UF_X1) / 2, F1H + PARAPET_H / 2, SH_Z0 + PARAPET_T / 2);
+          addToGroup(pBody);
+          const pCap = box(UF_X1 - UF_X0, 0.04, 0.10, matCapWood);
+          pCap.position.set((UF_X0 + UF_X1) / 2, F1H + PARAPET_H + 0.02, SH_Z0 + 0.05);
+          addToGroup(pCap);
+          const pBase = box(UF_X1 - UF_X0, SKIRT_H, SKIRT_T, matSkirt);
+          pBase.position.set((UF_X0 + UF_X1) / 2, F1H + SKIRT_H / 2, SH_Z0 - SKIRT_T / 2);
+          addToGroup(pBase);
         }
 
-        // West wall (real-world west = code LX1). Skirt projects -X (into shaft).
-        slopedSkirtX(LX1, -1, 0,        LZ0 - NOSING, 3 * RISE, LZ1);                   // lower flight slope
-        flatSkirtX  (LX1, -1, 4 * RISE, WZ0,                       WZ0 + LW * TAN22);   // winder 4 west horizontal
-        flatSkirtX  (LX1, -1, 5 * RISE, WZ0 + LW * TAN22,          WZ1);                // winder 5 west horizontal
+        // ─────────── SECOND HORIZONTAL HANDRAIL (top of parapet) ───────────
+        {
+          const railY = F1H + PARAPET_H + 0.04;
+          const railZ = SH_Z0 + RAIL_INSET;
+          const p1 = new THREE.Vector3(UF_X0, railY, railZ);
+          const p2 = new THREE.Vector3(UF_X1, railY, railZ);
+          makeRailSegment(p1, p2, matRailPaint);
+          makeFerrule(p1, p2, 0.02);
+          makeFerrule(p1, p2, 0.98);
+          for (const t of [0.25, 0.75]) {
+            const px = UF_X0 + (UF_X1 - UF_X0) * t;
+            makeBracket('z', +1, SH_Z0, railY, px);
+          }
+        }
 
-        // East wall of lower flight (real-world east = code LX0). Skirt projects +X (into shaft).
-        slopedSkirtX(LX0, +1, 0,        LZ0 - NOSING, 3 * RISE, LZ1);                   // lower flight east slope
+        // ─────────── LIGHT SWITCHES (3 rockers on east landing wall at x=UF_X1) ───────────
+        {
+          const swX = UF_X1 + 0.001;
+          const swY0 = F1H + 1.20;
+          const swZc = (SH_Z0 + SH_Z1) / 2 + 0.05;
+          const plateW = 0.086, plateH = 0.086, plateT = 0.007;
+          const rockerW = 0.036, rockerH = 0.060, rockerT = 0.005;
+          const matPlate  = matSwitch;
+          const matRocker = new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.40, metalness: 0.0 });
+          for (let i = 0; i < 3; i++) {
+            const swZ = swZc + (i - 1) * (plateW + 0.006);
+            const plate = box(plateT, plateH, plateW, matPlate);
+            plate.position.set(swX + plateT / 2, swY0 + plateH / 2, swZ);
+            plate.castShadow = false; plate.receiveShadow = true;
+            stairGroup.add(plate);
+            const rocker = box(rockerT, rockerH, rockerW, matRocker);
+            rocker.position.set(swX + plateT + rockerT / 2, swY0 + plateH / 2, swZ);
+            rocker.castShadow = false; rocker.receiveShadow = true;
+            stairGroup.add(rocker);
+          }
+        }
 
-        // North wall (z=WZ1). Skirt projects -Z (into shaft, southward).
-        flatSkirtZ  (WZ1, -1, 6 * RISE, LX0 + LW * TAN22, LX1);                          // winder 6 north
-        flatSkirtZ  (WZ1, -1, 7 * RISE, LX0,              LX0 + LW * TAN22);             // winder 7 north
-        slopedSkirtZ(WZ1, -1, 7 * RISE, LX0,              13 * RISE, UX0);               // upper flight north slope
-
-        // South parapet base (z=UZ0). Skirt projects +Z (into shaft, northward).
-        slopedSkirtZ(UZ0, +1, 7 * RISE, LX0,              13 * RISE, UX0);               // upper flight south slope
-
-        // East wall of upper flight (code UX0, real-world east edge of 2F landing).
-        // Skirt projects +X (back toward the L-bend).
-        flatSkirtX  (UX0, +1, 13 * RISE, UZ0, UZ1);                                      // top landing east edge
-      }
-
-      // ───────────────── 2F top-of-stair parapet (Phase 5, safety guard) ─────────────────
-      // The 2F stair shaft (x=4.05..W, z=3.60..4.50) opens through a hole in the 2F floor
-      // down to the 1F LDK. Its south edge at z=3.60 needs a 1.10 m guard wall; without it
-      // the upper landing has an open drop. The matching parapet is documented in
-      // blueprints/global-coords.md (stairs 2F, south-wall = parapet, half-height).
-      {
-        // Parapet body is taupe-grey — matches the stair shaft walls, NOT cream/white. Photos
-        // 1, 2, 3, 21 show a uniform taupe surface from floor to cap rail. Same hue as
-        // bedroomPaintMat (0xafa299) used for the bedrooms + stair shaft paint overlay.
-        const parapetMat = new THREE.MeshStandardMaterial({ color: 0xafa299, roughness: 0.95 });
-        // Cap is white-painted (stairs-1, 2, 21) — distinct white reveal on top of the taupe body.
-        const capMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.7 });
-        const parapetH = 1.10;
-        const parapetT = 0.06;
-        const parapetX0 = UX0;            // 4.05 (= LX0 - 6 × 0.225, west edge of upper-flight landing)
-        const parapetX1 = W;              // 6.30
-        const parapetZ = UZ0;             // 3.575 (= LZ1 = winder-zone south edge, south boundary of upper-flight zone)
-        const parapet = new THREE.Mesh(
-          new THREE.BoxGeometry(parapetX1 - parapetX0, parapetH, parapetT),
-          parapetMat
-        );
-        parapet.position.set((parapetX0 + parapetX1) / 2, F1H + parapetH / 2, parapetZ + parapetT / 2);
-        S.group.add(parapet);
-        // Wood-stained handrail cap on top of the parapet
-        const cap = new THREE.Mesh(
-          new THREE.BoxGeometry(parapetX1 - parapetX0, 0.04, 0.10),
-          capMat
-        );
-        cap.position.set((parapetX0 + parapetX1) / 2, F1H + parapetH + 0.02, parapetZ + 0.05);
-        S.group.add(cap);
+        // ─────────── WALL-CORNER REVEAL TRIM (20×8 mm white strips at wall-floor join) ───────────
+        {
+          const TRIM_H = 0.020, TRIM_T = 0.008;
+          const matTrim = matBaseboard;
+          const trimPar = box(UF_X1 - UF_X0, TRIM_H, TRIM_T, matTrim);
+          trimPar.position.set((UF_X0 + UF_X1) / 2, F1H + TRIM_H / 2, SH_Z0 + PARAPET_T + TRIM_T / 2);
+          trimPar.castShadow = false; trimPar.receiveShadow = true;
+          stairGroup.add(trimPar);
+          const trimEast = box(TRIM_T, TRIM_H, SH_Z1 - SH_Z0, matTrim);
+          trimEast.position.set(UF_X1 - TRIM_T / 2, F1H + TRIM_H / 2, (SH_Z0 + SH_Z1) / 2);
+          trimEast.castShadow = false; trimEast.receiveShadow = true;
+          stairGroup.add(trimEast);
+        }
       }
 
       // ───────────────── FURNITURE PLACEHOLDERS ─────────────────
